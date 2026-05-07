@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from pytxt.api.routes import health
+from pytxt.api.routes import state as state_route
 from pytxt.state.app_state import AppState
 
 logger = logging.getLogger(__name__)
@@ -59,5 +60,6 @@ def create_app(state: AppState, ioc: Optional[Any] = None, settings: Optional[An
     )
 
     app.include_router(health.router)
+    app.include_router(state_route.router)   # NEW
 
     return app
