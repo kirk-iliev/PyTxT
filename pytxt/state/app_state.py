@@ -51,8 +51,12 @@ class AppState:
         - Equality check suppresses spurious notifications.
         - Per-listener try/except: a failing listener logs and is skipped;
           other listeners on the same field still fire.
+        - Raises AttributeError on unknown or internal field names (catches
+          caller typos at the source of the mutation).
         """
         for k, v in changes.items():
+            if k.startswith("_") or not hasattr(self, k) or callable(getattr(type(self), k, None)):
+                raise AttributeError(f"AppState has no settable field {k!r}")
             old = getattr(self, k)
             if old == v:
                 continue

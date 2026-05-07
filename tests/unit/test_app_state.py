@@ -71,7 +71,7 @@ async def test_failing_listener_does_not_block_others(caplog):
     await state.update(ping_count=1)
     assert received == [1]
     # The bad listener's exception should be logged
-    assert any("listener" in rec.message.lower() for rec in caplog.records)
+    assert "listener" in caplog.text.lower()
 
 
 @pytest.mark.asyncio
@@ -116,3 +116,30 @@ async def test_uptime_s_pushed_is_separate_from_property():
     assert state.uptime_s_pushed == 1.5
     # The property is independent
     assert state.uptime_s > 0
+
+
+@pytest.mark.asyncio
+async def test_update_rejects_unknown_field():
+    """A typo in a field name raises AttributeError at the mutation site."""
+    from pytxt.state.app_state import AppState
+    state = AppState()
+    with pytest.raises(AttributeError, match="ping_coutn"):
+        await state.update(ping_coutn=5)  # typo
+
+
+@pytest.mark.asyncio
+async def test_update_rejects_internal_field():
+    """Internal `_listeners` field cannot be overwritten via update()."""
+    from pytxt.state.app_state import AppState
+    state = AppState()
+    with pytest.raises(AttributeError, match="_listeners"):
+        await state.update(_listeners={})
+
+
+@pytest.mark.asyncio
+async def test_update_rejects_property_name():
+    """The computed `uptime_s` property cannot be set via update()."""
+    from pytxt.state.app_state import AppState
+    state = AppState()
+    with pytest.raises(AttributeError, match="uptime_s"):
+        await state.update(uptime_s=42.0)
