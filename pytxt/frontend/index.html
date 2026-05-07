@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PyTxT</title>
+  <link rel="stylesheet" href="/css/theme.css?v=1">
+</head>
+<body>
+  <header class="app-header">
+    <h1 class="app-title">PyTxT</h1>
+    <div class="connection-status" id="connectionStatus" data-state="connecting">
+      <span class="dot"></span>
+      <span class="label" id="connectionStatusLabel">connecting…</span>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <section class="state-panel" aria-labelledby="state-heading">
+      <h2 id="state-heading" class="visually-hidden">Application state</h2>
+      <div class="state-grid">
+        <div class="state-row"><span class="state-label">Version</span>             <span class="state-value" id="version">—</span></div>
+        <div class="state-row"><span class="state-label">Heartbeat</span>           <span class="state-value" id="heartbeat">—</span></div>
+        <div class="state-row"><span class="state-label">Uptime</span>              <span class="state-value" id="uptime">—</span></div>
+        <div class="state-row"><span class="state-label">Last ping</span>           <span class="state-value" id="lastPingAt">—</span></div>
+        <div class="state-row"><span class="state-label">Ping count</span>          <span class="state-value" id="pingCount">—</span></div>
+      </div>
+
+      <div class="actions">
+        <button type="button" id="pingButton" class="primary">Ping</button>
+      </div>
+    </section>
+
+    <section class="log-panel" aria-labelledby="log-heading">
+      <h2 id="log-heading" class="log-heading">Event log</h2>
+      <ul class="log-list" id="eventLog" aria-live="polite"></ul>
+    </section>
+  </main>
+
+  <script src="/js/connection.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
