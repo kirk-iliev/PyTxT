@@ -36,8 +36,16 @@ def test_env_var_override(monkeypatch):
 
 
 def test_unknown_env_var_rejected(monkeypatch):
-    """extra='forbid' catches typos like PYTXT_PV_PREFEX."""
+    """model_validator catches typos like PYTXT_PV_PREFEX (extra='forbid' does not apply to env vars)."""
     monkeypatch.setenv("PYTXT_PV_PREFEX", "TxT:")  # typo
+    from pytxt.config.settings import Settings
+    with pytest.raises(ValidationError):
+        Settings()
+
+
+def test_pytxt_version_env_var_rejected(monkeypatch):
+    """version is set programmatically (not from env); PYTXT_VERSION must be treated as a typo."""
+    monkeypatch.setenv("PYTXT_VERSION", "1.2.3")
     from pytxt.config.settings import Settings
     with pytest.raises(ValidationError):
         Settings()

@@ -16,7 +16,7 @@ class Settings(BaseSettings):
         env_prefix="PYTXT_",
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="forbid",  # unknown PYTXT_* env vars fail loud (catches typos)
+        extra="forbid",  # rejects unknown kwargs (env-var typos caught by model_validator below)
     )
 
     # --- PV namespace ---
@@ -43,7 +43,9 @@ class Settings(BaseSettings):
     @classmethod
     def _reject_unknown_pytxt_env_vars(cls, data: object) -> object:
         """Raise ValidationError for unknown PYTXT_* env vars (catches typos)."""
-        known = {f"PYTXT_{k.upper()}" for k in cls.model_fields}
+        # version is set programmatically by composition.main() from package metadata,
+        # not from env. Exclude it from the known set so PYTXT_VERSION is rejected.
+        known = {f"PYTXT_{k.upper()}" for k in cls.model_fields if k != "version"}
         unknown = [k for k in os.environ if k.startswith("PYTXT_") and k not in known]
         if unknown:
             raise ValueError(f"Unknown PYTXT_* env vars: {unknown!r}")
