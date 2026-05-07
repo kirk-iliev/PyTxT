@@ -65,4 +65,9 @@ def create_app(state: AppState, ioc: Optional[Any] = None, settings: Optional[An
     app.include_router(cmd.router)
     app.include_router(ws_bridge.router)
 
+    # Static frontend — only mount if index.html exists (populated by Task 15)
+    if (_FRONTEND_DIR / "index.html").exists():
+        from fastapi.staticfiles import StaticFiles
+        app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")
+
     return app
