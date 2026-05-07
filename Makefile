@@ -29,5 +29,5 @@ lint:
 	ruff check pytxt tests
 
 clean:
-	rm -rf build dist *.egg-info .pytest_cache .ruff_cache
+	rm -rf build dist *.egg-info .pytest_cache .ruff_cache .mypy_cache htmlcov
 	find . -type d -name __pycache__ -exec rm -rf {} +
