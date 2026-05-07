@@ -1,0 +1,57 @@
+"""PyTxT runtime settings.
+
+All settings are env-var-driven (prefix `PYTXT_`). Defaults are
+*dev-safe*: out of the box, the app uses the OSPREY:TEST:TXT:* PV
+namespace and ports 59064/59065 so it cannot collide with real ALS
+PVs. Production deployment must explicitly override.
+"""
+import os
+
+from pydantic import field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="PYTXT_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="forbid",  # unknown PYTXT_* env vars fail loud (catches typos)
+    )
+
+    # --- PV namespace ---
+    pv_prefix: str = "OSPREY:TEST:TXT:"
+
+    # --- IOC server (caproto) ---
+    ioc_host: str = "0.0.0.0"
+    ioc_port: int = 59064
+    ioc_repeater_port: int = 59065
+
+    # --- FastAPI / uvicorn ---
+    api_host: str = "127.0.0.1"
+    api_port: int = 8008
+
+    # --- App ---
+    log_level: str = "INFO"
+    heartbeat_interval_s: float = 1.0
+
+    # Version is NOT env-overridable; populated at startup by composition.main()
+    # from importlib.metadata.version("pytxt") with fallback to "0.0.0+dev".
+    version: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_unknown_pytxt_env_vars(cls, data: object) -> object:
+        """Raise ValidationError for unknown PYTXT_* env vars (catches typos)."""
+        known = {f"PYTXT_{k.upper()}" for k in cls.model_fields}
+        unknown = [k for k in os.environ if k.startswith("PYTXT_") and k not in known]
+        if unknown:
+            raise ValueError(f"Unknown PYTXT_* env vars: {unknown!r}")
+        return data
+
+    @field_validator("pv_prefix")
+    @classmethod
+    def _prefix_must_end_with_colon(cls, v: str) -> str:
+        if not v.endswith(":"):
+            raise ValueError(f"pv_prefix must end with ':' (got {v!r})")
+        return v
