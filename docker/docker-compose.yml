@@ -1,0 +1,16 @@
+# Bridge networking — works on macOS/Windows but EPICS broadcast does not
+# traverse the bridge. Use docker-compose.host.yml for prod where external
+# CA clients need to reach the IOC.
+services:
+  pytxt:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: pytxt:latest
+    env_file:
+      - ../.env
+    ports:
+      - "8008:8008"
+    restart: unless-stopped
+    volumes:
+      - ../data:/app/data:ro

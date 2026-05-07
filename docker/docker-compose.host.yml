@@ -1,0 +1,8 @@
+# Production overlay — host networking so EPICS UDP broadcast can reach
+# external CA clients (Phoebus, archiver, Osprey). Combine with the base
+# file:
+#   docker compose -f docker-compose.yml -f docker-compose.host.yml up -d
+services:
+  pytxt:
+    network_mode: host
+    ports: []   # ignored under host networking; suppress base file's ports
