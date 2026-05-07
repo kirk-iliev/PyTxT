@@ -1,7 +1,7 @@
 """GET /api/v1/state — full AppState snapshot.
+GET /api/v1/config — frontend bootstrap config (PV prefix etc.).
 
-A pure projection of HEALTH:* and STATE:* PVs. Useful for one-shot
-agents that don't want to maintain a CA subscription.
+Both are pure projections of canonical sources of truth.
 """
 from fastapi import APIRouter, Request
 
@@ -12,7 +12,6 @@ router = APIRouter(prefix="/api/v1", tags=["state"])
 
 @router.get("/state", response_model=StateSnapshot)
 async def get_state(request: Request) -> StateSnapshot:
-    """Snapshot the full AppState as a single JSON document."""
     state = request.app.state.app_state
     return StateSnapshot(
         version=state.version,
@@ -21,3 +20,12 @@ async def get_state(request: Request) -> StateSnapshot:
         last_ping_at=state.last_ping_at,
         ping_count=state.ping_count,
     )
+
+
+@router.get("/config")
+async def get_config(request: Request) -> dict:
+    """Frontend bootstrap. Returns the deployed PV prefix so the browser
+    knows what names to subscribe to under any namespace (dev/prod)."""
+    settings = request.app.state.settings
+    prefix = settings.pv_prefix if settings else "OSPREY:TEST:TXT:"
+    return {"pv_prefix": prefix}
