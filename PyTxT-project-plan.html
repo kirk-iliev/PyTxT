@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PyTxT — Turn-by-Turn Analysis App</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --fg: #1a1a1a;
+    --muted: #555;
+    --accent: #0b5fff;
+    --accent-soft: #e8efff;
+    --code-bg: #f3f3f3;
+    --border: #ddd;
+    --insight-bg: #fff8e1;
+    --insight-border: #f0c000;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.55;
+    max-width: 920px;
+    margin: 2rem auto;
+    padding: 0 1.5rem 4rem;
+  }
+  h1 {
+    font-size: 2rem;
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 0.4rem;
+    margin-bottom: 0.2rem;
+  }
+  h2 {
+    margin-top: 2.4rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.3rem;
+  }
+  h3 { margin-top: 1.6rem; }
+  p, li { color: var(--fg); }
+  code {
+    background: var(--code-bg);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+    font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg);
+    padding: 1rem 1.2rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    line-height: 1.4;
+  }
+  pre code { background: none; padding: 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0;
+    font-size: 0.95em;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 0.55rem 0.8rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--accent-soft); }
+  tr:nth-child(even) td { background: #f7f7f7; }
+  .insight {
+    background: var(--insight-bg);
+    border-left: 4px solid var(--insight-border);
+    padding: 1rem 1.2rem;
+    margin: 1.4rem 0;
+    border-radius: 4px;
+  }
+  .insight strong { color: #8a6d00; }
+  .subtitle {
+    color: var(--muted);
+    font-size: 1.05rem;
+    margin-top: 0.4rem;
+    margin-bottom: 1.4rem;
+  }
+  .pill {
+    display: inline-block;
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 0.15rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.82em;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+  }
+  ul.tight li { margin-bottom: 0.25rem; }
+  .meta {
+    font-size: 0.85em;
+    color: var(--muted);
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<h1>PyTxT — Turn-by-Turn Analysis App</h1>
+<div class="subtitle">
+  Project plan — port of MATLAB <code>TxT_GUI.mlapp</code> to a web frontend + Python backend + soft IOC.
+  Handoff to Kirk.
+</div>
+
+<h2>Goal</h2>
+<p>
+  Port <code>~/physbase/users/thellert/automated_startup/GUI/TxT_GUI.mlapp</code> (MATLAB SC-toolkit GUI)
+  to a clean web frontend + Python backend + soft IOC, mirroring the PyBeamViewer architecture with one
+  key upgrade: <strong>application state is published as EPICS PVs</strong>, not just exposed via REST.
+  Aspirational demo of an AI-native ALS control-room app.
+</p>
+
+<div class="insight">
+  <strong>Why an IOC, not just REST:</strong> in a future control room, the analysis app's <em>internal
+  state</em> (fit results, reference trajectory, BBA offsets, "tracking on/off") is itself control-system
+  data. Publishing it as PVs means Phoebus screens, archivers, the logbook, and other AI agents can
+  subscribe to the app the same way they subscribe to a magnet IOC — no special web API knowledge
+  required. The web frontend then becomes "just another CA client that happens to render images."
+  PyBeamViewer is REST/WS only, so its state lives in process memory; the TxT app should not repeat that.
+</div>
+
+<h2>Scope <span class="pill">locked</span></h2>
+<ul class="tight">
+  <li><strong>In</strong>: TxT_GUI workflow — first-turn threading visualization, BPM trajectory readout,
+    reference trajectory load/save, basic analysis (Gaussian fits, orbit comparison, CM step plots).</li>
+  <li><strong>Out</strong>: BBA, septum scan, LEDA studies, full automated_startup chain. Future phases.</li>
+  <li><strong>SC dependency</strong>: port MATLAB SC calls (<code>SCexp_ALS_*.m</code>,
+    <code>SCgetBPMreading</code>, etc.) to <strong>pySC</strong> (Python). Reuse
+    <code>pysc-toolkit</code> skill as reference.</li>
+</ul>
+
+<h2>Architecture</h2>
+<pre><code>┌──────────────────┐  CA subscribe   ┌────────────────────────┐
+│  Browser (web)   │ ◀─────────────  │  Soft IOC (caproto)    │
+│  - Vanilla JS    │                 │  TxT:STATE:*           │
+│  - Canvas render │  REST/WS  ◀──▶  │  TxT:RESULT:*          │
+│  - CA via WS     │                 │  TxT:CMD:*             │
+└──────────────────┘                 └────────────┬───────────┘
+                                                  │ caproto client
+                                                  ▼
+                                     ┌────────────────────────┐
+                                     │  ALS control-room PVs  │
+                                     │  (BPMs, correctors,    │
+                                     │   timing, septum)      │
+                                     └────────────────────────┘
+</code></pre>
+
+<ul class="tight">
+  <li><strong>Backend</strong> (Python 3.11+, FastAPI + caproto): single process running both a CA
+    client (reads BPMs/correctors, writes commands) and a soft IOC server (publishes
+    state/results/commands).</li>
+  <li><strong>Frontend</strong> (vanilla JS + Canvas, copied from PyBeamViewer pattern): subscribes to
+    result PVs via WebSocket bridge; sends operator commands by writing to <code>TxT:CMD:*</code> PVs.</li>
+  <li><strong>pySC core</strong>: trajectory propagation, BPM modeling, response matrix, used both for
+    analysis and for "model vs measurement" overlays.</li>
+</ul>
+
+<h2>PV Namespace <span class="pill">initial sketch</span></h2>
+<table>
+  <thead>
+    <tr><th>Group</th><th>Examples</th><th>Purpose</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>TxT:CMD:*</code></td>
+      <td><code>:ACQUIRE</code>, <code>:LOAD_REF</code>, <code>:RESET</code></td>
+      <td>Operator commands (write-only from UI)</td>
+    </tr>
+    <tr>
+      <td><code>TxT:STATE:*</code></td>
+      <td><code>:STATUS</code>, <code>:N_TURNS</code>, <code>:REF_LOADED</code></td>
+      <td>App state</td>
+    </tr>
+    <tr>
+      <td><code>TxT:RESULT:BPM:*</code></td>
+      <td><code>:X_TBT</code>, <code>:Y_TBT</code>, <code>:RMS_X</code>, <code>:RMS_Y</code></td>
+      <td>Latest analysis results</td>
+    </tr>
+    <tr>
+      <td><code>TxT:RESULT:FIT:*</code></td>
+      <td><code>:KICK_ANGLE</code>, <code>:DISPERSION</code>, <code>:CHI2</code></td>
+      <td>Derived quantities</td>
+    </tr>
+    <tr>
+      <td><code>TxT:HEALTH:*</code></td>
+      <td><code>:CA_CONNECTED</code>, <code>:LAST_UPDATE</code></td>
+      <td>Liveness</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Repo Layout <span class="pill">mirrors PyBeamViewer + IOC</span></h2>
+<pre><code>PyTxT/
+├── core/            # business logic (analysis, threading, pySC integration)
+├── ioc/             # soft IOC (caproto) — PV definitions + dispatcher
+├── ca_client/       # CA client wrapper (read BPMs, write CMs)
+├── api/             # FastAPI: REST + WS bridge to PVs
+├── static/          # web frontend (HTML/JS/CSS)
+├── docker/          # Dockerfile, compose
+├── tests/           # unit + integration + Playwright e2e
+├── data/            # reference trajectories (ported from .mat)
+└── pyproject.toml
+</code></pre>
+
+<h2>Tech Stack</h2>
+<ul class="tight">
+  <li>Python 3.11, FastAPI, uvicorn, <strong>caproto</strong> (both client &amp; server), pySC,
+    numpy/scipy, Pillow</li>
+  <li>Vanilla JS + Canvas (no framework — same as PyBeamViewer)</li>
+  <li>pytest + Playwright</li>
+  <li>Docker container, deployable to appsdev2 alongside PyBeamViewer (next free port, e.g. 8008)</li>
+  <li>Test IOC isolation: dev IOC uses <code>OSPREY:TEST:TXT:*</code> and ports 59064/59065 per
+    als-profiles safety rules; production uses real <code>TxT:*</code> namespace.</li>
+</ul>
+
+<h2>Phased Delivery for Kirk</h2>
+<ol>
+  <li><strong>Skeleton + hello-world IOC</strong> — repo scaffold, caproto IOC with one PV, FastAPI
+    serves a static page that subscribes via WS bridge. Proves the architecture round-trip.</li>
+  <li><strong>Read path</strong> — CA client reads N BPM TbT waveforms; backend stores latest, publishes
+    as <code>TxT:RESULT:BPM:*</code>; frontend renders trajectory plot.</li>
+  <li><strong>Reference trajectory</strong> — load/save <code>.mat</code> files (port existing data
+    formats), publish <code>TxT:STATE:REF_LOADED</code>, overlay ref vs live in UI.</li>
+  <li><strong>Threading workflow</strong> — port <code>FirstTurnThreading.m</code> logic to pySC;
+    <code>TxT:CMD:THREAD</code> triggers run; results to PVs.</li>
+  <li><strong>Analysis polish</strong> — kick fits, dispersion, RMS metrics; UI matches MATLAB GUI
+    feature parity.</li>
+  <li><strong>Hardening</strong> — Playwright e2e, integration tests against test IOC, CI build, deploy
+    to appsdev2.</li>
+</ol>
+
+<h2>Open Decisions <span class="pill">for Kirk to make as he goes</span></h2>
+<ul class="tight">
+  <li>WebSocket → CA bridge: roll our own (simple) vs reuse <code>pvws</code> / <code>epics2web</code>
+    (battle-tested). Recommend rolling our own first, keep dep tree small.</li>
+  <li>Whether the soft IOC and FastAPI live in one process (caproto allows this via asyncio) or two
+    services. Recommend single process for simplicity.</li>
+  <li>Auth: skip for v1 (control-room network only, like PyBeamViewer).</li>
+</ul>
+
+<h2>Reference Material</h2>
+<table>
+  <thead>
+    <tr><th>What</th><th>Where</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Source MATLAB GUI</td>
+      <td><code>appsdev2:/home/als/physbase/users/thellert/automated_startup/GUI/TxT_GUI.mlapp</code></td>
+    </tr>
+    <tr>
+      <td>PDF manual</td>
+      <td><code>appsdev2:/home/als/physbase/users/thellert/automated_startup/GUI/examples/Usage_notes.pdf</code></td>
+    </tr>
+    <tr>
+      <td>SC toolkit (MATLAB, algorithm reference)</td>
+      <td><code>appsdev2:/home/als/physbase/users/thellert/SC/</code></td>
+    </tr>
+    <tr>
+      <td>Architecture template</td>
+      <td><code>/Users/thellert/LBL/ML/PyBeamViewer/</code></td>
+    </tr>
+    <tr>
+      <td>pySC docs/API</td>
+      <td><code>/Users/thellert/.claude/skills/pysc-toolkit/</code> (skill <code>pysc-toolkit</code>)</td>
+    </tr>
+    <tr>
+      <td>Test-IOC safety rules</td>
+      <td>als-profiles <code>.claude/skills/als-build-deploy/SKILL.md</code> §
+        "Test IOC Port Isolation"</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="meta">
+  Generated 2026-05-04 · Owner: T. Hellert · Implementer: Kirk · Status: scoping
+</div>
+
+</body>
+</html>

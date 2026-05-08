@@ -33,3 +33,9 @@ node_modules/
 tests/e2e/test-results/
 tests/e2e/playwright-report/
 tests/e2e/.playwright/
+
+# MATLAB legacy reference (kept locally, not in repo).
+# Out of scope per project plan; ~519 MB including LEDA studies.
+# scp from appsdev2 to refresh:
+#   scp -r appsdev2:/home/als/physbase/users/thellert/automated_startup legacy/
+legacy/
