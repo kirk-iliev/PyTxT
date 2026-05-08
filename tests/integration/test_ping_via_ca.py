@@ -11,7 +11,7 @@ async def test_ca_caput_to_cmd_ping_increments_count(test_pv_prefix):
     import time
 
     state = AppState(version="0.1.0", started_at=time.time())
-    ioc = PyTxTIOC(prefix=test_pv_prefix, host="127.0.0.1", port=0, state=state)
+    ioc = PyTxTIOC(prefix=test_pv_prefix, host="127.0.0.1", port=0, repeater_port=0, state=state)
 
     server_task = asyncio.create_task(ioc.run())
     await ioc.wait_until_running()
@@ -53,7 +53,7 @@ async def test_ca_caput_value_is_ignored(test_pv_prefix):
     import time
 
     state = AppState(version="0.1.0", started_at=time.time())
-    ioc = PyTxTIOC(prefix=test_pv_prefix, host="127.0.0.1", port=0, state=state)
+    ioc = PyTxTIOC(prefix=test_pv_prefix, host="127.0.0.1", port=0, repeater_port=0, state=state)
 
     server_task = asyncio.create_task(ioc.run())
     await ioc.wait_until_running()

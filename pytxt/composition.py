@@ -55,6 +55,7 @@ async def main() -> None:
         prefix=settings.pv_prefix,
         host=settings.ioc_host,
         port=settings.ioc_port,
+        repeater_port=settings.ioc_repeater_port,
         state=state,
     )
 

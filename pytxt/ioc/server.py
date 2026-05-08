@@ -44,10 +44,11 @@ class PyTxTIOC:
         The shared AppState; the IOC binds change-notifications and reads it.
     """
 
-    def __init__(self, prefix: str, host: str, port: int, state: AppState):
+    def __init__(self, prefix: str, host: str, port: int, repeater_port: int, state: AppState):
         self.prefix = prefix
         self.host = host
         self.port = port
+        self.repeater_port = repeater_port
         self.state = state
         self.pvgroup = PyTxTPVGroup(prefix=prefix, state=state)
         self._context: Optional[Context] = None
@@ -89,6 +90,8 @@ class PyTxTIOC:
             os.environ["EPICS_CA_SERVER_PORT"] = str(self.port)
         if self.host:
             os.environ["EPICS_CAS_INTF_ADDR_LIST"] = self.host
+        if self.repeater_port:
+            os.environ["EPICS_CA_REPEATER_PORT"] = str(self.repeater_port)
 
         running_event = self._running_event
         pvgroup = self.pvgroup

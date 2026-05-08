@@ -62,7 +62,7 @@ async def test_parity_ca_vs_rest(test_pv_prefix, command_name, ca_pv_suffix, res
 
     # --- Path 1: CA write ---
     state_ca = AppState(version="0.1.0", started_at=time.time())
-    ioc_ca = PyTxTIOC(prefix=test_pv_prefix, host="127.0.0.1", port=0, state=state_ca)
+    ioc_ca = PyTxTIOC(prefix=test_pv_prefix, host="127.0.0.1", port=0, repeater_port=0, state=state_ca)
     server_task = asyncio.create_task(ioc_ca.run())
     await ioc_ca.wait_until_running()
     try:

@@ -12,7 +12,7 @@ async def test_ioc_starts_and_publishes_initial_values(test_pv_prefix):
     import time
 
     state = AppState(version="0.1.0", started_at=time.time())
-    ioc = PyTxTIOC(prefix=test_pv_prefix, host="127.0.0.1", port=0, state=state)
+    ioc = PyTxTIOC(prefix=test_pv_prefix, host="127.0.0.1", port=0, repeater_port=0, state=state)
 
     server_task = asyncio.create_task(ioc.run())
     await ioc.wait_until_running()
@@ -43,7 +43,7 @@ async def test_appstate_change_propagates_to_pv(test_pv_prefix):
     import time
 
     state = AppState(version="0.1.0", started_at=time.time())
-    ioc = PyTxTIOC(prefix=test_pv_prefix, host="127.0.0.1", port=0, state=state)
+    ioc = PyTxTIOC(prefix=test_pv_prefix, host="127.0.0.1", port=0, repeater_port=0, state=state)
 
     server_task = asyncio.create_task(ioc.run())
     await ioc.wait_until_running()

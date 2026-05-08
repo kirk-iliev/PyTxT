@@ -12,7 +12,7 @@ async def _start_app(state, prefix):
     from pytxt.api.server import create_app
     from pytxt.config.settings import Settings
 
-    ioc = PyTxTIOC(prefix=prefix, host="127.0.0.1", port=0, state=state)
+    ioc = PyTxTIOC(prefix=prefix, host="127.0.0.1", port=0, repeater_port=0, state=state)
     server_task = asyncio.create_task(ioc.run())
     await ioc.wait_until_running()
 
