@@ -16,7 +16,7 @@ async def test_state_endpoint_returns_full_snapshot():
         ping_count=3,
         started_at=time.time() - 1.0,
     )
-    app = create_app(state=state, ioc=None)
+    app = create_app(state=state)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         r = await ac.get("/api/v1/state")
@@ -36,7 +36,7 @@ async def test_state_endpoint_handles_no_ping_yet():
     from pytxt.api.server import create_app
 
     state = AppState(version="0.1.0")
-    app = create_app(state=state, ioc=None)
+    app = create_app(state=state)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         r = await ac.get("/api/v1/state")

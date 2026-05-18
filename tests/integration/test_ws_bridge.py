@@ -17,7 +17,7 @@ async def _start_app(state, prefix):
     await ioc.wait_until_running()
 
     settings = Settings(pv_prefix=prefix)
-    app = create_app(state=state, ioc=ioc, settings=settings)
+    app = create_app(state=state, settings=settings)
 
     config = uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning")
     server = uvicorn.Server(config)

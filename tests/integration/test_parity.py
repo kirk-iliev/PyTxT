@@ -9,7 +9,6 @@ added as parametrize cases on `command`.
 """
 import asyncio
 import time
-from dataclasses import asdict
 
 import pytest
 from caproto.asyncio.client import Context as ClientContext
@@ -17,19 +16,25 @@ from httpx import AsyncClient, ASGITransport
 
 
 def _public_state(state) -> dict:
-    """AppState snapshot with timestamps elided.
+    """Explicit projection of AppState fields the parity test compares.
 
-    last_ping_at differs by milliseconds between two runs; we compare
-    structural equivalence: presence of the field, type, and the
-    deterministic counter. The acknowledged_at HTTP response field is
-    not part of state and is irrelevant here.
+    Deliberately not dataclasses.asdict: that recurses into _listeners
+    (bound async closures registered by the IOC), relying on deepcopy
+    treating functions as atomic — a CPython implementation detail, not
+    a documented contract. Listing fields explicitly makes the contract
+    obvious and forces a conscious update when AppState grows in phase 2+.
+
+    last_ping_at is normalized to '<set>'/None because the timestamp
+    differs by milliseconds between the CA and REST paths; only its
+    presence is parity-relevant. started_at is wall-clock and excluded.
     """
-    d = asdict(state)
-    d.pop("_listeners", None)
-    if d.get("last_ping_at"):
-        d["last_ping_at"] = "<set>"
-    d.pop("started_at", None)  # wall-clock; not deterministic
-    return d
+    return {
+        "heartbeat": state.heartbeat,
+        "ping_count": state.ping_count,
+        "last_ping_at": "<set>" if state.last_ping_at else None,
+        "version": state.version,
+        "uptime_s_pushed": state.uptime_s_pushed,
+    }
 
 
 async def _do_via_ca(prefix: str, cmd: str) -> None:
@@ -80,7 +85,7 @@ async def test_parity_ca_vs_rest(test_pv_prefix, command_name, ca_pv_suffix, res
 
     # --- Path 2: REST POST ---
     state_rest = AppState(version="0.1.0", started_at=time.time())
-    app = create_app(state=state_rest, ioc=None)
+    app = create_app(state=state_rest)
     before_rest = _public_state(state_rest)
     await _do_via_rest(app, rest_path)
     after_rest = _public_state(state_rest)

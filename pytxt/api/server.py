@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 _FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
 
-def create_app(state: AppState, ioc: Optional[Any] = None, settings: Optional[Any] = None) -> FastAPI:
+def create_app(state: AppState, settings: Optional[Any] = None) -> FastAPI:
     """Create and configure the FastAPI app.
 
     Parameters
@@ -30,12 +30,12 @@ def create_app(state: AppState, ioc: Optional[Any] = None, settings: Optional[An
     state : AppState
         Shared in-process state. REST routes read it for projections;
         REST commands invoke handlers that mutate it.
-    ioc : Any
-        Reference to the running PyTxTIOC. WS bridge needs the IOC's
-        prefix/port to subscribe via in-process CA. May be None in
-        tests that only exercise REST.
     settings : Settings
         Settings instance. May be None in unit tests.
+
+    The WS bridge does not need a direct IOC reference — it uses an
+    in-process CA client to subscribe by PV name (see ws_bridge.py),
+    matching the spec's "browser is just another CA client" property.
     """
     app = FastAPI(
         title="PyTxT",
@@ -48,7 +48,6 @@ def create_app(state: AppState, ioc: Optional[Any] = None, settings: Optional[An
     )
 
     app.state.app_state = state
-    app.state.ioc = ioc
     app.state.settings = settings
 
     # Permissive CORS for control-room network (no auth in v1)

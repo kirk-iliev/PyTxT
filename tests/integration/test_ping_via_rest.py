@@ -9,7 +9,7 @@ async def test_post_ping_increments_count():
     from pytxt.api.server import create_app
 
     state = AppState(version="0.1.0", ping_count=0)
-    app = create_app(state=state, ioc=None)
+    app = create_app(state=state)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         r = await ac.post("/api/v1/cmd/ping", json={})
@@ -28,7 +28,7 @@ async def test_post_ping_accumulates():
     from pytxt.api.server import create_app
 
     state = AppState(version="0.1.0")
-    app = create_app(state=state, ioc=None)
+    app = create_app(state=state)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         for _ in range(5):

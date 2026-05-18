@@ -10,7 +10,7 @@ async def test_health_returns_ok():
     import time
 
     state = AppState(version="0.1.0", started_at=time.time() - 0.5)
-    app = create_app(state=state, ioc=None)
+    app = create_app(state=state)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         r = await ac.get("/health")
@@ -29,7 +29,7 @@ async def test_health_works_immediately_after_startup():
     import time
 
     state = AppState(version="0.1.0", started_at=time.time())
-    app = create_app(state=state, ioc=None)
+    app = create_app(state=state)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         r = await ac.get("/health")

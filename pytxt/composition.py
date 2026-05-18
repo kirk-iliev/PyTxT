@@ -59,7 +59,7 @@ async def main() -> None:
         state=state,
     )
 
-    api_app = create_app(state=state, ioc=ioc, settings=settings)
+    api_app = create_app(state=state, settings=settings)
     config = uvicorn.Config(
         api_app,
         host=settings.api_host,
