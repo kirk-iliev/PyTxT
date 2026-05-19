@@ -76,3 +76,31 @@ Append-only log of implementation-time decisions: choices made during coding tha
 **Spec relationship:** Fills gap (spec listed numpy as part of the stack but didn't specify where in pyproject.toml it should live).
 
 **Forward impact:** All phase-2 domain and test files can `import numpy` without qualification. No spec update needed.
+
+---
+
+## 2026-05-19 — injection-turn detection +1 vs the plan's verbatim code
+
+**Context:** Implementing `pytxt/domain/injection_turn.py` (Task M1-3). The plan's verbatim code was `int(np.argmax(np.diff(sum_waveform)))` followed by a bounds check on the result.
+
+**Decision:** Added `turn_idx = diff_idx + 1` after the argmax and applied the bounds check (and fallback) to `turn_idx`. The function now returns the "first elevated sample" index, matching what the plan's tests assert (`detect_injection_turn(_waveform_with_step(at=N)) == N`).
+
+**Why:** `np.diff(wf)[i] = wf[i+1] - wf[i]`. If `wf[at:] = high`, the max of the diff array sits at index `at - 1`. The plan's verbatim code (without +1) would return `at - 1` and fail every test in `tests/unit/test_injection_turn.py`. The +1 corrects this to match the MATLAB semantics (`injind` in MATLAB is 1-based; shifting to 0-based gives the same first-elevated-sample meaning).
+
+**Spec relationship:** Deviates from the plan's literal code (the plan had a bug). The spec itself (`docs/superpowers/specs/2026-05-18-phase-2-read-path-design.md` §6.2) only specifies the function signature, so the spec is unchanged. The plan should be considered updated in spirit, though the file is left as-is for historical accuracy.
+
+**Forward impact:** Downstream code (M1-4 `extract_first_turn`) uses this index to look up `x_wf[idx]` / `y_wf[idx]` for the first-turn position. The +1 makes this look up the correct sample. No changes needed in M1-4 or later tasks. Tagged: `[needs-plan-update]` — when next refactoring the plan doc, fix the +1 in section "Task M1-3".
+
+---
+
+## 2026-05-19 — deliberately not guarding detect_injection_turn against short inputs
+
+**Context:** Code-quality reviewer flagged that `detect_injection_turn` raises `ValueError` if called with a waveform shorter than 2 elements. Suggested adding a guard that returns the fallback for short inputs.
+
+**Decision:** Declined the suggestion. Documented the precondition (length >= 2) in the function's docstring; did not add a runtime guard.
+
+**Why:** CLAUDE.md §"Doing tasks" states: "Don't add error handling, fallbacks, or validation for scenarios that can't happen. Trust internal code and framework guarantees. Only validate at system boundaries." The supported call path is `BpmReader.read_all` (M1-6) → `extract_first_turn` (M1-4) → this function. The reader validates `shape == (100000,)` and returns `None` for shape mismatches; the extractor short-circuits on `None`. A shorter waveform cannot reach this function through the architecture.
+
+**Spec relationship:** Fills gap — the spec was silent on input-shape validation policy. The decision aligns with the project's stated convention.
+
+**Forward impact:** Any future caller that bypasses `BpmReader` (e.g., experimental notebooks, ad-hoc agent scripts) must respect the documented precondition. If such a caller emerges and the boundary becomes external rather than internal, revisit and add the guard then. Until then, defensive coding here would duplicate validation that already exists upstream.

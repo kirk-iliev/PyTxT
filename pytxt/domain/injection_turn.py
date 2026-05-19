@@ -31,6 +31,12 @@ def detect_injection_turn(sum_waveform: np.ndarray) -> int:
 
     If the result falls outside [100, 4500], fall back to the documented
     default of 1370 (matches MATLAB).
+
+    Precondition: ``sum_waveform`` must be a 1-D array of length >= 2.
+    Upstream ``BpmReader.read_all`` validates the canonical shape
+    ``(100000,)`` and returns ``None`` for any deviation, so this function
+    does not re-validate per the CLAUDE.md principle "don't validate at
+    internal boundaries". Calling with a shorter array raises ValueError.
     """
     diff_idx = int(np.argmax(np.diff(sum_waveform)))
     turn_idx = diff_idx + 1
