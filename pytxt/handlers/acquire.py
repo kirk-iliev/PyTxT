@@ -73,6 +73,9 @@ async def handle_acquire(state: AppState, reader: _ReaderProtocol) -> AcquireRes
         raws = await reader.read_all()
         first_turn = extract_first_turn(raws)
 
+        # BpmReader.read_all guarantees one entry per configured prefix
+        # (None for unreachable BPMs). first_turn.failed_bpm_names is exactly
+        # the subset of raws keys whose value was None.
         ok_count = len(raws) - len(first_turn.failed_bpm_names)
         fail_count = len(first_turn.failed_bpm_names)
         status = _classify(ok_count, fail_count)
@@ -105,8 +108,6 @@ async def handle_acquire(state: AppState, reader: _ReaderProtocol) -> AcquireRes
             timestamp=now,
         )
 
-    except AcquisitionInFlightError:
-        raise
     except Exception as exc:
         logger.exception("handle_acquire: unexpected error")
         await state.update(
