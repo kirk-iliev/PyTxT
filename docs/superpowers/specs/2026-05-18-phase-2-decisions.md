@@ -51,4 +51,14 @@ Append-only log of implementation-time decisions: choices made during coding tha
 
 ## Entries
 
-*No entries yet — populated during phase-2 implementation sessions.*
+## 2026-05-19 — numpy added as a core project dependency
+
+**Context:** Implementing `tests/fixtures/fake_bpm_ioc.py` (Task A). The test file imports numpy and the fixture uses it to synthesize waveforms.
+
+**Decision:** Added `numpy>=1.26` to `[project.dependencies]` in `pyproject.toml` rather than `[project.optional-dependencies].dev`.
+
+**Why:** numpy is not just a test utility — it will be the primary computation substrate for the domain layer (trajectory windowing, response-matrix math, reference comparison). Putting it in dev-only would mean production code would lack a declared dependency. Phase 2 domain modules will import numpy unconditionally.
+
+**Spec relationship:** Fills gap (spec listed numpy as part of the stack but didn't specify where in pyproject.toml it should live).
+
+**Forward impact:** All phase-2 domain and test files can `import numpy` without qualification. No spec update needed.

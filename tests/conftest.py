@@ -65,3 +65,7 @@ def configure_caproto_env(ioc_port: int, ioc_repeater_port: int) -> Generator[No
 def test_pv_prefix() -> str:
     """Use a unique prefix per test session to defend against any leakage."""
     return "OSPREY:TEST:TXT:"
+
+
+# Import phase-2 fixtures so tests can use them without explicit imports.
+from tests.fixtures.fake_bpm_ioc import fake_bpm_ioc  # noqa: F401
