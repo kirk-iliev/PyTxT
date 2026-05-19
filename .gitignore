@@ -40,3 +40,6 @@ tests/e2e/.playwright/
 #   scp -r appsdev2:/home/als/physbase/users/thellert/automated_startup legacy/
 legacy/
 .superpowers/
+
+# Claude Code per-machine settings (keep .claude/settings.json — project-wide)
+.claude/settings.local.json
