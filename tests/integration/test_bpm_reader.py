@@ -57,3 +57,11 @@ async def test_read_unreachable_bpm_returns_none(test_pv_prefix):
     finally:
         await reader.stop()
     assert result == {"NONEXISTENT:BPM": None}
+
+
+@pytest.mark.asyncio
+async def test_read_all_raises_if_not_started():
+    """Calling read_all() before start() succeeds raises a clear error."""
+    reader = BpmReader(prefixes=["FAKE:BPM1"], per_pv_timeout_s=1.0)
+    with pytest.raises(RuntimeError, match="before start"):
+        await reader.read_all()

@@ -20,6 +20,10 @@ from pytxt.domain.types import RawBPM
 
 logger = logging.getLogger(__name__)
 
+# Libera BPM electronics: c0=X position, c1=Y position, c3=sum signal.
+# c2 exists in the Libera channel space but is not populated by the ALS
+# BPM IOC firmware for TBT acquisition (matches MATLAB SCexp_ALS_readoutBPMs.m
+# which also reads only c0/c1/c3). `armed` is the per-BPM acquisition status.
 _CHANNELS = ("c0", "c1", "c3", "armed")
 
 
@@ -32,12 +36,14 @@ class BpmReader:
         self._ctx: Optional[ClientContext] = None
         # prefix → dict of {"c0": PV, "c1": PV, "c3": PV, "armed": PV}
         self._pvs: dict[str, dict[str, object]] = {}
+        self._started: bool = False
 
     async def start(self) -> None:
         """Open caproto Context and fetch PV objects for all configured BPMs.
 
-        Does NOT block on the first read — caproto resolves PV names lazily.
-        We just create the PV objects; read failures show up at read_all time.
+        Sets `self._started = True` only after PV resolution completes. If
+        get_pvs raises (or any other startup failure), `_started` stays False
+        and `read_all()` will raise rather than silently return all-None.
         """
         self._ctx = ClientContext()
         all_names: list[str] = []
@@ -49,9 +55,11 @@ class BpmReader:
         for i, prefix in enumerate(self._prefixes):
             base = i * len(_CHANNELS)
             self._pvs[prefix] = {ch: pvs[base + j] for j, ch in enumerate(_CHANNELS)}
+        self._started = True
 
     async def stop(self) -> None:
         """Close the caproto Context. Idempotent."""
+        self._started = False
         if self._ctx is not None:
             try:
                 await self._ctx.disconnect()
@@ -62,8 +70,10 @@ class BpmReader:
 
     async def read_all(self) -> dict[str, RawBPM | None]:
         """Read every configured BPM in parallel; return aligned dict."""
-        if self._ctx is None:
-            raise RuntimeError("BpmReader.read_all() called before start()")
+        if not self._started:
+            raise RuntimeError(
+                "BpmReader.read_all() called before start() completed successfully"
+            )
 
         async def _read_one(prefix: str) -> tuple[str, RawBPM | None]:
             channels = self._pvs.get(prefix)
