@@ -94,7 +94,27 @@ docker-compose. Deploy target: appsdev2, port 8008.
 - `TxT_GUI_manual.pdf` — the 18-step user workflow that defines feature
   parity
 - `docs/superpowers/specs/` — per-phase design specs (created via the
-  brainstorming → writing-plans flow)
+  brainstorming → writing-plans flow). Each spec has a paired
+  `<spec-name>-decisions.md` log; see below.
+
+## Implementation decision logs
+
+Every phase spec gets a companion decision log at
+`docs/superpowers/specs/<spec-name>-decisions.md`. During any
+implementation session executing a spec, append entries to this log
+for:
+
+- Choices made because the spec was silent on something (gap-filling).
+- Deviations from the spec (with reason).
+- Tradeoffs taken where the spec didn't pick.
+- Surprises from real code / data / upstream APIs.
+- Test infrastructure shortcuts, ergonomic refactors extracted during
+  the work, library or dependency choices made mid-implementation.
+
+If a decision invalidates a spec section, also update the spec.
+The log is for context and history; the spec stays authoritative.
+The decision log file itself documents its own entry format — copy the
+template at the top of each log when adding entries.
 
 ## Status
 

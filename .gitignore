@@ -39,3 +39,4 @@ tests/e2e/.playwright/
 # scp from appsdev2 to refresh:
 #   scp -r appsdev2:/home/als/physbase/users/thellert/automated_startup legacy/
 legacy/
+.superpowers/

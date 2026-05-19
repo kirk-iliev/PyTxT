@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PyTxT — Phase 2 Checkpoint</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --bg-card: #ffffff;
+    --fg: #1a1a1a;
+    --fg-muted: #555;
+    --fg-faint: #888;
+    --accent: #0b5fff;
+    --accent-soft: #e8efff;
+    --code-bg: #f3f3f3;
+    --border: #ddd;
+    --border-soft: #eee;
+
+    /* status colors */
+    --done-bg: #ecfdf5;
+    --done-fg: #047857;
+    --done-border: #6ee7b7;
+    --now-bg: #eff6ff;
+    --now-fg: #1d4ed8;
+    --now-border: #93c5fd;
+    --planned-bg: #fffbeb;
+    --planned-fg: #b45309;
+    --planned-border: #fcd34d;
+    --future-bg: #f3f4f6;
+    --future-fg: #4b5563;
+    --future-border: #d1d5db;
+
+    /* insight */
+    --insight-bg: #fff8e1;
+    --insight-border: #f0c000;
+    --insight-fg: #8a6d00;
+
+    /* canvas mockup */
+    --canvas-bg: #0a0a0a;
+    --canvas-fg: #e0e0e0;
+    --canvas-grid: #333;
+    --canvas-x: #4ade80;
+    --canvas-y: #60a5fa;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.55;
+    max-width: 1100px;
+    margin: 2rem auto;
+    padding: 0 1.5rem 4rem;
+  }
+  h1 {
+    font-size: 2.2rem;
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 0.4rem;
+    margin-bottom: 0.2rem;
+  }
+  h2 {
+    margin-top: 2.8rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.3rem;
+    font-size: 1.5rem;
+  }
+  h3 { margin-top: 1.6rem; font-size: 1.15rem; }
+  h4 { margin-top: 1.2rem; margin-bottom: 0.4rem; font-size: 1rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+  p, li { color: var(--fg); }
+  .subtitle {
+    color: var(--fg-muted);
+    font-size: 1.05rem;
+    margin-top: 0.4rem;
+    margin-bottom: 1.4rem;
+  }
+  code {
+    background: var(--code-bg);
+    padding: 0.1em 0.4em;
+    border-radius: 3px;
+    font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+    font-size: 0.9em;
+  }
+  pre {
+    background: var(--code-bg);
+    padding: 1rem 1.2rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    line-height: 1.4;
+    font-size: 0.88em;
+  }
+  pre code { background: none; padding: 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0;
+    font-size: 0.93em;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 0.55rem 0.8rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--accent-soft); font-weight: 600; }
+  tr:nth-child(even) td { background: #f9f9f9; }
+  .insight {
+    background: var(--insight-bg);
+    border-left: 4px solid var(--insight-border);
+    padding: 1rem 1.2rem;
+    margin: 1.4rem 0;
+    border-radius: 4px;
+  }
+  .insight strong { color: var(--insight-fg); }
+
+  /* status badges */
+  .badge {
+    display: inline-block;
+    padding: 0.18rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.78em;
+    font-weight: 600;
+    border: 1px solid;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .badge-done    { background: var(--done-bg);    color: var(--done-fg);    border-color: var(--done-border); }
+  .badge-now     { background: var(--now-bg);     color: var(--now-fg);     border-color: var(--now-border); }
+  .badge-planned { background: var(--planned-bg); color: var(--planned-fg); border-color: var(--planned-border); }
+  .badge-future  { background: var(--future-bg);  color: var(--future-fg);  border-color: var(--future-border); }
+
+  /* phase timeline */
+  .timeline {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.6rem;
+    margin: 1.5rem 0;
+  }
+  .phase-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.8rem 0.9rem;
+    font-size: 0.85em;
+    position: relative;
+  }
+  .phase-card.done    { border-top: 4px solid var(--done-fg); }
+  .phase-card.now     { border-top: 4px solid var(--now-fg); box-shadow: 0 0 0 2px var(--now-border); }
+  .phase-card.planned { border-top: 4px solid var(--planned-fg); }
+  .phase-card.future  { border-top: 4px solid var(--future-fg); }
+  .phase-num { color: var(--fg-faint); font-size: 0.85em; font-weight: 600; text-transform: uppercase; }
+  .phase-title { font-weight: 600; margin: 0.2rem 0 0.5rem; }
+  .phase-desc { color: var(--fg-muted); font-size: 0.92em; }
+
+  /* cards */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem 1.1rem;
+  }
+  .card h4 { margin-top: 0; }
+  .card .big {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1.1;
+  }
+  .card .label { color: var(--fg-muted); font-size: 0.9em; }
+
+  /* milestone strip */
+  .milestones {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.6rem;
+    margin: 1.5rem 0;
+  }
+  .milestone {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.9rem;
+    font-size: 0.88em;
+  }
+  .milestone-label { color: var(--accent); font-weight: 600; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.04em; }
+  .milestone-title { font-weight: 600; margin: 0.3rem 0 0.5rem; }
+  .milestone-est { color: var(--fg-faint); font-size: 0.85em; }
+  .milestone ul { padding-left: 1.1rem; margin: 0.5rem 0; }
+  .milestone li { font-size: 0.92em; margin-bottom: 0.2rem; }
+
+  /* trajectory mockup */
+  .plot-mockup {
+    background: var(--canvas-bg);
+    color: var(--canvas-fg);
+    border-radius: 6px;
+    padding: 1rem;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 0.78em;
+    margin: 1rem 0;
+  }
+  .plot-header {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid #444;
+    padding-bottom: 0.4rem;
+    margin-bottom: 0.6rem;
+  }
+  .plot-header .status-ok { color: var(--canvas-x); }
+  .canvas-area {
+    background: #050505;
+    border: 1px solid #333;
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+  }
+  .axis-label {
+    position: absolute;
+    color: #888;
+    font-size: 0.85em;
+  }
+  .btn-mock {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    padding: 0.2rem 0.6rem;
+    border-radius: 3px;
+    color: #ccc;
+    font-family: inherit;
+    font-size: inherit;
+  }
+  .btn-mock.primary { background: var(--accent); border-color: var(--accent); color: white; }
+
+  /* flow steps */
+  .flow {
+    display: grid;
+    grid-template-columns: 2.5rem 1fr;
+    gap: 0.4rem 1rem;
+    margin: 1rem 0;
+  }
+  .flow-num {
+    background: var(--accent);
+    color: white;
+    border-radius: 50%;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.85em;
+  }
+  .flow-body {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.5rem 0.8rem;
+    font-size: 0.93em;
+  }
+  .flow-body code { font-size: 0.88em; }
+  .flow-body .when { color: var(--fg-faint); font-size: 0.85em; }
+
+  /* two-column splits */
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+
+  /* meta footer */
+  .meta {
+    font-size: 0.85em;
+    color: var(--fg-muted);
+    margin-top: 4rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  /* tight lists */
+  ul.tight li { margin-bottom: 0.25rem; }
+
+  /* legend */
+  .legend {
+    display: flex;
+    gap: 1rem;
+    margin: 0.5rem 0 1rem;
+    font-size: 0.88em;
+    color: var(--fg-muted);
+  }
+  .legend-item { display: flex; align-items: center; gap: 0.3rem; }
+  .legend-dot {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border-radius: 3px;
+    border: 1px solid;
+  }
+</style>
+</head>
+<body>
+
+<h1>PyTxT — Phase 2 Checkpoint</h1>
+<div class="subtitle">
+  Pre-implementation overview: where the project stands, what phase 2 will build, and how it fits the bigger picture.
+  Companion to <code>PyTxT-project-plan.html</code> (locked scope, owner: T. Hellert) and
+  <code>docs/superpowers/specs/2026-05-18-phase-2-read-path-design.md</code> (full design spec).
+</div>
+
+<div class="insight">
+  <strong>What's this document for?</strong> A single page that anyone — Kirk, T. Hellert, an Osprey agent, a future
+  contributor — can read in ten minutes to understand: (1) what's been built so far, (2) what phase 2 is about
+  to add, (3) how the architecture composes, and (4) what's left for phases 3–6. The full design spec is the
+  source of truth; this is the checkpoint.
+</div>
+
+<!-- ============================================ -->
+<h2>Phased delivery — status at a glance</h2>
+
+<div class="legend">
+  <div class="legend-item"><span class="legend-dot" style="background:var(--done-bg);border-color:var(--done-fg)"></span> Complete</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--now-bg);border-color:var(--now-fg)"></span> Spec'd / next up</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--planned-bg);border-color:var(--planned-fg)"></span> Planned</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--future-bg);border-color:var(--future-fg)"></span> Future</div>
+</div>
+
+<div class="timeline">
+  <div class="phase-card done">
+    <div class="phase-num">Phase 1</div>
+    <div class="phase-title">Skeleton + IOC</div>
+    <div class="phase-desc">Architecture round-trip. <code>CMD:PING</code> keystone via CA &amp; REST.</div>
+    <div style="margin-top:0.5rem"><span class="badge badge-done">✓ Complete</span></div>
+  </div>
+  <div class="phase-card now">
+    <div class="phase-num">Phase 2</div>
+    <div class="phase-title">Read path</div>
+    <div class="phase-desc">~120 BPM TBT reads → ring-trajectory plot. <code>CMD:ACQUIRE</code>.</div>
+    <div style="margin-top:0.5rem"><span class="badge badge-now">→ Spec'd, ready</span></div>
+  </div>
+  <div class="phase-card planned">
+    <div class="phase-num">Phase 3</div>
+    <div class="phase-title">Reference trajectory</div>
+    <div class="phase-desc">Load/save <code>.mat</code>; overlay reference on plot; difference panels.</div>
+    <div style="margin-top:0.5rem"><span class="badge badge-planned">⏳ Planned</span></div>
+  </div>
+  <div class="phase-card future">
+    <div class="phase-num">Phase 4</div>
+    <div class="phase-title">Threading workflow</div>
+    <div class="phase-desc">Arm + trigger; pySC + response matrix; CM steps.</div>
+    <div style="margin-top:0.5rem"><span class="badge badge-future">Future</span></div>
+  </div>
+  <div class="phase-card future">
+    <div class="phase-num">Phase 5</div>
+    <div class="phase-title">Analysis polish</div>
+    <div class="phase-desc">Gaussian fits, dispersion, RMS, full GUI parity.</div>
+    <div style="margin-top:0.5rem"><span class="badge badge-future">Future</span></div>
+  </div>
+  <div class="phase-card future">
+    <div class="phase-num">Phase 6</div>
+    <div class="phase-title">Hardening + deploy</div>
+    <div class="phase-desc">CI, log shipping, Phoebus screens, prod deploy.</div>
+    <div style="margin-top:0.5rem"><span class="badge badge-future">Future</span></div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2>Phase 1 — what's shipped <span class="badge badge-done" style="font-size:0.7em;margin-left:0.5rem">Complete</span></h2>
+
+<p>
+  Phase 1 established the architectural skeleton — soft IOC + CA client + FastAPI + browser frontend on a single
+  asyncio loop — and validated it round-trip with a trivial <code>PING</code> command. No beam-physics yet;
+  every architectural seam that phases 2–5 depend on is now in place and proven.
+</p>
+
+<div class="card-grid">
+  <div class="card">
+    <div class="big">39</div>
+    <div class="label">pytest unit + integration tests</div>
+  </div>
+  <div class="card">
+    <div class="big">4</div>
+    <div class="label">Playwright e2e tests</div>
+  </div>
+  <div class="card">
+    <div class="big">10 / 10</div>
+    <div class="label">DoD criteria passing</div>
+  </div>
+  <div class="card">
+    <div class="big">1</div>
+    <div class="label">Keystone parity test enforcing CA ≡ REST</div>
+  </div>
+</div>
+
+<h4>What it proves</h4>
+<ul class="tight">
+  <li>A caproto soft IOC publishes app state as PVs that external CA clients can subscribe to.</li>
+  <li>A FastAPI service serves REST + a WS bridge that exposes those same PVs to the browser.</li>
+  <li>A browser observes state via WS and issues commands via REST POST.</li>
+  <li>An external agent issues the same commands via CA writes, with <strong>bit-identical effect</strong>.</li>
+  <li>Every subsystem has a clearly bounded home — phases 2–5 add code without restructuring.</li>
+</ul>
+
+<h4>Key invariants from phase 1 that phase 2 inherits</h4>
+<table>
+  <thead><tr><th>Invariant</th><th>How it's enforced</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Every CMD has <strong>identical</strong> effect via CA-write and REST-POST</td>
+      <td>Both routes call the same handler function. Enforced by import graph, not review discipline. <code>tests/integration/test_parity.py</code> is the load-bearing test.</td>
+    </tr>
+    <tr>
+      <td>AppState is the single in-process source of truth</td>
+      <td>Handlers mutate AppState; the IOC publisher mirrors changes outward to PVs. No handler writes to a PV directly.</td>
+    </tr>
+    <tr>
+      <td>Domain logic has zero I/O dependencies</td>
+      <td><code>pytxt/domain/</code> imports only numpy/scipy. No caproto, no FastAPI, no asyncio. Testable in milliseconds.</td>
+    </tr>
+    <tr>
+      <td>Dev IOC cannot accidentally publish prod PV names</td>
+      <td>Belt-and-suspenders: PV-prefix (<code>OSPREY:TEST:TXT:</code> vs <code>TxT:</code>) AND port (<code>59064</code> vs <code>5064</code>). Both wrong simultaneously to collide.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4>What's published right now</h4>
+<table>
+  <thead><tr><th>PV</th><th>Type</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>&lt;prefix&gt;HEALTH:HEARTBEAT</code></td><td>int, RO</td><td>Liveness counter; increments every 1 s</td></tr>
+    <tr><td><code>&lt;prefix&gt;HEALTH:UPTIME_S</code></td><td>float, RO</td><td>Seconds since process start</td></tr>
+    <tr><td><code>&lt;prefix&gt;STATE:VERSION</code></td><td>string, RO</td><td>Semver of running app</td></tr>
+    <tr><td><code>&lt;prefix&gt;STATE:LAST_PING_AT</code></td><td>string, RO</td><td>ISO-8601 timestamp of most recent ping</td></tr>
+    <tr><td><code>&lt;prefix&gt;STATE:PING_COUNT</code></td><td>int, RO</td><td>Pings received since startup</td></tr>
+    <tr><td><code>&lt;prefix&gt;CMD:PING</code></td><td>int, WO</td><td>Write any value → triggers ping handler</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================ -->
+<h2>Phase 2 — what we're about to build <span class="badge badge-now" style="font-size:0.7em;margin-left:0.5rem">Spec'd, ready</span></h2>
+
+<h3>Value moment</h3>
+<p>
+  The operator (or an Osprey agent) issues <code>ACQUIRE</code>. Within ~2 seconds the browser renders a
+  ring trajectory plot showing each of ~120 storage-ring BPMs' first-turn X and Y position. The same data is
+  published as EPICS PVs so any external CA subscriber sees identical results.
+</p>
+
+<p>
+  This is the first phase where the app does something <em>beam-physics-meaningful</em>. Phase 2 fills the
+  previously-empty <code>pytxt/domain/</code> and <code>pytxt/ca_client/</code> packages without restructuring
+  anything from phase 1.
+</p>
+
+<h3>Scope decisions (locked during brainstorming)</h3>
+<table>
+  <thead><tr><th>Decision</th><th>Choice</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>What gets delivered</td><td>Ring trajectory — all ~120 BPMs, first turn, snapshot mode</td><td>Matches project plan literally; meaningful value moment without overreach</td></tr>
+    <tr><td>CA write surface</td><td>Read-only — no arming, no triggering</td><td>Phase-4 black box (<code>srinjectoneshot</code> MML) avoided. BPMs assumed externally armed.</td></tr>
+    <tr><td>Result shape</td><td>Small extracted results as PVs + raw waveforms via REST</td><td>~144 MB raw waveforms too big for PV semantics; matches PV / REST split principle</td></tr>
+    <tr><td>Injection-turn detection</td><td>Faithful port of MATLAB (per-BPM argmax with [100,4500] fallback to 1370)</td><td>Operational reality: BPMs may be misaligned by a few turns. If data ever stops matching, we know it's not the algorithm.</td></tr>
+    <tr><td>CA connection model</td><td>Persistent connections, on-demand reads (no monitors)</td><td>Sub-second ACQUIRE latency; no idle traffic; natural extension to monitors in phase 3+</td></tr>
+    <tr><td>Failure mode</td><td>Best-effort with NaN holes + state PVs reporting counts/names</td><td>Partial info beats no info; operator sees the trajectory with gaps rather than nothing</td></tr>
+    <tr><td>UI layout</td><td>Stacked X / Y panels (matches original MATLAB GUI)</td><td>Verified by inspecting <code>TxT_GUI.mlapp</code> source — original uses separate UIAxes, never overlays X+Y</td></tr>
+    <tr><td>Build order</td><td>Vertical slice — 1 BPM end-to-end first, then scale to ~120</td><td>Matches phase-1 keystone pattern; earliest possible demo; failures easy to localize</td></tr>
+  </tbody>
+</table>
+
+<!-- architecture diagram -->
+<h3>Architecture — what's added on phase 1's foundation</h3>
+
+<pre><code>                                       ┌──────────────────────────┐
+                                       │ BPM IOCs (LBL controls)  │
+                                       │ ~120 × {wfr:TBT:c0,c1,    │
+                                       │         c3,armed}         │
+                                       └──────────────┬───────────┘
+                                                      │ CA reads (persistent
+                                                      │ connections, on-demand
+                                                      │ read on ACQUIRE)
+                                                      ▼
+ ┌─────────────────────────────────────────────────────────────────────────┐
+ │                  AppState (single source of truth)                      │
+ │                                                                         │
+ │  heartbeat, last_ping_at, ping_count, version, started_at   ← phase 1   │
+ │  bpm_prefixes: list[str]                ← NEW (loaded once at startup)  │
+ │  acquire_in_flight: bool                ← NEW                           │
+ │  last_acquire: LastAcquireResult        ← NEW                           │
+ │  last_acquire_raws: dict[str, RawBPM]   ← NEW (in-memory, 1 snapshot)   │
+ └─────────▲──────────────────────────────────────────┬────────────────────┘
+           │                                          │
+           │ mutate via handler                       │ mirror via IOC publisher
+           │                                          ▼
+    ┌──────┴──────┐                       ┌──────────────────────────┐
+    │ handlers/   │                       │ External surface         │
+    │  ping       │ ← phase 1             │  - CMD:PING PV           │ phase 1
+    │  acquire    │ ← NEW                 │  - POST /cmd/ping        │ phase 1
+    └─────────────┘                       │  - CMD:ACQUIRE PV        │ NEW
+           ▲                              │  - POST /cmd/acquire     │ NEW
+           │                              │  - RESULT:BPM:* PVs      │ NEW
+    ┌──────┴──────┐                       │  - STATE:ACQUIRE_* PVs   │ NEW
+    │ Triggers    │                       │  - GET /api/v1/state     │ extended
+    │  CMD:ACQUIRE│                       │  - GET /api/v1/result    │ NEW
+    │  POST /cmd/ │                       │       /bpm/raw           │
+    │     acquire │                       └──────────────────────────┘
+    └─────────────┘</code></pre>
+
+<div class="insight">
+  <strong>Zero structural changes from phase 1.</strong> Every new file lands in a package that already exists.
+  Composition root grows by one block. Parity test grows by one parametrize row. This is what phase 1's
+  investment in package layout buys us.
+</div>
+
+<!-- new interface surface -->
+<h3>New interface surface</h3>
+
+<h4>PVs added</h4>
+<table>
+  <thead><tr><th>PV</th><th>Type</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>&lt;prefix&gt;CMD:ACQUIRE</code></td><td>int, WO</td><td>Write any value → triggers acquisition</td></tr>
+    <tr><td><code>&lt;prefix&gt;STATE:ACQUIRE_IN_FLIGHT</code></td><td>int 0/1, RO</td><td>1 while running; rejects concurrent writes</td></tr>
+    <tr><td><code>&lt;prefix&gt;STATE:LAST_ACQUIRE_STATUS</code></td><td>enum int, RO</td><td>0=NEVER, 1=ACQUIRING, 2=OK, 3=PARTIAL, 4=FAILED</td></tr>
+    <tr><td><code>&lt;prefix&gt;STATE:LAST_ACQUIRE_OK_COUNT</code></td><td>int, RO</td><td>BPMs that returned valid data</td></tr>
+    <tr><td><code>&lt;prefix&gt;STATE:LAST_ACQUIRE_FAIL_COUNT</code></td><td>int, RO</td><td>BPMs that timed out / invalid</td></tr>
+    <tr><td><code>&lt;prefix&gt;STATE:LAST_ACQUIRE_FAILED_BPM_NAMES</code></td><td>string array, RO</td><td>Variable length; names of failed BPMs</td></tr>
+    <tr><td><code>&lt;prefix&gt;STATE:LAST_ACQUIRE_TIMESTAMP</code></td><td>ISO8601 string, RO</td><td>When last acquisition finished</td></tr>
+    <tr><td><code>&lt;prefix&gt;RESULT:BPM:X_FIRST_TURN</code></td><td>waveform[120] float64, mm, RO</td><td>Per-BPM X at injection turn; NaN for failed</td></tr>
+    <tr><td><code>&lt;prefix&gt;RESULT:BPM:Y_FIRST_TURN</code></td><td>waveform[120] float64, mm, RO</td><td>Per-BPM Y at injection turn; NaN for failed</td></tr>
+    <tr><td><code>&lt;prefix&gt;RESULT:BPM:SUM_FIRST_TURN</code></td><td>waveform[120] float64, AU, RO</td><td>Per-BPM sum signal at injection turn; NaN for failed</td></tr>
+    <tr><td><code>&lt;prefix&gt;RESULT:BPM:INJECTION_TURN</code></td><td>waveform[120] int32, RO</td><td>Per-BPM detected turn index; −1 for failed</td></tr>
+    <tr><td><code>&lt;prefix&gt;RESULT:BPM:NAMES</code></td><td>string array[120], RO</td><td>Static cross-reference: array index → BPM identity</td></tr>
+  </tbody>
+</table>
+
+<h4>REST endpoints added</h4>
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td>POST</td><td><code>/api/v1/cmd/acquire</code></td><td>Trigger acquisition (mirror of CMD:ACQUIRE PV write)</td></tr>
+    <tr><td>GET</td><td><code>/api/v1/result/bpm/raw?bpm=&lt;prefix&gt;</code></td><td>Bulk raw waveforms for one BPM from last acquisition</td></tr>
+    <tr><td>GET</td><td><code>/api/v1/state</code></td><td>Extended with new <code>last_acquire</code>, <code>acquire_in_flight</code>, <code>bpm_prefixes</code> fields</td></tr>
+  </tbody>
+</table>
+
+<!-- data flow -->
+<h3>Data flow during one ACQUIRE</h3>
+<div class="flow">
+  <div class="flow-num">1</div>
+  <div class="flow-body">Trigger arrives: <strong>CA write to <code>CMD:ACQUIRE</code></strong> OR <strong>POST <code>/cmd/acquire</code></strong>. Both call the same function: <code>handle_acquire(state, reader)</code>.</div>
+
+  <div class="flow-num">2</div>
+  <div class="flow-body">Concurrency check: if <code>acquire_in_flight</code> → reject. CA path: alarm severity. REST path: 409 Conflict.</div>
+
+  <div class="flow-num">3</div>
+  <div class="flow-body">Set <code>acquire_in_flight=True</code>, status=ACQUIRING. IOC publisher mirrors to STATE PVs.</div>
+
+  <div class="flow-num">4</div>
+  <div class="flow-body">Parallel CA reads: <code>asyncio.gather</code> over ~480 PVs (120 BPMs × 4 channels). Persistent caproto Context — connections already warm. Per-PV timeout 2 s. Missing/bad BPMs → <code>None</code> in the dict.</div>
+
+  <div class="flow-num">5</div>
+  <div class="flow-body">Domain analysis (pure numpy, no I/O): per BPM, <code>detect_injection_turn(sum_wf)</code> → int; extract X/Y at that index; nm → mm; <code>None</code> → NaN/−1.</div>
+
+  <div class="flow-num">6</div>
+  <div class="flow-body">Update AppState atomically: <code>last_acquire</code> = full result, <code>last_acquire_raws</code> = raw snapshot (~144 MB in memory, overwritten each ACQUIRE).</div>
+
+  <div class="flow-num">7</div>
+  <div class="flow-body">IOC publisher fires CA monitor events for all RESULT:BPM:* and STATE:LAST_ACQUIRE_* PVs.</div>
+
+  <div class="flow-num">8</div>
+  <div class="flow-body"><code>finally</code>: clear <code>acquire_in_flight</code>. IOC publisher mirrors. (Even on exception this runs.)</div>
+
+  <div class="flow-num">9</div>
+  <div class="flow-body">Handler returns <code>AcquireResponse</code>. REST returns it as JSON; CA returns success to writer.</div>
+
+  <div class="flow-num">10</div>
+  <div class="flow-body">WS bridge propagates CA monitor events to browser. <code>trajectory.js</code> re-renders Canvas plot.</div>
+</div>
+
+<p style="color:var(--fg-muted)">
+  <strong>Expected end-to-end latency:</strong> &lt;3 seconds, dominated by parallel CA reads. Domain analysis on
+  100k-sample arrays is microseconds. Concurrent ACQUIRE attempts are rejected cleanly (not queued).
+</p>
+
+<!-- UI mockup -->
+<h3>What the UI will look like</h3>
+
+<p>
+  Layout matches the original MATLAB <code>TxT_GUI.mlapp</code> "Trajectory" view (verified from source at
+  <code>legacy/TxT_GUI/_unpacked/TxT_GUI.m</code> lines 180–185): two stacked panels, X above Y, each showing
+  position vs BPM index. Phase 3 will add reference overlay and difference panels.
+</p>
+
+<div class="plot-mockup">
+  <div class="plot-header">
+    <span>RING TRAJECTORY · turn 1370 · 12:34:56</span>
+    <span class="status-ok">118 OK · 2 FAIL</span>
+  </div>
+  <div class="canvas-area" style="height: 130px; margin-bottom: 6px;">
+    <div class="axis-label" style="top:4px;left:6px">X (mm)</div>
+    <svg viewBox="0 0 800 130" preserveAspectRatio="none" style="width:100%;height:100%">
+      <line x1="0" y1="65" x2="800" y2="65" stroke="#333" stroke-dasharray="3,3"/>
+      <polyline points="5,62 25,50 50,68 75,55 100,72 130,48 160,65 195,58 230,78 265,52 300,62 340,55 380,70 420,48 460,65 500,58 540,75 580,52 620,60 660,65 700,50 730,68 760,58 790,62" stroke="#4ade80" stroke-width="1.4" fill="none"/>
+    </svg>
+  </div>
+  <div class="canvas-area" style="height: 130px;">
+    <div class="axis-label" style="top:4px;left:6px">Y (mm)</div>
+    <div class="axis-label" style="bottom:4px;right:6px">BPM index (0–119)</div>
+    <svg viewBox="0 0 800 130" preserveAspectRatio="none" style="width:100%;height:100%">
+      <line x1="0" y1="65" x2="800" y2="65" stroke="#333" stroke-dasharray="3,3"/>
+      <polyline points="5,65 25,58 50,72 75,62 100,55 130,68 160,62 195,75 230,50 265,65 300,60 340,72 380,58 420,65 460,52 500,68 540,62 580,75 620,58 660,65 700,62 730,52 760,68 790,65" stroke="#60a5fa" stroke-width="1.4" fill="none"/>
+    </svg>
+  </div>
+  <div style="display:flex;gap:0.5rem;margin-top:0.5rem;font-size:0.85em;color:#888">
+    <button class="btn-mock primary">▶ ACQUIRE</button>
+    <span style="margin-left:auto">median turn: 1370 · range: ±2mm</span>
+  </div>
+</div>
+
+<!-- build sequence -->
+<h3>Build sequence — 4 milestones</h3>
+
+<div class="milestones">
+  <div class="milestone">
+    <div class="milestone-label">M1</div>
+    <div class="milestone-title">Vertical slice, 1 real BPM</div>
+    <div class="milestone-est">~3 days</div>
+    <ul>
+      <li>Hardcoded prefix list: <code>SR01C:BPM1</code></li>
+      <li>Real CA, real domain, real PVs, real Canvas — all at N=1</li>
+      <li>Parity test grows by one row</li>
+      <li><strong>DoD:</strong> click ACQUIRE → real BPM data renders</li>
+    </ul>
+  </div>
+  <div class="milestone">
+    <div class="milestone-label">M2</div>
+    <div class="milestone-title">Scale to all ~120 BPMs</div>
+    <div class="milestone-est">~2 days</div>
+    <ul>
+      <li>BPM list loads from committed <code>bpm_prefixes.txt</code></li>
+      <li><code>asyncio.gather</code> parallel reads</li>
+      <li>Result waveforms become length-120</li>
+      <li><strong>DoD:</strong> ACQUIRE &lt;3s; ring trajectory visible</li>
+    </ul>
+  </div>
+  <div class="milestone">
+    <div class="milestone-label">M3</div>
+    <div class="milestone-title">Failure handling</div>
+    <div class="milestone-est">~2 days</div>
+    <ul>
+      <li>Per-PV 2s timeout, NaN propagation</li>
+      <li>State PVs for counts &amp; failed names</li>
+      <li>409 / CA alarm for concurrent ACQUIRE</li>
+      <li><strong>DoD:</strong> simulated timeout → NaN gap in plot</li>
+    </ul>
+  </div>
+  <div class="milestone">
+    <div class="milestone-label">M4</div>
+    <div class="milestone-title">Raw REST + UI polish + e2e</div>
+    <div class="milestone-est">~2 days</div>
+    <ul>
+      <li><code>GET /result/bpm/raw</code> implementation</li>
+      <li>Hover tooltips, axis labels, status header</li>
+      <li>Playwright e2e: click → render</li>
+      <li><strong>DoD:</strong> e2e passes; raw endpoint returns valid JSON</li>
+    </ul>
+  </div>
+</div>
+
+<p style="color:var(--fg-muted)"><strong>Total estimate:</strong> ~9 working days. Each milestone is a coherent commit / PR / demo unit.</p>
+
+<!-- testing -->
+<h3>Testing strategy</h3>
+
+<div class="split">
+  <div class="card">
+    <h4>What grows from phase 1</h4>
+    <ul class="tight">
+      <li><strong>Unit:</strong> 4 → 7 files (+ injection-turn, first-turn-extract, handlers-acquire)</li>
+      <li><strong>Integration:</strong> 7 → 11 files; parity test +1 parametrize row</li>
+      <li><strong>E2E:</strong> 2 → 3 files (+ trajectory.spec.js)</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>New infrastructure</h4>
+    <ul class="tight">
+      <li><strong>Fake BPM IOC fixture</strong> — caproto-based; serves <code>wfr:TBT:{c0,c1,c3,armed}</code> with deterministic data (known peak at sample 1370). Supports fault injection (timeout, disconnect).</li>
+      <li>Tests parametrize over N ∈ {1, 5, 120}.</li>
+      <li>No tests against real beam (manual validation only).</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2>Phase 3 — forward look <span class="badge badge-planned" style="font-size:0.7em;margin-left:0.5rem">Planned</span></h2>
+
+<p>
+  Phase 3 layers reference trajectory comparison on top of phase 2's read path. The MATLAB GUI's full
+  "Trajectory" view becomes available (4-panel layout: X, Y, ΔX, ΔY when a reference is loaded).
+</p>
+
+<h4>Concrete additions phase 3 should require</h4>
+<table>
+  <thead><tr><th>Where</th><th>What</th></tr></thead>
+  <tbody>
+    <tr><td><code>pytxt/domain/</code></td><td>New: <code>reference.py</code> — load/save <code>.mat</code> reference trajectories; compute B − R₀ difference</td></tr>
+    <tr><td>AppState fields</td><td>New: <code>reference_trajectory</code>, <code>reference_loaded_at</code></td></tr>
+    <tr><td>New PVs</td><td><code>STATE:REF_LOADED</code>, <code>STATE:REF_NAME</code>, <code>RESULT:BPM:X_DIFF_FIRST_TURN</code>, <code>:Y_DIFF_FIRST_TURN</code>, <code>CMD:LOAD_REF</code>, <code>CMD:SAVE_REF</code></td></tr>
+    <tr><td>REST</td><td><code>POST /cmd/load_ref</code>, <code>POST /cmd/save_ref</code> (multipart file upload/download)</td></tr>
+    <tr><td>Frontend</td><td>4-panel layout switch when reference loaded; reference-overlay within each panel (matches MATLAB lines 180–189)</td></tr>
+    <tr><td>Tests</td><td>Two new parametrize rows on the parity test</td></tr>
+  </tbody>
+</table>
+
+<p style="color:var(--fg-muted)"><strong>Again: zero structural changes from phase 2.</strong> Every addition lands in a package that already exists. The composition root grows by one or two lines.</p>
+
+<!-- ============================================ -->
+<h2>What's still ahead — phases 4–6 <span class="badge badge-future" style="font-size:0.7em;margin-left:0.5rem">Future</span></h2>
+
+<div class="card-grid">
+  <div class="card">
+    <h4>Phase 4 — Threading workflow</h4>
+    <ul class="tight">
+      <li>Arm BPMs (port <code>SCexp_ALS_armBPMs.m</code> — CA writes to <code>wfr:TBT:arm</code>, well-defined)</li>
+      <li>Trigger injection (resolve the <code>srinjectoneshot</code> MML black box)</li>
+      <li>Port <code>FirstTurnThreading.m</code></li>
+      <li>Golden-orbit subtraction (requires MML data)</li>
+      <li>pySC integration: lattice modeling, response matrix, SVD pseudo-inverse</li>
+      <li>CM step calculation &amp; apply</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>Phase 5 — Analysis polish</h4>
+    <ul class="tight">
+      <li>Gaussian fits on first-turn data</li>
+      <li>Dispersion calculation</li>
+      <li>RMS metrics, kick angle</li>
+      <li>Full MATLAB GUI feature parity</li>
+      <li>Tab structure matching the 18-step manual</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>Phase 6 — Hardening + deploy</h4>
+    <ul class="tight">
+      <li>CI pipeline (GitHub Actions / GitLab)</li>
+      <li>Log shipping, monitoring/alerting wiring</li>
+      <li>Phoebus screen examples (showing PVs in operator-standard UI)</li>
+      <li>Production deploy automation to appsdev2</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2>Open architectural questions <span class="badge badge-planned" style="font-size:0.7em;margin-left:0.5rem">Track but not blocking</span></h2>
+
+<table>
+  <thead><tr><th>Question</th><th>Status</th><th>When it bites</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Osprey integration shape — HTTP/REST vs MCP vs CA direct vs all three?</td>
+      <td>Designing for all three to be cheap to add. Phase 2's surface satisfies this.</td>
+      <td>When Osprey wants to actually invoke PyTxT in anger.</td>
+    </tr>
+    <tr>
+      <td><code>srinjectoneshot</code> + <code>steppv</code> MML black boxes</td>
+      <td>Deferred. Hides PVs needed for injection trigger + CM step.</td>
+      <td>Phase 4. Read MATLAB sources or extract underlying PV writes directly.</td>
+    </tr>
+    <tr>
+      <td>WS message <code>type</code> discriminator</td>
+      <td>Deferred from phase-1 code review. Implicit field-presence works for ≤2 message types.</td>
+      <td>When phase 3 adds more WS message kinds OR client logic gets complex.</td>
+    </tr>
+    <tr>
+      <td>Whether <code>bpm_prefixes</code> is runtime-reloadable</td>
+      <td>Decision: load-once at startup. Requires restart to change.</td>
+      <td>If BPM topology changes more often than expected (unlikely — once per few years).</td>
+    </tr>
+    <tr>
+      <td>Phase-1 deploy + Phoebus-subscribe validation</td>
+      <td>Decided 2026-05-18: deferred as premature. Phase-1 PVs (heartbeat + ping counter) test nothing meaningful. Real deploy validation happens with phase 2's BPM read path.</td>
+      <td>End of phase 2 (M4 or just after).</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ============================================ -->
+<h2>Pre-implementation checklist</h2>
+
+<table>
+  <thead><tr><th>Item</th><th>Status</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Phase 1 complete &amp; tagged</td><td><span class="badge badge-done">✓</span></td><td>Tag <code>phase-1-complete</code> at commit <code>c179c78</code>, pushed to GitHub</td></tr>
+    <tr><td>BPM TBT PV pattern verified live</td><td><span class="badge badge-done">✓</span></td><td>Probe on appsdev2 confirmed <code>SR01C:BPM1:wfr:TBT:c0</code> resolves; shape (100000,) <code>&gt;i4</code>; real beam data captured</td></tr>
+    <tr><td>Probe script committed</td><td><span class="badge badge-now">→</span></td><td><code>scripts/probe_bpm.py</code> ready, awaiting commit</td></tr>
+    <tr><td>Phase-2 design spec written &amp; reviewed</td><td><span class="badge badge-now">→</span></td><td><code>docs/superpowers/specs/2026-05-18-phase-2-read-path-design.md</code> drafted; Kirk reviewing</td></tr>
+    <tr><td>This checkpoint doc</td><td><span class="badge badge-now">→</span></td><td>You're reading it</td></tr>
+    <tr><td>Implementation plan generated</td><td><span class="badge badge-planned">⏳</span></td><td>Next step: invoke <code>superpowers:writing-plans</code> skill once spec is approved</td></tr>
+    <tr><td>BPM prefix list dump from MATLAB</td><td><span class="badge badge-planned">⏳</span></td><td>Needed by M2. One-line MATLAB on appsdev2 (or wherever MATLAB lives) → committed as <code>pytxt/config/bpm_prefixes.txt</code></td></tr>
+  </tbody>
+</table>
+
+<div class="insight" style="margin-top:2rem">
+  <strong>Ready to start implementation?</strong> Once the design spec is approved, the next move is invoking
+  the <code>superpowers:writing-plans</code> skill to produce a detailed implementation plan with task-by-task
+  breakdown for milestones M1–M4. From there, individual coding sessions execute the plan.
+</div>
+
+<div class="meta">
+  Generated 2026-05-18 · Implementer: Kirk · Drafted with Claude (Opus 4.7) ·
+  Source spec: <code>docs/superpowers/specs/2026-05-18-phase-2-read-path-design.md</code> ·
+  Project plan: <code>PyTxT-project-plan.html</code> (owner: T. Hellert)
+</div>
+
+</body>
+</html>
