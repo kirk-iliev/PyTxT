@@ -42,3 +42,22 @@ async def test_state_endpoint_handles_no_ping_yet():
         r = await ac.get("/api/v1/state")
     assert r.status_code == 200
     assert r.json()["last_ping_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_state_endpoint_includes_phase_2_fields():
+    from pytxt.state.app_state import AppState
+    from pytxt.api.server import create_app
+    import time
+
+    state = AppState(version="0.1.0", started_at=time.time(), bpm_prefixes=["A", "B"])
+    app = create_app(state=state)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.get("/api/v1/state")
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["bpm_prefixes"] == ["A", "B"]
+    assert body["acquire_in_flight"] is False
+    assert body["last_acquire"]["status"] == "NEVER"

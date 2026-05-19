@@ -1,7 +1,5 @@
 """GET /api/v1/state — full AppState snapshot.
 GET /api/v1/config — frontend bootstrap config (PV prefix etc.).
-
-Both are pure projections of canonical sources of truth.
 """
 from fastapi import APIRouter, Request
 
@@ -19,13 +17,14 @@ async def get_state(request: Request) -> StateSnapshot:
         uptime_s=state.uptime_s,
         last_ping_at=state.last_ping_at,
         ping_count=state.ping_count,
+        bpm_prefixes=state.bpm_prefixes,
+        acquire_in_flight=state.acquire_in_flight,
+        last_acquire=state.last_acquire,
     )
 
 
 @router.get("/config")
 async def get_config(request: Request) -> dict:
-    """Frontend bootstrap. Returns the deployed PV prefix so the browser
-    knows what names to subscribe to under any namespace (dev/prod)."""
     settings = request.app.state.settings
     prefix = settings.pv_prefix if settings else "OSPREY:TEST:TXT:"
     return {"pv_prefix": prefix}
