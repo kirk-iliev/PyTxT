@@ -12,7 +12,9 @@ class StateSnapshot(BaseModel):
     version: str = Field(description="Semantic version of the running app")
     heartbeat: int = Field(description="Liveness counter; increments every 1s")
     uptime_s: float = Field(description="Seconds since process start")
-    last_ping_at: Optional[str] = Field(default=None)
+    last_ping_at: Optional[str] = Field(
+        default=None, description="ISO-8601 timestamp of most recent ping; null until first ping"
+    )
     ping_count: int = Field(description="Pings received since startup")
     # Phase 2
     bpm_prefixes: list[str] = Field(

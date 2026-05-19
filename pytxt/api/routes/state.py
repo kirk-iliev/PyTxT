@@ -25,6 +25,8 @@ async def get_state(request: Request) -> StateSnapshot:
 
 @router.get("/config")
 async def get_config(request: Request) -> dict:
+    """Frontend bootstrap. Returns the deployed PV prefix so the browser
+    knows what names to subscribe to under any namespace (dev/prod)."""
     settings = request.app.state.settings
     prefix = settings.pv_prefix if settings else "OSPREY:TEST:TXT:"
     return {"pv_prefix": prefix}
