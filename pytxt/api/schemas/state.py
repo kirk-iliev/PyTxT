@@ -2,7 +2,19 @@
 from typing import Optional
 from pydantic import BaseModel, Field
 
-from pytxt.api.schemas.result import LastAcquireResult
+from pytxt.api.schemas.result import AcquireStatus, LastAcquireResult
+
+
+def _never_last_acquire() -> LastAcquireResult:
+    """Default LastAcquireResult for a freshly-started service (no ACQUIRE yet)."""
+    return LastAcquireResult(
+        status=AcquireStatus.NEVER,
+        ok_count=0,
+        fail_count=0,
+        failed_bpm_names=[],
+        injection_turn_median=-1,
+        timestamp=None,
+    )
 
 
 class StateSnapshot(BaseModel):
@@ -26,5 +38,6 @@ class StateSnapshot(BaseModel):
         description="True while an acquisition is running",
     )
     last_acquire: LastAcquireResult = Field(
-        description="Outcome of the most recent ACQUIRE; status=NEVER before first"
+        default_factory=_never_last_acquire,
+        description="Outcome of the most recent ACQUIRE; status=NEVER before first",
     )
