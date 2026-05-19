@@ -143,3 +143,39 @@ async def test_update_rejects_property_name():
     state = AppState()
     with pytest.raises(AttributeError, match="uptime_s"):
         await state.update(uptime_s=42.0)
+
+
+import asyncio
+import numpy as np
+
+from pytxt.api.schemas.result import AcquireStatus, LastAcquireResult
+
+
+def test_app_state_has_phase_2_fields():
+    """AppState defaults populate the four new phase-2 fields."""
+    from pytxt.state.app_state import AppState
+    s = AppState()
+    assert s.bpm_prefixes == []
+    assert s.acquire_in_flight is False
+    assert s.last_acquire is not None
+    assert s.last_acquire.status == "NEVER"
+    assert s.last_acquire_raws == {}
+
+
+def test_acquire_in_flight_is_listener_observable():
+    """Listeners fire on acquire_in_flight changes."""
+    from pytxt.state.app_state import AppState
+    s = AppState()
+    captured = []
+
+    async def cb(v):
+        captured.append(v)
+
+    s.subscribe("acquire_in_flight", cb)
+
+    async def run():
+        await s.update(acquire_in_flight=True)
+        await s.update(acquire_in_flight=False)
+
+    asyncio.run(run())
+    assert captured == [True, False]

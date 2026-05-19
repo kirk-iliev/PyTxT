@@ -12,24 +12,41 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional
 
+from pytxt.api.schemas.result import AcquireStatus, LastAcquireResult
+
 logger = logging.getLogger(__name__)
 
 ListenerFn = Callable[[Any], Awaitable[None]]
 
 
+def _initial_last_acquire() -> LastAcquireResult:
+    return LastAcquireResult(
+        status=AcquireStatus.NEVER,
+        ok_count=0,
+        fail_count=0,
+        failed_bpm_names=[],
+        injection_turn_median=-1,
+        timestamp=None,
+    )
+
+
 @dataclass
 class AppState:
-    # Published fields (mirrored as PVs by the IOC; surfaced via REST/WS)
+    # === Phase 1 published fields ===
     heartbeat: int = 0
-    last_ping_at: Optional[str] = None  # ISO-8601 string
+    last_ping_at: Optional[str] = None
     ping_count: int = 0
     version: str = ""
     started_at: float = 0.0
-    # Bound to HEALTH:UPTIME_S PV. Set every heartbeat tick by the
-    # composition's heartbeat_loop. The `uptime_s` property below is
-    # the canonical computed value used by /health and /state — these
-    # two coexist because IOC binding requires a writable field.
     uptime_s_pushed: float = 0.0
+
+    # === Phase 2 published fields ===
+    bpm_prefixes: list[str] = field(default_factory=list)
+    acquire_in_flight: bool = False
+    last_acquire: LastAcquireResult = field(default_factory=_initial_last_acquire)
+    # In-memory only: raw waveforms from the most recent acquisition,
+    # served by GET /api/v1/result/bpm/raw. Not mirrored to PVs.
+    last_acquire_raws: dict = field(default_factory=dict)
 
     # Internal: per-field listener lists (excluded from repr/init)
     _listeners: dict[str, list[ListenerFn]] = field(
