@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PyTxT — Trajectory</title>
+  <link rel="stylesheet" href="/css/theme.css?v=2">
+</head>
+<body>
+  <header class="app-header">
+    <h1 class="app-title">PyTxT — Trajectory</h1>
+    <nav class="app-nav">
+      <a href="/">Ping</a>
+      <a href="/trajectory.html" class="active">Trajectory</a>
+    </nav>
+    <div class="connection-status" id="connectionStatus" data-state="connecting">
+      <span class="dot"></span>
+      <span class="label" id="connectionStatusLabel">connecting…</span>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <section class="trajectory-panel">
+      <div class="trajectory-header">
+        <span id="trajectoryStatus">No acquisition yet</span>
+        <span id="trajectoryCounts" class="counts"></span>
+      </div>
+      <div class="canvas-wrap">
+        <div class="axis-label">X (mm)</div>
+        <canvas id="canvasX" width="800" height="160" aria-label="X position vs BPM index"></canvas>
+      </div>
+      <div class="canvas-wrap">
+        <div class="axis-label">Y (mm)</div>
+        <canvas id="canvasY" width="800" height="160" aria-label="Y position vs BPM index"></canvas>
+      </div>
+      <div class="actions">
+        <button type="button" id="acquireButton" class="primary">▶ Acquire</button>
+        <span id="acquireMeta" class="meta"></span>
+      </div>
+    </section>
+  </main>
+
+  <script src="/js/connection.js"></script>
+  <script src="/js/trajectory.js"></script>
+</body>
+</html>

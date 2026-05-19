@@ -106,3 +106,77 @@ html, body {
 }
 .log-list li:last-child { border-bottom: 0; }
 .log-list time { color: var(--fg); margin-right: 0.5rem; }
+
+/* === Phase 2 — trajectory page === */
+:root {
+  --canvas-bg: #0a0a0a;
+  --canvas-grid: #2a2a2a;
+  --canvas-x: #4ade80;
+  --canvas-y: #60a5fa;
+}
+
+.app-nav {
+  display: flex;
+  gap: 0.6rem;
+  margin-left: 1.5rem;
+}
+.app-nav a {
+  color: var(--fg-muted, #8a8a92);
+  text-decoration: none;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+.app-nav a.active, .app-nav a:hover {
+  color: var(--accent, #0b5fff);
+  background: rgba(11, 95, 255, 0.08);
+}
+
+.trajectory-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 1.2rem;
+}
+.trajectory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid #333;
+  padding-bottom: 0.4rem;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 0.9em;
+}
+.trajectory-header .counts {
+  color: var(--fg-muted, #8a8a92);
+}
+.canvas-wrap {
+  position: relative;
+}
+.canvas-wrap .axis-label {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 0.78em;
+  color: #888;
+  pointer-events: none;
+}
+canvas {
+  display: block;
+  width: 100%;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background: var(--canvas-bg);
+}
+.trajectory-panel .actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 0.4rem;
+}
+.trajectory-panel .actions .meta {
+  color: var(--fg-muted, #8a8a92);
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 0.85em;
+}
