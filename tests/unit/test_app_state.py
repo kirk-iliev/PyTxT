@@ -1,5 +1,4 @@
 """Unit tests for pytxt.state.app_state."""
-import asyncio
 import pytest
 import time
 
@@ -145,10 +144,7 @@ async def test_update_rejects_property_name():
         await state.update(uptime_s=42.0)
 
 
-import asyncio
-import numpy as np
-
-from pytxt.api.schemas.result import AcquireStatus, LastAcquireResult
+from pytxt.api.schemas.result import LastAcquireResult
 
 
 def test_app_state_has_phase_2_fields():
@@ -162,7 +158,8 @@ def test_app_state_has_phase_2_fields():
     assert s.last_acquire_raws == {}
 
 
-def test_acquire_in_flight_is_listener_observable():
+@pytest.mark.asyncio
+async def test_acquire_in_flight_is_listener_observable():
     """Listeners fire on acquire_in_flight changes."""
     from pytxt.state.app_state import AppState
     s = AppState()
@@ -173,9 +170,7 @@ def test_acquire_in_flight_is_listener_observable():
 
     s.subscribe("acquire_in_flight", cb)
 
-    async def run():
-        await s.update(acquire_in_flight=True)
-        await s.update(acquire_in_flight=False)
+    await s.update(acquire_in_flight=True)
+    await s.update(acquire_in_flight=False)
 
-    asyncio.run(run())
     assert captured == [True, False]
