@@ -61,6 +61,7 @@ def _pad_numeric_array(
 def _pad_int_array(
     items: list[int] | np.ndarray, max_len: int, fill: int = 0
 ) -> list[int]:
+    """Convert numpy/list of ints → list, padding to max_len with `fill`."""
     arr = [int(v) for v in np.asarray(items).tolist()]
     if len(arr) >= max_len:
         return arr[:max_len]
@@ -148,11 +149,15 @@ class PyTxTIOC:
         self.state.subscribe("bpm_prefixes", _publish_bpm_names)
 
     async def _publish_last_acquire(self, value: LastAcquireResult) -> None:
-        """Write all PVs derived from a LastAcquireResult."""
+        """Write all PVs derived from a LastAcquireResult.
+
+        All writes are wrapped in a single try/except so a failure in any write
+        aborts the rest, preventing partial-publish drift. The handler will
+        update last_acquire again on the next ACQUIRE and the publisher will
+        retry from scratch.
+        """
         try:
-            await self.pvgroup.last_acquire_status.write(
-                STATUS_STR_TO_INT[value.status.value]
-            )
+            await self.pvgroup.last_acquire_status.write(STATUS_STR_TO_INT[value.status.value])
             await self.pvgroup.last_acquire_ok_count.write(value.ok_count)
             await self.pvgroup.last_acquire_fail_count.write(value.fail_count)
             ts = value.timestamp.isoformat() if value.timestamp else ""
@@ -161,25 +166,14 @@ class PyTxTIOC:
             await self.pvgroup.last_acquire_failed_bpm_names.write(
                 _pad_string_array(value.failed_bpm_names, max_len=128)
             )
-        except Exception:
-            logger.exception("IOC publish of LastAcquireResult fields failed")
 
-        # Result waveforms: derived from state.last_acquire_raws (the source
-        # of truth for the raw data) plus the extracted first-turn arrays
-        # which the handler has already pushed into state.last_acquire.
-        # We pull from AppState directly to keep this publish atomic-ish.
-        raws = self.state.last_acquire_raws
-        prefixes = self.state.bpm_prefixes
-        try:
-            # The first-turn arrays were computed by extract_first_turn in the
-            # handler; re-derive them here from raws + the published last_acquire
-            # for index alignment. To avoid double work, we use the *already-
-            # extracted* values via a small helper on AppState — but since they
-            # aren't stored as arrays separately, we re-extract here. This is
-            # microseconds for 120 entries. (Acknowledged minor design smell per
-            # spec §6.7; intentional, do not refactor.)
+            # Result waveforms: re-derive from state.last_acquire_raws + bpm_prefixes
+            # for index alignment. extract_first_turn is microseconds for ~120 entries
+            # — cheaper than a separate AppState field to hold the arrays.
             from pytxt.domain.first_turn_extract import extract_first_turn
 
+            raws = self.state.last_acquire_raws
+            prefixes = self.state.bpm_prefixes
             aligned: dict[str, object] = {p: raws.get(p) for p in prefixes}
             r = extract_first_turn(aligned)
             await self.pvgroup.result_bpm_x_first_turn.write(
@@ -195,7 +189,7 @@ class PyTxTIOC:
                 _pad_int_array(r.injection_turn, max_len=128, fill=-1)
             )
         except Exception:
-            logger.exception("IOC publish of RESULT:BPM:* waveforms failed")
+            logger.exception("IOC publish of LastAcquireResult / RESULT:BPM:* failed")
 
     async def run(self) -> None:
         if self.port:
