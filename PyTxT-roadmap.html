@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PyTxT — Roadmap &amp; Status</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --bg-card: #ffffff;
+    --bg-soft: #fafafa;
+    --fg: #1a1a1a;
+    --fg-muted: #5a5a62;
+    --fg-faint: #8a8a92;
+    --accent: #0b5fff;
+    --accent-soft: #e8efff;
+    --accent-strong: #0040c2;
+    --code-bg: #f1f1f4;
+    --border: #e2e2e6;
+    --border-strong: #cdcdd3;
+
+    --done-bg: #ecfdf5;     --done-fg: #047857;     --done-border: #6ee7b7;
+    --now-bg:  #eff6ff;     --now-fg:  #1d4ed8;     --now-border:  #93c5fd;
+    --plan-bg: #fffbeb;     --plan-fg: #b45309;     --plan-border: #fcd34d;
+    --fut-bg:  #f3f4f6;     --fut-fg:  #4b5563;     --fut-border:  #d1d5db;
+    --skel-bg: #faf5ff;     --skel-fg: #6b21a8;     --skel-border: #d8b4fe;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.55;
+  }
+
+  .container { max-width: 1180px; margin: 0 auto; padding: 1.5rem 1.5rem 4rem; }
+
+  /* ============================================== */
+  /* Header                                          */
+  /* ============================================== */
+  .topbar {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    flex-wrap: wrap;
+    border-bottom: 3px solid var(--accent);
+    padding: 0.4rem 0 0.6rem;
+    margin-bottom: 1.5rem;
+  }
+  .topbar h1 {
+    margin: 0;
+    font-size: 1.9rem;
+    letter-spacing: -0.01em;
+  }
+  .topbar .tagline {
+    color: var(--fg-muted);
+    font-size: 1rem;
+    flex: 1;
+    min-width: 200px;
+  }
+  .topbar .meta {
+    color: var(--fg-faint);
+    font-size: 0.85em;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+
+  /* ============================================== */
+  /* Hero — current state summary                    */
+  /* ============================================== */
+  .hero {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  @media (max-width: 800px) { .hero { grid-template-columns: 1fr; } }
+
+  .hero-current {
+    background: linear-gradient(135deg, var(--accent-soft) 0%, #f5f8ff 100%);
+    border: 1px solid var(--now-border);
+    border-left: 5px solid var(--accent);
+    border-radius: 8px;
+    padding: 1.2rem 1.4rem;
+  }
+  .hero-current .label {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.75em;
+    color: var(--accent-strong);
+    font-weight: 700;
+  }
+  .hero-current h2 {
+    margin: 0.3rem 0 0.4rem;
+    font-size: 1.4rem;
+  }
+  .hero-current p { margin: 0.3rem 0; color: var(--fg-muted); font-size: 0.95em; }
+  .hero-current .progress {
+    margin-top: 0.9rem;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    height: 14px;
+    overflow: hidden;
+    position: relative;
+  }
+  .hero-current .progress-fill {
+    background: linear-gradient(90deg, var(--accent) 0%, #4a8aff 100%);
+    height: 100%;
+    width: 0%;             /* update when milestones land */
+    transition: width 0.4s ease;
+    border-radius: 999px;
+  }
+  .hero-current .progress-text {
+    font-size: 0.78em;
+    color: var(--fg-muted);
+    margin-top: 0.4rem;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+  }
+  .stat {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.7rem 0.9rem;
+  }
+  .stat .num {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .stat .lbl {
+    color: var(--fg-muted);
+    font-size: 0.8em;
+    margin-top: 0.2rem;
+  }
+
+  /* ============================================== */
+  /* Roadmap track                                   */
+  /* ============================================== */
+  h2.section {
+    margin-top: 2.5rem;
+    margin-bottom: 0.8rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.3rem;
+    font-size: 1.3rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+  h2.section .hint {
+    font-weight: 400;
+    font-size: 0.78em;
+    color: var(--fg-faint);
+  }
+
+  .roadmap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+  }
+
+  details.phase {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0;
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
+    overflow: hidden;
+  }
+  details.phase[open] {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  }
+  details.phase summary {
+    cursor: pointer;
+    padding: 0.85rem 1.1rem 0.85rem 1.3rem;
+    list-style: none;
+    user-select: none;
+    transition: background 0.12s ease;
+    display: grid;
+    grid-template-columns: 7.5rem minmax(0, 1fr) auto 1.2rem;
+    align-items: center;
+    column-gap: 1.2rem;
+    row-gap: 0.2rem;
+  }
+  details.phase summary:hover { background: var(--bg-soft); }
+  details.phase summary::-webkit-details-marker { display: none; }
+  details.phase summary::after {
+    content: "▾";
+    color: var(--fg-faint);
+    font-size: 0.95em;
+    line-height: 1;
+    transition: transform 0.15s ease;
+    grid-column: 4;
+    grid-row: 1 / span 2;
+    align-self: center;
+    justify-self: end;
+  }
+  details.phase[open] summary::after { transform: rotate(180deg); }
+  details.phase .num {
+    color: var(--fg-faint);
+    font-size: 0.78em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    grid-row: 1;
+    grid-column: 1;
+  }
+  details.phase .title {
+    font-weight: 600;
+    font-size: 1.05em;
+    line-height: 1.25;
+    grid-row: 1;
+    grid-column: 2;
+  }
+  details.phase .blurb {
+    color: var(--fg-muted);
+    font-size: 0.9em;
+    line-height: 1.4;
+    grid-row: 2;
+    grid-column: 2;
+  }
+  details.phase .badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    justify-content: flex-end;
+    grid-row: 1 / span 2;
+    grid-column: 3;
+    align-self: center;
+  }
+  @media (max-width: 640px) {
+    details.phase summary {
+      grid-template-columns: minmax(0, 1fr) auto 1rem;
+      column-gap: 0.6rem;
+    }
+    details.phase summary::after { grid-column: 3; grid-row: 1 / span 3; align-self: center; }
+    details.phase .num   { grid-column: 1; grid-row: 1; }
+    details.phase .title { grid-column: 1; grid-row: 2; }
+    details.phase .blurb { grid-column: 1 / span 2; grid-row: 3; }
+    details.phase .badges{ grid-column: 2; grid-row: 1; justify-content: flex-end; }
+  }
+  details.phase .body {
+    padding: 0.4rem 1.4rem 1.2rem;
+    border-top: 1px solid var(--border);
+    margin-top: 0;
+    font-size: 0.92em;
+    color: var(--fg-muted);
+    columns: 2;
+    column-gap: 2.5rem;
+  }
+  @media (max-width: 720px) { details.phase .body { columns: 1; } }
+  details.phase .body h4 {
+    color: var(--fg);
+    font-size: 0.82em;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 0.9rem;
+    margin-bottom: 0.3rem;
+    break-after: avoid;
+  }
+  details.phase .body h4:first-of-type { margin-top: 0.6rem; }
+  details.phase .body ul {
+    margin: 0.2rem 0 0.6rem;
+    padding-left: 1.2rem;
+    break-inside: avoid;
+  }
+  details.phase .body li { font-size: 0.92em; margin-bottom: 0.18rem; line-height: 1.45; }
+  details.phase .body code { font-size: 0.88em; background: var(--code-bg); padding: 0.05em 0.3em; border-radius: 3px; }
+
+  details.phase.done    { border-top: 4px solid var(--done-fg); }
+  details.phase.now     { border-top: 4px solid var(--now-fg); box-shadow: 0 0 0 2px var(--now-border); }
+  details.phase.planned { border-top: 4px solid var(--plan-fg); }
+  details.phase.future  { border-top: 4px solid var(--fut-fg);  opacity: 0.85; }
+
+  /* badges */
+  .badge {
+    display: inline-block;
+    padding: 0.12rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.7em;
+    font-weight: 600;
+    border: 1px solid;
+    white-space: nowrap;
+    vertical-align: middle;
+    line-height: 1.5;
+  }
+  .badge-done { background: var(--done-bg); color: var(--done-fg); border-color: var(--done-border); }
+  .badge-now  { background: var(--now-bg);  color: var(--now-fg);  border-color: var(--now-border); }
+  .badge-plan { background: var(--plan-bg); color: var(--plan-fg); border-color: var(--plan-border); }
+  .badge-fut  { background: var(--fut-bg);  color: var(--fut-fg);  border-color: var(--fut-border); }
+  .badge-skel { background: var(--skel-bg); color: var(--skel-fg); border-color: var(--skel-border); }
+
+  /* ============================================== */
+  /* Milestone tracker for current phase             */
+  /* ============================================== */
+  .milestones {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    margin-top: 0.8rem;
+  }
+  @media (max-width: 700px) { .milestones { grid-template-columns: 1fr 1fr; } }
+  .ms {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.7rem 0.8rem;
+    font-size: 0.88em;
+    position: relative;
+  }
+  .ms.done { border-left: 4px solid var(--done-fg); }
+  .ms.now  { border-left: 4px solid var(--now-fg); background: var(--now-bg); }
+  .ms.todo { border-left: 4px solid var(--fut-border); }
+  .ms .ms-label {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 0.78em;
+  }
+  .ms .ms-title { font-weight: 600; margin: 0.2rem 0 0.3rem; font-size: 1em; }
+  .ms .ms-meta { color: var(--fg-faint); font-size: 0.85em; }
+  .ms .ms-status { float: right; font-size: 0.78em; }
+
+  /* ============================================== */
+  /* Component / package map                         */
+  /* ============================================== */
+  .components {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.6rem;
+    margin: 1rem 0;
+  }
+  .pkg {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.75rem 0.85rem;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+  }
+  .pkg:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .pkg.done  { border-left: 3px solid var(--done-fg); }
+  .pkg.skel  { border-left: 3px solid var(--skel-fg); background: linear-gradient(to right, var(--skel-bg) 0%, var(--bg-card) 80%); }
+  .pkg.fut   { border-left: 3px solid var(--fut-fg); opacity: 0.75; }
+  .pkg .pkg-name {
+    font-family: "SF Mono", Menlo, monospace;
+    font-weight: 600;
+    font-size: 0.92em;
+    color: var(--fg);
+  }
+  .pkg .pkg-role {
+    color: var(--fg-muted);
+    font-size: 0.82em;
+    margin-top: 0.2rem;
+    line-height: 1.35;
+  }
+  .pkg .pkg-status {
+    margin-top: 0.4rem;
+  }
+  .pkg .pkg-files {
+    color: var(--fg-faint);
+    font-size: 0.78em;
+    margin-top: 0.3rem;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+
+  /* ============================================== */
+  /* Architecture diagram                            */
+  /* ============================================== */
+  .arch {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+  }
+  .arch pre {
+    margin: 0;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 0.85em;
+    line-height: 1.35;
+    color: var(--fg);
+    background: none;
+    padding: 0;
+    border: none;
+  }
+
+  /* ============================================== */
+  /* Activity log (commits)                          */
+  /* ============================================== */
+  .activity {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem 0;
+    margin: 1rem 0;
+  }
+  .commit {
+    display: grid;
+    grid-template-columns: 6rem 1fr auto;
+    gap: 0.8rem;
+    align-items: baseline;
+    padding: 0.4rem 1rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9em;
+    transition: background 0.1s ease;
+  }
+  .commit:hover { background: var(--bg-soft); }
+  .commit:last-child { border-bottom: none; }
+  .commit .hash {
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 0.85em;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .commit .msg { color: var(--fg); }
+  .commit .tag { color: var(--fg-faint); font-size: 0.78em; white-space: nowrap; }
+
+  /* ============================================== */
+  /* What's next                                     */
+  /* ============================================== */
+  .next-box {
+    background: linear-gradient(135deg, #fff8e1 0%, #fffbeb 100%);
+    border: 1px solid var(--plan-border);
+    border-left: 5px solid var(--plan-fg);
+    border-radius: 8px;
+    padding: 1.2rem 1.4rem;
+    margin: 1rem 0;
+  }
+  .next-box h3 { margin: 0 0 0.5rem; color: var(--plan-fg); font-size: 1.1rem; }
+  .next-box ol { margin: 0.3rem 0; padding-left: 1.5rem; }
+  .next-box li { margin-bottom: 0.3rem; }
+  .next-box code { background: rgba(180,83,9,0.12); padding: 0.05em 0.3em; border-radius: 3px; font-size: 0.9em; }
+
+  /* ============================================== */
+  /* Footer                                          */
+  /* ============================================== */
+  .footer {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    color: var(--fg-faint);
+    font-size: 0.83em;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+  }
+  .footer a { color: var(--accent); text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
+
+  /* utility */
+  .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    font-size: 0.85em;
+    color: var(--fg-muted);
+    margin-bottom: 0.6rem;
+  }
+  .legend-item { display: flex; align-items: center; gap: 0.3rem; }
+  .legend-dot { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid; }
+
+  /* ============================================== */
+  /* Architecture SVG diagram                        */
+  /* ============================================== */
+  .arch-legend {
+    display: flex; flex-wrap: wrap; gap: 1.1rem;
+    font-size: 0.8em; color: var(--fg-muted);
+    margin-bottom: 1rem;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+  .arch-legend-item { display: flex; align-items: center; gap: 0.4rem; }
+  .arch-legend-sw {
+    display: inline-block; width: 14px; height: 14px; border-radius: 3px;
+    border: 1px solid;
+  }
+  .arch-legend-sw.done     { background: var(--bg-card); border-color: var(--done-fg); }
+  .arch-legend-sw.now      { background: var(--now-bg);  border-color: var(--now-fg);  }
+  .arch-legend-sw.scaffold { background: var(--skel-bg); border-color: var(--skel-fg); border-style: dashed; }
+  .arch-legend-sw.upstream { background: var(--fut-bg);  border-color: var(--fut-fg);  }
+  .arch-legend-line {
+    width: 22px; height: 2px; background: var(--accent); border-radius: 2px;
+  }
+  .arch-legend-line.control { background: var(--plan-fg); }
+  .arch-legend-line.planned { background: var(--fut-fg);  }
+
+  svg.arch-svg {
+    width: 100%; height: auto; display: block; user-select: none;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  .comp { cursor: pointer; }
+  .comp rect { transition: stroke-width .12s ease, filter .12s ease; }
+  .comp.done rect     { fill: var(--bg-card); stroke: var(--done-fg); stroke-width: 1.8; }
+  .comp.now rect      { fill: var(--now-bg);  stroke: var(--now-fg);  stroke-width: 1.8; }
+  .comp.scaffold rect { fill: var(--skel-bg); stroke: var(--skel-fg); stroke-width: 1.6; stroke-dasharray: 5 3; }
+  .comp.planned rect  { fill: var(--plan-bg); stroke: var(--plan-fg); stroke-width: 1.4; stroke-dasharray: 5 3; }
+  .comp.upstream rect { fill: var(--fut-bg);  stroke: var(--fut-fg);  stroke-width: 1.4; }
+  .comp .title    { font-size: 13px; font-weight: 600; fill: var(--fg); }
+  .comp .subtitle { font-size: 10.5px; fill: var(--fg-muted); font-family: "SF Mono", Menlo, monospace; }
+  .comp .badge-txt { font-size: 9.5px; fill: var(--fg-faint); font-family: "SF Mono", Menlo, monospace; text-transform: uppercase; letter-spacing: .08em; }
+  .comp.upstream .title { fill: var(--fut-fg); }
+  .comp:hover rect       { stroke-width: 2.8; filter: drop-shadow(0 2px 6px rgba(0,0,0,.10)); }
+  .comp.highlight rect   { stroke-width: 3.2; filter: drop-shadow(0 0 7px var(--accent)); }
+
+  .group-rect  { fill: transparent; stroke: var(--border-strong); stroke-width: 1; stroke-dasharray: 2 6; }
+  .group-label { font-size: 10.5px; fill: var(--fg-faint); font-family: "SF Mono", Menlo, monospace; text-transform: uppercase; letter-spacing: .08em; }
+
+  .flow { fill: none; stroke-width: 1.6; transition: stroke-width .12s ease; }
+  .flow.data    { stroke: var(--accent); }
+  .flow.control { stroke: var(--plan-fg); stroke-dasharray: 6 4; }
+  .flow.planned { stroke: var(--fut-fg);  stroke-dasharray: 3 5; opacity: .65; }
+  .flow.highlight { stroke-width: 3; }
+  .flow-label {
+    font-size: 10.5px; fill: var(--fg-muted); font-family: "SF Mono", Menlo, monospace;
+    paint-order: stroke; stroke: var(--bg-card); stroke-width: 4; stroke-linejoin: round;
+  }
+
+  .arch-tip {
+    position: fixed; pointer-events: none; z-index: 100;
+    background: var(--bg-card); border: 1px solid var(--border-strong); border-radius: 6px;
+    padding: 0.55rem 0.75rem; font-size: 0.83em; box-shadow: 0 6px 18px rgba(0,0,0,.10);
+    max-width: 320px; opacity: 0; transition: opacity .12s ease;
+    color: var(--fg);
+  }
+  .arch-tip.show { opacity: 1; }
+  .arch-tip .at-title { font-weight: 600; }
+  .arch-tip .at-meta  { color: var(--fg-faint); font-size: 0.85em; font-family: "SF Mono", Menlo, monospace; margin: 0.15rem 0 0.3rem; }
+  .arch-tip .at-body  { color: var(--fg-muted); line-height: 1.4; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- ============================================== -->
+<!-- HEADER                                          -->
+<!-- ============================================== -->
+<div class="topbar">
+  <h1>PyTxT</h1>
+  <div class="tagline">Turn-by-turn beam analysis for the ALS injection chain — roadmap &amp; live status</div>
+  <div class="meta" id="last-updated">Last updated: 2026-05-19</div>
+</div>
+
+<!-- ============================================== -->
+<!-- HERO — at a glance                              -->
+<!-- ============================================== -->
+<div class="hero">
+  <div class="hero-current">
+    <div class="label">Current phase</div>
+    <h2>Phase 2 · Read path (M1 code shipped · awaiting manual DoD)</h2>
+    <p>
+      All M1 code tasks complete: domain (injection-turn + first-turn extract), CA client (BpmReader), handler,
+      IOC PVs, REST routes, frontend trajectory page. 72 tests passing. Composition hardcodes <code>SR01C:BPM1</code>
+      for M1; M2 swaps in the full ~120-BPM list once you dump it from MATLAB.
+    </p>
+    <div class="progress" title="M1 code complete; 0 of 4 milestone DoDs signed off">
+      <div class="progress-fill" style="width: 22%"></div>
+    </div>
+    <div class="progress-text">M1 code ✓ · M1 DoD pending Kirk · M2/M3/M4 queued</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="num">1 / 6</div><div class="lbl">Phases complete</div></div>
+    <div class="stat"><div class="num">72 / 72</div><div class="lbl">Tests passing</div></div>
+    <div class="stat"><div class="num">4</div><div class="lbl">E2E specs</div></div>
+    <div class="stat"><div class="num">28</div><div class="lbl">Unpushed commits</div></div>
+  </div>
+</div>
+
+<!-- ============================================== -->
+<!-- ROADMAP                                          -->
+<!-- ============================================== -->
+<h2 class="section">Roadmap <span class="hint">click any phase to expand</span></h2>
+
+<div class="legend">
+  <div class="legend-item"><span class="legend-dot" style="background:var(--done-bg);border-color:var(--done-fg)"></span> Complete</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--now-bg);border-color:var(--now-fg)"></span> Current</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--plan-bg);border-color:var(--plan-fg)"></span> Planned</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--fut-bg);border-color:var(--fut-fg)"></span> Future</div>
+</div>
+
+<div class="roadmap">
+
+  <!-- ====== PHASE 1 ====== -->
+  <details class="phase done">
+    <summary>
+      <div class="num">Phase 1</div>
+      <div class="title">Skeleton + IOC</div>
+      <div class="blurb">Architecture round-trip. PING keystone via CA &amp; REST.</div>
+      <div class="badges"><span class="badge badge-done">✓ Complete</span></div>
+    </summary>
+    <div class="body">
+      <h4>What shipped</h4>
+      <ul>
+        <li>Soft IOC (caproto) + FastAPI + WS bridge on single asyncio loop</li>
+        <li><code>CMD:PING</code> works identically via CA write &amp; REST POST</li>
+        <li>Browser shell with WS auto-reconnect, ping demo</li>
+        <li>Dockerfile + compose (bridge + host overlay)</li>
+        <li>39 pytest + 4 Playwright tests passing; 10/10 DoD criteria</li>
+      </ul>
+      <h4>Key invariants now enforced</h4>
+      <ul>
+        <li>Parity test: CA write ≡ REST POST (structural, not review-based)</li>
+        <li>AppState is the single in-process source of truth</li>
+        <li>Domain logic is I/O-free (empty scaffold, enforced by import graph)</li>
+        <li>Dev/prod isolation: PV-prefix + CA-port double gate</li>
+      </ul>
+      <h4>Tag</h4>
+      <ul><li><code>phase-1-complete</code> at commit <code>c179c78</code></li></ul>
+    </div>
+  </details>
+
+  <!-- ====== PHASE 2 ====== -->
+  <details class="phase now" open>
+    <summary>
+      <div class="num">Phase 2</div>
+      <div class="title">Read path</div>
+      <div class="blurb">~120 BPM TBT reads → ring trajectory plot. <code>CMD:ACQUIRE</code>.</div>
+      <div class="badges"><span class="badge badge-now">→ M1 code done · DoD pending</span></div>
+    </summary>
+    <div class="body">
+      <h4>Scope decisions locked</h4>
+      <ul>
+        <li>Read-only (no arming, no triggering) — phase-4 black box avoided</li>
+        <li>All ~120 BPMs, first turn, snapshot mode (no continuous monitoring)</li>
+        <li>Faithful MATLAB port for injection-turn detection (per-BPM argmax, 1370 fallback)</li>
+        <li>Result PVs (small extracted) + raw waveforms via REST</li>
+        <li>Best-effort with NaN holes; state PVs report failed counts/names</li>
+        <li>Persistent CA connections, on-demand parallel reads</li>
+        <li>UI layout: stacked X above Y (matches original MATLAB GUI)</li>
+      </ul>
+      <h4>References</h4>
+      <ul>
+        <li>Spec: <code>docs/superpowers/specs/2026-05-18-phase-2-read-path-design.md</code></li>
+        <li>Plan: <code>docs/superpowers/plans/2026-05-19-phase-2-read-path.md</code></li>
+        <li>Checkpoint: <code>PyTxT-phase-2-checkpoint.html</code></li>
+        <li>Decision log: <code>docs/superpowers/specs/2026-05-18-phase-2-decisions.md</code></li>
+      </ul>
+      <h4>Milestones</h4>
+      <ul>
+        <li><strong>M1</strong> — Vertical slice, 1 real BPM · <em>code complete · awaiting Kirk's DoD</em></li>
+        <li><strong>M2</strong> — Scale to all ~120 BPMs · <em>queued (Kirk supplies BPM list first)</em></li>
+        <li><strong>M3</strong> — Failure handling · queued</li>
+        <li><strong>M4</strong> — Raw REST + UI polish + e2e · queued</li>
+      </ul>
+      <h4>What landed in M1</h4>
+      <ul>
+        <li>Domain: <code>RawBPM</code>, <code>FirstTurnResult</code>, <code>detect_injection_turn</code>, <code>extract_first_turn</code></li>
+        <li>CA client: <code>BpmReader</code> with persistent connections + parallel reads + start/stop lifecycle</li>
+        <li>Handler: <code>handle_acquire</code> with in-flight guard, try/finally, partial/all-fail semantics</li>
+        <li>IOC: 12 new PVs (CMD/STATE/RESULT) + publish helpers for all phase-2 AppState fields</li>
+        <li>REST: <code>POST /cmd/acquire</code>, extended <code>/state</code>; <code>/result/bpm/raw</code> stub for M4</li>
+        <li>Frontend: <code>trajectory.html</code> with stacked X/Y canvases + nav</li>
+        <li>Tests: fake-BPM-IOC fixture, unit + integration coverage, ACQUIRE parity row</li>
+      </ul>
+    </div>
+  </details>
+
+  <!-- ====== PHASE 3 ====== -->
+  <details class="phase planned">
+    <summary>
+      <div class="num">Phase 3</div>
+      <div class="title">Reference trajectory</div>
+      <div class="blurb">Load/save <code>.mat</code>; overlay reference; difference panels.</div>
+      <div class="badges"><span class="badge badge-plan">⏳ Planned</span></div>
+    </summary>
+    <div class="body">
+      <h4>Anticipated scope</h4>
+      <ul>
+        <li>Load/save <code>.mat</code> reference trajectories (REST file upload/download)</li>
+        <li><code>STATE:REF_LOADED</code>, <code>STATE:REF_NAME</code> PVs</li>
+        <li><code>RESULT:BPM:X_DIFF_FIRST_TURN</code> / <code>:Y_DIFF_FIRST_TURN</code></li>
+        <li><code>CMD:LOAD_REF</code>, <code>CMD:SAVE_REF</code></li>
+        <li>Frontend: 4-panel layout when reference is loaded (X, Y, ΔX, ΔY)</li>
+        <li>New domain module: <code>pytxt/domain/reference.py</code></li>
+        <li>Parity test grows by 2 parametrize rows</li>
+      </ul>
+      <h4>Note</h4>
+      <ul><li>Zero structural changes from phase 2 expected.</li></ul>
+    </div>
+  </details>
+
+  <!-- ====== PHASE 4 ====== -->
+  <details class="phase future">
+    <summary>
+      <div class="num">Phase 4</div>
+      <div class="title">Threading workflow</div>
+      <div class="blurb">Arm + trigger; pySC + response matrix; CM steps.</div>
+      <div class="badges"><span class="badge badge-fut">Future</span></div>
+    </summary>
+    <div class="body">
+      <h4>Anticipated scope</h4>
+      <ul>
+        <li>Arm BPMs (CA writes to <code>wfr:TBT:arm</code> — well-defined)</li>
+        <li>Trigger injection — resolves the <code>srinjectoneshot</code> MML black box</li>
+        <li>Port <code>FirstTurnThreading.m</code></li>
+        <li>Golden-orbit subtraction (requires MML data)</li>
+        <li>pySC integration: lattice, response matrix, SVD pseudo-inverse</li>
+        <li>CM step calc and apply</li>
+      </ul>
+    </div>
+  </details>
+
+  <!-- ====== PHASE 5 ====== -->
+  <details class="phase future">
+    <summary>
+      <div class="num">Phase 5</div>
+      <div class="title">Analysis polish</div>
+      <div class="blurb">Gaussian fits, dispersion, RMS, full GUI parity.</div>
+      <div class="badges"><span class="badge badge-fut">Future</span></div>
+    </summary>
+    <div class="body">
+      <h4>Anticipated scope</h4>
+      <ul>
+        <li>Gaussian fits on first-turn data</li>
+        <li>Dispersion, kick angle, RMS metrics</li>
+        <li>Full GUI feature parity with the 18-step MATLAB manual</li>
+        <li>Tab-structured frontend matching the GUI layout</li>
+      </ul>
+    </div>
+  </details>
+
+  <!-- ====== PHASE 6 ====== -->
+  <details class="phase future">
+    <summary>
+      <div class="num">Phase 6</div>
+      <div class="title">Hardening + deploy</div>
+      <div class="blurb">CI, log shipping, Phoebus screens, prod deploy.</div>
+      <div class="badges"><span class="badge badge-fut">Future</span></div>
+    </summary>
+    <div class="body">
+      <h4>Anticipated scope</h4>
+      <ul>
+        <li>CI pipeline (GitHub Actions / GitLab)</li>
+        <li>Log shipping, monitoring/alerting wiring</li>
+        <li>Phoebus screen examples (operator-standard UI)</li>
+        <li>Production deploy automation to appsdev2</li>
+      </ul>
+    </div>
+  </details>
+
+</div>
+
+<!-- ============================================== -->
+<!-- CURRENT-PHASE MILESTONE TRACKER                 -->
+<!-- ============================================== -->
+<h2 class="section">Phase 2 milestones <span class="hint">in-flight</span></h2>
+
+<div class="milestones">
+  <div class="ms done">
+    <div class="ms-label">M1</div>
+    <span class="ms-status"><span class="badge badge-done">Code ✓</span></span>
+    <div class="ms-title">Vertical slice, 1 real BPM</div>
+    <div class="ms-meta">14 tasks · 24 commits · 72 tests · manual DoD on appsdev2 pending Kirk</div>
+  </div>
+  <div class="ms now">
+    <div class="ms-label">M2</div>
+    <span class="ms-status"><span class="badge badge-now">Next</span></span>
+    <div class="ms-title">Scale to ~120 BPMs</div>
+    <div class="ms-meta">~2 days · needs MATLAB BPM-list dump (Kirk) before code can land</div>
+  </div>
+  <div class="ms todo">
+    <div class="ms-label">M3</div>
+    <span class="ms-status"><span class="badge badge-fut">Queued</span></span>
+    <div class="ms-title">Failure handling</div>
+    <div class="ms-meta">~2 days · fault-injection fixture, PARTIAL status, 409 concurrency tests</div>
+  </div>
+  <div class="ms todo">
+    <div class="ms-label">M4</div>
+    <span class="ms-status"><span class="badge badge-fut">Queued</span></span>
+    <div class="ms-title">Raw REST + polish + e2e</div>
+    <div class="ms-meta">~2 days · <code>/result/bpm/raw</code>, hover tooltips, Playwright spec</div>
+  </div>
+</div>
+
+<!-- ============================================== -->
+<!-- ARCHITECTURE DIAGRAM                            -->
+<!-- ============================================== -->
+<h2 class="section">Architecture <span class="hint">end-to-end data flow · click any component to highlight its connections</span></h2>
+
+<div class="arch">
+  <div class="arch-legend">
+    <div class="arch-legend-item"><span class="arch-legend-sw done"></span> Filled (phase 1)</div>
+    <div class="arch-legend-item"><span class="arch-legend-sw now"></span> Active (phase 2)</div>
+    <div class="arch-legend-item"><span class="arch-legend-sw scaffold"></span> Scaffold → filling</div>
+    <div class="arch-legend-item"><span class="arch-legend-sw upstream"></span> External / upstream</div>
+    <div class="arch-legend-item"><span class="arch-legend-line"></span> data (PVs / waveforms / JSON)</div>
+    <div class="arch-legend-item"><span class="arch-legend-line control"></span> control (CA put · HTTP POST)</div>
+    <div class="arch-legend-item"><span class="arch-legend-line planned"></span> planned</div>
+  </div>
+  <svg class="arch-svg" id="arch-svg" viewBox="0 0 1180 760" aria-label="PyTxT architecture diagram"></svg>
+</div>
+<div class="arch-tip" id="arch-tip" role="tooltip"></div>
+
+<!-- ============================================== -->
+<!-- COMPONENT / PACKAGE MAP                         -->
+<!-- ============================================== -->
+<h2 class="section">Packages <span class="hint">what's filled, scaffolded, future</span></h2>
+
+<div class="legend">
+  <div class="legend-item"><span class="legend-dot" style="background:var(--bg-card);border-color:var(--done-fg)"></span> Filled (phase 1)</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--skel-bg);border-color:var(--skel-fg)"></span> Scaffold (next-up)</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--bg-card);border-color:var(--fut-fg)"></span> Future</div>
+</div>
+
+<div class="components">
+
+  <div class="pkg done">
+    <div class="pkg-name">pytxt/state/</div>
+    <div class="pkg-role">AppState dataclass + async change-notification</div>
+    <div class="pkg-status"><span class="badge badge-done">Filled</span></div>
+    <div class="pkg-files">app_state.py</div>
+  </div>
+
+  <div class="pkg done">
+    <div class="pkg-name">pytxt/handlers/</div>
+    <div class="pkg-role">Shared async handlers — called by both CA and REST</div>
+    <div class="pkg-status"><span class="badge badge-done">Filled</span></div>
+    <div class="pkg-files">ping.py</div>
+  </div>
+
+  <div class="pkg done">
+    <div class="pkg-name">pytxt/ioc/</div>
+    <div class="pkg-role">Soft IOC server + PV definitions + putter dispatch</div>
+    <div class="pkg-status"><span class="badge badge-done">Filled</span></div>
+    <div class="pkg-files">server.py, pvs.py</div>
+  </div>
+
+  <div class="pkg done">
+    <div class="pkg-name">pytxt/api/</div>
+    <div class="pkg-role">FastAPI app, REST routes, WS bridge, Pydantic schemas</div>
+    <div class="pkg-status"><span class="badge badge-done">Filled</span></div>
+    <div class="pkg-files">server.py, routes/, ws_bridge.py, schemas/</div>
+  </div>
+
+  <div class="pkg done">
+    <div class="pkg-name">pytxt/frontend/</div>
+    <div class="pkg-role">Static HTML/JS/CSS — vanilla, no framework</div>
+    <div class="pkg-status"><span class="badge badge-done">Filled</span></div>
+    <div class="pkg-files">index.html, js/, css/</div>
+  </div>
+
+  <div class="pkg done">
+    <div class="pkg-name">pytxt/config/</div>
+    <div class="pkg-role">Settings (pydantic-settings, env-driven)</div>
+    <div class="pkg-status"><span class="badge badge-done">Filled</span></div>
+    <div class="pkg-files">settings.py</div>
+  </div>
+
+  <div class="pkg done">
+    <div class="pkg-name">pytxt/domain/</div>
+    <div class="pkg-role">Pure numpy analysis — zero I/O (enforced by import-graph test)</div>
+    <div class="pkg-status"><span class="badge badge-done">Filled</span></div>
+    <div class="pkg-files">types.py, injection_turn.py, first_turn_extract.py</div>
+  </div>
+
+  <div class="pkg done">
+    <div class="pkg-name">pytxt/ca_client/</div>
+    <div class="pkg-role">CA consumer — persistent connections, parallel BPM reads</div>
+    <div class="pkg-status"><span class="badge badge-done">Filled</span></div>
+    <div class="pkg-files">bpm_reader.py</div>
+  </div>
+
+  <div class="pkg done">
+    <div class="pkg-name">composition.py</div>
+    <div class="pkg-role">Top-level wiring — constructs and runs all subsystems (M1: hardcoded SR01C:BPM1; M2: from config file)</div>
+    <div class="pkg-status"><span class="badge badge-done">Filled</span></div>
+  </div>
+
+  <div class="pkg done">
+    <div class="pkg-name">tests/</div>
+    <div class="pkg-role">Unit (10 files) + integration (10 files) + fixtures (fake BPM IOC) + e2e (2 specs)</div>
+    <div class="pkg-status"><span class="badge badge-done">72 passing</span></div>
+  </div>
+
+</div>
+
+<!-- ============================================== -->
+<!-- WHAT'S NEXT                                     -->
+<!-- ============================================== -->
+<h2 class="section">What's next</h2>
+
+<div class="next-box">
+  <h3>Immediate — Kirk</h3>
+  <ol>
+    <li><strong>M1 DoD on appsdev2.</strong> <code>python -m pytxt</code> locally (page loads but BPM unreachable), then scp/pull to appsdev2 and verify ACQUIRE renders real <code>SR01C:BPM1</code> data. Tag <code>phase-2-m1-complete</code>.</li>
+    <li><strong>M2 prerequisite.</strong> Dump the full BPM prefix list from MATLAB on appsdev2 and commit as <code>pytxt/config/bpm_prefixes.txt</code> (one-liner in plan §M2-1).</li>
+  </ol>
+  <h3 style="margin-top:1rem">After M1 DoD — code (subagent-dispatched)</h3>
+  <ol>
+    <li>M2-2: swap composition's hardcoded list for the config-file loader.</li>
+    <li>M2-3: parametric integration test — parallel read of 10 BPMs under 3s.</li>
+    <li>M3-1/2/3: fault-injection in fake IOC fixture; PARTIAL-status path; concurrent-ACQUIRE 409 test.</li>
+    <li>M4-1/2/3: real <code>/result/bpm/raw</code> endpoint; hover tooltip + axis polish; Playwright trajectory spec.</li>
+  </ol>
+</div>
+
+<!-- ============================================== -->
+<!-- RECENT ACTIVITY                                 -->
+<!-- ============================================== -->
+<h2 class="section">Recent activity <span class="hint">most recent commits</span></h2>
+
+<div class="activity">
+  <div class="commit">
+    <div class="hash">76656a3</div>
+    <div class="msg">trajectory page with stacked X/Y canvases (M1-14)</div>
+    <div class="tag">feat(frontend)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">c015f92</div>
+    <div class="msg">wire BpmReader through composition root (M1-13)</div>
+    <div class="tag">feat(composition)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">fd59370</div>
+    <div class="msg">add ACQUIRE row to the keystone parity test (M1-12)</div>
+    <div class="tag">test(parity)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">a71e454</div>
+    <div class="msg">extend /api/v1/state with phase-2 fields (M1-11)</div>
+    <div class="tag">feat(api)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">a87563e</div>
+    <div class="msg">POST /api/v1/cmd/acquire route (M1-10)</div>
+    <div class="tag">feat(api)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">ff6a1ad</div>
+    <div class="msg">bind phase-2 AppState fields to RESULT:BPM:* / STATE:ACQUIRE:* (M1-9)</div>
+    <div class="tag">feat(ioc)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">88306c4</div>
+    <div class="msg">add CMD:ACQUIRE + STATE:ACQUIRE:* + RESULT:BPM:* pvproperties (M1-8)</div>
+    <div class="tag">feat(ioc)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">724d9b7</div>
+    <div class="msg">handle_acquire with in-flight guard and try/finally (M1-7)</div>
+    <div class="tag">feat(handlers)</div>
+  </div>
+</div>
+
+<!-- ============================================== -->
+<!-- FOOTER                                          -->
+<!-- ============================================== -->
+<div class="footer">
+  <span>Roadmap is updated after every major milestone.</span>
+  <span>·</span>
+  <a href="PyTxT-project-plan.html">Project plan</a>
+  <span>·</span>
+  <a href="PyTxT-phase-2-checkpoint.html">Phase-2 checkpoint</a>
+  <span>·</span>
+  <a href="docs/superpowers/specs/2026-05-18-phase-2-read-path-design.md">Phase-2 spec</a>
+  <span>·</span>
+  <a href="docs/superpowers/plans/2026-05-19-phase-2-read-path.md">Phase-2 plan</a>
+  <span>·</span>
+  <a href="docs/superpowers/specs/2026-05-18-phase-2-decisions.md">Phase-2 decisions log</a>
+</div>
+
+</div>
+
+<script>
+  // Tiny enhancement: collapse all phase cards when one is opened that wasn't already.
+  // Keeps the roadmap from getting too tall when the user clicks around.
+  // The currently-active phase (phase-2) stays open by default via the `open` attribute.
+  document.querySelectorAll('details.phase').forEach(el => {
+    el.addEventListener('toggle', () => {
+      if (el.open) {
+        document.querySelectorAll('details.phase').forEach(other => {
+          if (other !== el && other.open && !other.classList.contains('now')) {
+            other.open = false;
+          }
+        });
+      }
+    });
+  });
+
+  // ============================================================
+  // Architecture diagram — data model + renderer.
+  // Update COMPONENTS/FLOWS when modules move; the SVG reflows.
+  // status: 'done' | 'now' | 'scaffold' | 'planned' | 'upstream'
+  // ============================================================
+  const COMPONENTS = [
+    // ---- Upstream (external) ----
+    { id: 'bpm-iocs', x: 290, y: 30, w: 600, h: 78, status: 'upstream',
+      title: 'BPM IOCs (LBL controls)',
+      sub: '~120 × wfr:TBT:{c0, c1, c3, armed}',
+      badge: 'EXTERNAL',
+      tip: 'Production beam-position monitors. PyTxT reads turn-by-turn waveforms over Channel Access. Live on appsdev2; armed/triggered externally for phase 2.' },
+
+    // ---- Read path group ----
+    { id: 'g-read', kind: 'group', x: 40, y: 144, w: 1100, h: 152,
+      label: 'READ PATH — phase 2 (scaffolds being filled)' },
+    { id: 'ca-client', x: 170, y: 184, w: 280, h: 92, status: 'done',
+      title: 'ca_client/bpm_reader',
+      sub: 'persistent CA · parallel reads ✓',
+      tip: 'BpmReader holds persistent CA connections to every BPM prefix; reads c0/c1/c3/armed in parallel via asyncio.gather. Failed PVs return None (handler turns into NaN). M1 shipped; M3 adds fault-injection tests.' },
+    { id: 'domain', x: 510, y: 184, w: 380, h: 92, status: 'done',
+      title: 'domain/',
+      sub: 'injection_turn ✓ · first_turn_extract ✓',
+      tip: 'Pure numpy analysis — zero I/O, enforced by import graph. detect_injection_turn ports MATLAB argmax(diff(sum)) with [100,4500]→1370 fallback. extract_first_turn does nm→mm conversion and NaN sentinels for failed BPMs.' },
+
+    // ---- Keystone: AppState ----
+    { id: 'appstate', x: 120, y: 322, w: 940, h: 78, status: 'done',
+      title: 'AppState  ·  single in-process source of truth',
+      sub: 'heartbeat · ping_count · bpm_prefixes ✓ · acquire_in_flight ✓ · last_acquire ✓ · last_acquire_raws ✓',
+      tip: 'The one mutable dataclass that every layer reads from. Handlers mutate it; the IOC publisher and the WS bridge observe it. Phase 2 added 4 new fields with default factories; zero structural change to the listener machinery.' },
+
+    // ---- Handlers group ----
+    { id: 'g-handlers', kind: 'group', x: 40, y: 432, w: 660, h: 116,
+      label: 'HANDLERS — shared async, called by both CA and REST' },
+    { id: 'h-ping', x: 100, y: 470, w: 240, h: 64, status: 'done',
+      title: 'handlers/ping',
+      sub: 'phase 1 ✓',
+      tip: 'Shared async handler. Same code path whether invoked by a CA write to CMD:PING or an HTTP POST to /cmd/ping. Parity test enforces structural equivalence.' },
+    { id: 'h-acquire', x: 380, y: 470, w: 280, h: 64, status: 'done',
+      title: 'handlers/acquire',
+      sub: 'phase 2 ✓',
+      tip: 'Coordinates ca_client → domain → AppState. In-flight guard + try/finally guarantees acquire_in_flight is always cleared. AcquisitionInFlightError surfaced as CA alarm / HTTP 409. Snapshot mode.' },
+
+    // ---- External surface group ----
+    { id: 'g-ext', kind: 'group', x: 40, y: 588, w: 1100, h: 144,
+      label: 'EXTERNAL SURFACE & CLIENTS' },
+
+    { id: 'ioc-server', x: 70, y: 624, w: 360, h: 96, status: 'done',
+      title: 'ioc/  ·  soft IOC server',
+      sub: 'CMD:PING ✓ · CMD:ACQUIRE ✓ · RESULT:BPM:* ✓ · STATE:ACQUIRE:* ✓',
+      tip: 'caproto soft IOC. Putters dispatch into handlers/. Publisher mirrors AppState changes onto STATE:* and RESULT:* PVs. Phase-2 catalog (12 new PVs) fully wired; M3 hardens publish semantics under failure.' },
+
+    { id: 'api-server', x: 450, y: 624, w: 360, h: 96, status: 'now',
+      title: 'api/  ·  FastAPI + WS bridge',
+      sub: 'POST /cmd/ping ✓ · /cmd/acquire ✓ · /state ext ✓ · /result/bpm/raw ○ M4 · WS ✓',
+      tip: 'Same handlers as the IOC, exposed over HTTP. WS bridge subscribes browsers to PV changes via CA. /result/bpm/raw is a stub router; real implementation lands in M4. Otherwise all phase-2 endpoints are live.' },
+
+    { id: 'frontend', x: 830, y: 624, w: 280, h: 96, status: 'now',
+      title: 'frontend/',
+      sub: 'ping ✓ · trajectory ✓ · polish M4',
+      tip: 'Vanilla JS, no framework. trajectory.html: stacked X/Y canvases, status header, Acquire button, auto-refresh-on-PV-change. Hover tooltips + e2e spec land in M4.' },
+  ];
+
+  const FLOWS = [
+    // Read path (data flowing INTO AppState)
+    { from: 'bpm-iocs',  to: 'ca-client', kind: 'data',    label: 'CA reads' },
+    { from: 'ca-client', to: 'domain',    kind: 'data',    label: 'waveforms' },
+    { from: 'domain',    to: 'appstate',  kind: 'data',    label: 'results' },
+
+    // AppState → external publication (data flowing OUT)
+    { from: 'appstate',  to: 'ioc-server', kind: 'data',   label: 'publish PVs' },
+    { from: 'appstate',  to: 'api-server', kind: 'data',   label: 'publish JSON' },
+    { from: 'api-server',to: 'frontend',   kind: 'data',   label: 'REST + WS' },
+
+    // External triggers → handlers (control)
+    { from: 'frontend',  to: 'api-server', kind: 'control', label: 'POST' },
+    { from: 'ioc-server',to: 'h-ping',     kind: 'control', label: 'putter' },
+    { from: 'ioc-server',to: 'h-acquire',  kind: 'control' },
+    { from: 'api-server',to: 'h-ping',     kind: 'control' },
+    { from: 'api-server',to: 'h-acquire',  kind: 'control' },
+
+    // Handlers mutate AppState (control)
+    { from: 'h-ping',    to: 'appstate',   kind: 'control', label: 'mutate' },
+    { from: 'h-acquire', to: 'appstate',   kind: 'control' },
+  ];
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  function svgEl(name, attrs = {}) {
+    const e = document.createElementNS(SVG_NS, name);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  function compById(id) { return COMPONENTS.find(c => c.id === id); }
+  function compCenter(c) { return { x: c.x + c.w / 2, y: c.y + c.h / 2 }; }
+  function edgePoint(box, target) {
+    const cx = box.x + box.w / 2;
+    const cy = box.y + box.h / 2;
+    const dx = target.x - cx;
+    const dy = target.y - cy;
+    if (Math.abs(dx) * box.h > Math.abs(dy) * box.w) {
+      const sign = dx > 0 ? 1 : -1;
+      return { x: cx + sign * box.w / 2, y: cy + dy * (box.w / 2) / Math.max(1, Math.abs(dx)) };
+    } else {
+      const sign = dy > 0 ? 1 : -1;
+      return { x: cx + dx * (box.h / 2) / Math.max(1, Math.abs(dy)), y: cy + sign * box.h / 2 };
+    }
+  }
+
+  function renderArch() {
+    const svg = document.getElementById('arch-svg');
+    if (!svg) return;
+    svg.innerHTML = '';
+
+    // arrow markers
+    const defs = svgEl('defs');
+    defs.innerHTML = `
+      <marker id="ax-arrow-data" viewBox="0 0 10 10" refX="9" refY="5"
+              markerUnits="strokeWidth" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#0b5fff"/>
+      </marker>
+      <marker id="ax-arrow-control" viewBox="0 0 10 10" refX="9" refY="5"
+              markerUnits="strokeWidth" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#b45309"/>
+      </marker>
+      <marker id="ax-arrow-planned" viewBox="0 0 10 10" refX="9" refY="5"
+              markerUnits="strokeWidth" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#4b5563" fill-opacity=".7"/>
+      </marker>
+    `;
+    svg.appendChild(defs);
+
+    // 1) group containers (drawn first, underneath everything)
+    for (const c of COMPONENTS) {
+      if (c.kind !== 'group') continue;
+      svg.appendChild(svgEl('rect', {
+        x: c.x, y: c.y, width: c.w, height: c.h, rx: 10, ry: 10, class: 'group-rect',
+      }));
+      const lbl = svgEl('text', { x: c.x + 14, y: c.y + 18, class: 'group-label' });
+      lbl.textContent = c.label;
+      svg.appendChild(lbl);
+    }
+
+    // 2) flows (underneath component boxes)
+    for (const f of FLOWS) {
+      const from = compById(f.from);
+      const to = compById(f.to);
+      if (!from || !to) continue;
+      const fc = compCenter(from);
+      const tc = compCenter(to);
+      const fp = edgePoint(from, tc);
+      const tp = edgePoint(to, fc);
+      const dx = tp.x - fp.x;
+      const dy = tp.y - fp.y;
+      const cx1 = fp.x + dx * 0.4;
+      const cy1 = fp.y + dy * 0.15;
+      const cx2 = fp.x + dx * 0.6;
+      const cy2 = fp.y + dy * 0.85;
+      const d = `M ${fp.x.toFixed(1)} ${fp.y.toFixed(1)} C ${cx1.toFixed(1)} ${cy1.toFixed(1)}, ${cx2.toFixed(1)} ${cy2.toFixed(1)}, ${tp.x.toFixed(1)} ${tp.y.toFixed(1)}`;
+
+      const kindClass = f.kind || 'data';
+      const markerId =
+        kindClass === 'planned' ? 'ax-arrow-planned' :
+        kindClass === 'control' ? 'ax-arrow-control' : 'ax-arrow-data';
+
+      const path = svgEl('path', {
+        d, class: `flow ${kindClass}`,
+        'marker-end': `url(#${markerId})`,
+        'data-from': f.from, 'data-to': f.to,
+      });
+      svg.appendChild(path);
+
+      if (f.label) {
+        const mx = (fp.x + tp.x) / 2;
+        const my = (fp.y + tp.y) / 2 - 4;
+        const t = svgEl('text', { x: mx, y: my, class: 'flow-label', 'text-anchor': 'middle' });
+        t.textContent = f.label;
+        svg.appendChild(t);
+      }
+    }
+
+    // 3) component boxes
+    for (const c of COMPONENTS) {
+      if (c.kind === 'group') continue;
+      const g = svgEl('g', { class: `comp ${c.status}`, 'data-id': c.id });
+      const rect = svgEl('rect', { x: c.x, y: c.y, width: c.w, height: c.h, rx: 8, ry: 8 });
+      g.appendChild(rect);
+      svg.appendChild(g); // append before measuring so getComputedTextLength works
+
+      const padX = 14;
+      const maxTextW = Math.max(40, c.w - padX * 2);
+      const TITLE_LH = 15;     // line-height for title (px in viewBox units)
+      const SUB_LH   = 13;     // line-height for subtitle
+      const BADGE_LH = 12;
+      const GAP_TITLE_SUB = 4;
+      const GAP_BADGE_TITLE = 6;
+
+      // ---- create + wrap text blocks ----
+      let titleLines = 0, subLines = 0;
+      const tEl = svgEl('text', { x: c.x + c.w / 2, 'text-anchor': 'middle', class: 'title' });
+      g.appendChild(tEl);
+      titleLines = wrapSvgText(tEl, c.title, maxTextW);
+
+      let sEl = null;
+      if (c.sub) {
+        sEl = svgEl('text', { x: c.x + c.w / 2, 'text-anchor': 'middle', class: 'subtitle' });
+        g.appendChild(sEl);
+        subLines = wrapSvgText(sEl, c.sub, maxTextW);
+      }
+
+      let bEl = null;
+      if (c.badge) {
+        bEl = svgEl('text', { x: c.x + c.w / 2, 'text-anchor': 'middle', class: 'badge-txt' });
+        bEl.textContent = c.badge;
+        g.appendChild(bEl);
+      }
+
+      // ---- vertical layout: badge (top) · title · sub, vertically centered ----
+      const badgeBlockH = c.badge ? BADGE_LH + GAP_BADGE_TITLE : 0;
+      const titleBlockH = titleLines * TITLE_LH;
+      const subBlockH   = subLines ? GAP_TITLE_SUB + subLines * SUB_LH : 0;
+      const totalH = badgeBlockH + titleBlockH + subBlockH;
+      let cursorY = c.y + Math.max(8, (c.h - totalH) / 2);
+
+      if (bEl) {
+        bEl.setAttribute('y', cursorY + BADGE_LH - 2);
+        cursorY += badgeBlockH;
+      }
+      // SVG text baseline is at y; we use the top of the line + line-height to get baseline.
+      tEl.setAttribute('y', cursorY + TITLE_LH - 3);
+      // re-anchor each title tspan to this x; first-line dy is 0
+      for (const ts of tEl.querySelectorAll('tspan')) {
+        ts.setAttribute('x', c.x + c.w / 2);
+      }
+      cursorY += titleBlockH;
+
+      if (sEl) {
+        cursorY += GAP_TITLE_SUB;
+        sEl.setAttribute('y', cursorY + SUB_LH - 3);
+        for (const ts of sEl.querySelectorAll('tspan')) {
+          ts.setAttribute('x', c.x + c.w / 2);
+        }
+      }
+
+      g.addEventListener('mouseenter', (e) => showTip(e, c));
+      g.addEventListener('mousemove', positionTip);
+      g.addEventListener('mouseleave', hideTip);
+      g.addEventListener('click', () => highlightComp(c.id));
+    }
+  }
+
+  // Wrap a string into <tspan> lines inside an already-mounted SVG <text>.
+  // Splits on whitespace; falls back to per-character splits for tokens that exceed maxWidth.
+  // Returns the number of lines emitted.
+  function wrapSvgText(textEl, str, maxWidth) {
+    textEl.textContent = '';
+    const SVG_NS_LOCAL = 'http://www.w3.org/2000/svg';
+    const x = textEl.getAttribute('x');
+    const tokens = String(str).split(/(\s+)/).filter(t => t.length > 0); // keep whitespace tokens
+    const probe = document.createElementNS(SVG_NS_LOCAL, 'tspan');
+    textEl.appendChild(probe);
+
+    const lines = [];
+    let line = '';
+
+    function widthOf(s) {
+      probe.textContent = s;
+      return probe.getComputedTextLength();
+    }
+
+    for (let i = 0; i < tokens.length; i++) {
+      const tok = tokens[i];
+      const candidate = line + tok;
+      if (widthOf(candidate) <= maxWidth || line === '') {
+        line = candidate;
+      } else {
+        lines.push(line.replace(/\s+$/, ''));
+        // start the next line; if this is whitespace, skip it; else use it
+        line = /^\s+$/.test(tok) ? '' : tok;
+      }
+    }
+    if (line.trim().length > 0) lines.push(line.replace(/\s+$/, ''));
+    textEl.removeChild(probe);
+    if (lines.length === 0) lines.push('');
+
+    for (let i = 0; i < lines.length; i++) {
+      const ts = document.createElementNS(SVG_NS_LOCAL, 'tspan');
+      ts.setAttribute('x', x);
+      if (i > 0) ts.setAttribute('dy', '1.15em');
+      ts.textContent = lines[i];
+      textEl.appendChild(ts);
+    }
+    return lines.length;
+  }
+
+  const archTip = document.getElementById('arch-tip');
+  function showTip(e, c) {
+    if (!archTip) return;
+    const meta = c.sub ? `${c.sub} · ${c.status}` : c.status;
+    archTip.innerHTML = `
+      <div class="at-title">${c.title}</div>
+      <div class="at-meta">${meta}</div>
+      <div class="at-body">${c.tip || ''}</div>
+    `;
+    archTip.classList.add('show');
+    positionTip(e);
+  }
+  function positionTip(e) {
+    if (!archTip) return;
+    const pad = 14;
+    let x = e.clientX + pad;
+    let y = e.clientY + pad;
+    const w = archTip.offsetWidth, h = archTip.offsetHeight;
+    if (x + w > window.innerWidth - 8)  x = e.clientX - w - pad;
+    if (y + h > window.innerHeight - 8) y = e.clientY - h - pad;
+    archTip.style.left = x + 'px';
+    archTip.style.top  = y + 'px';
+  }
+  function hideTip() { if (archTip) archTip.classList.remove('show'); }
+
+  let highlighted = null;
+  function highlightComp(id) {
+    document.querySelectorAll('.comp.highlight').forEach(n => n.classList.remove('highlight'));
+    document.querySelectorAll('.flow.highlight').forEach(n => n.classList.remove('highlight'));
+    if (highlighted === id) { highlighted = null; return; }
+    const node = document.querySelector(`.comp[data-id="${id}"]`);
+    if (node) node.classList.add('highlight');
+    document.querySelectorAll(`.flow[data-from="${id}"], .flow[data-to="${id}"]`)
+      .forEach(p => p.classList.add('highlight'));
+    highlighted = id;
+  }
+
+  renderArch();
+</script>
+
+</body>
+</html>
