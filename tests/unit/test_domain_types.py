@@ -34,8 +34,9 @@ def test_first_turn_result_shape():
 
 def test_domain_imports_no_io():
     """domain/ must not import caproto, fastapi, or asyncio anywhere."""
+    import inspect
     import pytxt.domain.types as m
-    src = open(m.__file__).read()
+    src = inspect.getsource(m)
     assert "caproto" not in src
     assert "fastapi" not in src
     assert "import asyncio" not in src

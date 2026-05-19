@@ -19,7 +19,9 @@ class RawBPM:
     x_wf: np.ndarray         # shape (100000,), dtype int32, units nm
     y_wf: np.ndarray
     sum_wf: np.ndarray
-    armed: int               # 0 = data was valid at read time
+    armed: int               # 0 = acquisition complete, data is valid; nonzero = BPM
+                             # is still armed/waiting (per MATLAB convention — phase 2
+                             # is read-only so we capture whatever the BPM IOC reports)
     read_timestamp: datetime
 
 
