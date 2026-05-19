@@ -1,10 +1,4 @@
-"""Composition root.
-
-The single place that knows about every subsystem. Wires AppState, the
-soft IOC, FastAPI/uvicorn, and the heartbeat loop onto one asyncio
-event loop. Adding a subsystem in a future phase = add one `await` to
-`gather()`.
-"""
+"""Composition root."""
 from __future__ import annotations
 
 import asyncio
@@ -15,6 +9,7 @@ from importlib.metadata import PackageNotFoundError, version as pkg_version
 import uvicorn
 
 from pytxt.api.server import create_app
+from pytxt.ca_client.bpm_reader import BpmReader
 from pytxt.config.settings import Settings
 from pytxt.ioc.server import PyTxTIOC
 from pytxt.state.app_state import AppState
@@ -23,11 +18,14 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_version() -> str:
-    """Read installed package version; fall back to dev marker for editable checkouts."""
     try:
         return pkg_version("pytxt")
     except PackageNotFoundError:
         return "0.0.0+dev"
+
+
+# M1: hardcoded single-BPM list. M2-T2 replaces this with config-file loading.
+_PHASE_2_M1_BPM_PREFIXES = ["SR01C:BPM1"]
 
 
 async def main() -> None:
@@ -40,16 +38,23 @@ async def main() -> None:
         datefmt="%H:%M:%S",
     )
     logger.info(
-        "PyTxT %s starting | prefix=%s | ioc=%s:%d | api=%s:%d",
-        settings.version,
-        settings.pv_prefix,
-        settings.ioc_host,
-        settings.ioc_port,
-        settings.api_host,
-        settings.api_port,
+        "PyTxT %s starting | prefix=%s | ioc=%s:%d | api=%s:%d | bpms=%d",
+        settings.version, settings.pv_prefix,
+        settings.ioc_host, settings.ioc_port,
+        settings.api_host, settings.api_port,
+        len(_PHASE_2_M1_BPM_PREFIXES),
     )
 
-    state = AppState(version=settings.version, started_at=time.time())
+    state = AppState(
+        version=settings.version,
+        started_at=time.time(),
+        bpm_prefixes=_PHASE_2_M1_BPM_PREFIXES,
+    )
+
+    reader = BpmReader(
+        prefixes=_PHASE_2_M1_BPM_PREFIXES,
+        per_pv_timeout_s=settings.bpm_read_timeout_s,
+    )
 
     ioc = PyTxTIOC(
         prefix=settings.pv_prefix,
@@ -57,9 +62,10 @@ async def main() -> None:
         port=settings.ioc_port,
         repeater_port=settings.ioc_repeater_port,
         state=state,
+        reader=reader,
     )
 
-    api_app = create_app(state=state, settings=settings)
+    api_app = create_app(state=state, settings=settings, bpm_reader=reader)
     config = uvicorn.Config(
         api_app,
         host=settings.api_host,
@@ -77,8 +83,18 @@ async def main() -> None:
                 uptime_s_pushed=state.uptime_s,
             )
 
+    # Start reader once the IOC is running so name resolution sees the network.
+    async def start_reader_after_warmup() -> None:
+        await asyncio.sleep(1.0)
+        try:
+            await reader.start()
+            logger.info("BpmReader connected to %d BPMs", len(_PHASE_2_M1_BPM_PREFIXES))
+        except Exception:
+            logger.exception("BpmReader.start() failed — ACQUIRE will fail until reachable")
+
     await asyncio.gather(
         ioc.run(),
         api_server.serve(),
         heartbeat_loop(),
+        start_reader_after_warmup(),
     )

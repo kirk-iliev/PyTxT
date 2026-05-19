@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     heartbeat_interval_s: float = 1.0
 
+    # --- Phase 2 ---
+    bpm_read_timeout_s: float = 2.0
+    bpm_prefixes_path: str = "pytxt/config/bpm_prefixes.txt"
+
     # Version is NOT env-overridable; populated at startup by composition.main()
     # from importlib.metadata.version("pytxt") with fallback to "0.0.0+dev".
     version: str = ""

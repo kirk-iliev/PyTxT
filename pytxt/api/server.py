@@ -1,8 +1,4 @@
-"""FastAPI app factory.
-
-Constructs the FastAPI app with all routers + WS bridge + static
-frontend mount, given the shared AppState and IOC references.
-"""
+"""FastAPI app factory."""
 from __future__ import annotations
 
 import logging
@@ -12,7 +8,7 @@ from typing import Any, Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from pytxt.api.routes import health, cmd
+from pytxt.api.routes import health, cmd, result
 from pytxt.api.routes import state as state_route
 from pytxt.api import ws_bridge
 from pytxt.state.app_state import AppState
@@ -22,20 +18,21 @@ logger = logging.getLogger(__name__)
 _FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
 
-def create_app(state: AppState, settings: Optional[Any] = None) -> FastAPI:
+def create_app(
+    state: AppState,
+    settings: Optional[Any] = None,
+    bpm_reader: Optional[Any] = None,
+) -> FastAPI:
     """Create and configure the FastAPI app.
 
     Parameters
     ----------
     state : AppState
-        Shared in-process state. REST routes read it for projections;
-        REST commands invoke handlers that mutate it.
+        Shared in-process state.
     settings : Settings
-        Settings instance. May be None in unit tests.
-
-    The WS bridge does not need a direct IOC reference — it uses an
-    in-process CA client to subscribe by PV name (see ws_bridge.py),
-    matching the spec's "browser is just another CA client" property.
+        Settings instance.
+    bpm_reader : BpmReader | None
+        Phase-2 CA client. None in tests that don't exercise ACQUIRE.
     """
     app = FastAPI(
         title="PyTxT",
@@ -49,8 +46,8 @@ def create_app(state: AppState, settings: Optional[Any] = None) -> FastAPI:
 
     app.state.app_state = state
     app.state.settings = settings
+    app.state.bpm_reader = bpm_reader
 
-    # Permissive CORS for control-room network (no auth in v1)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -62,9 +59,9 @@ def create_app(state: AppState, settings: Optional[Any] = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(state_route.router)
     app.include_router(cmd.router)
+    app.include_router(result.router)
     app.include_router(ws_bridge.router)
 
-    # Static frontend — only mount if index.html exists (populated by Task 15)
     if (_FRONTEND_DIR / "index.html").exists():
         from fastapi.staticfiles import StaticFiles
         app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")
