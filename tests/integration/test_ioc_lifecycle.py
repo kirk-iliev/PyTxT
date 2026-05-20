@@ -4,6 +4,17 @@ import pytest
 from caproto.asyncio.client import Context as ClientContext
 
 
+async def _disconnect_quietly(client: ClientContext | None) -> None:
+    """Tear down a caproto client. Bounded + swallows errors so a slow
+    disconnect can't hang the test or mask a real assertion failure."""
+    if client is None:
+        return
+    try:
+        await asyncio.wait_for(client.disconnect(), timeout=2.0)
+    except (asyncio.TimeoutError, Exception):
+        pass
+
+
 @pytest.mark.asyncio
 async def test_ioc_starts_and_publishes_initial_values(test_pv_prefix):
     """The IOC's PVs are reachable via CA and have expected initial values."""
@@ -17,6 +28,7 @@ async def test_ioc_starts_and_publishes_initial_values(test_pv_prefix):
     server_task = asyncio.create_task(ioc.run())
     await ioc.wait_until_running()
 
+    client: ClientContext | None = None
     try:
         client = ClientContext()
         version_pv, heartbeat_pv = await client.get_pvs(
@@ -28,10 +40,11 @@ async def test_ioc_starts_and_publishes_initial_values(test_pv_prefix):
         assert v.data[0] == "0.1.0" or v.data[0].decode() == "0.1.0"
         assert h.data[0] == 0
     finally:
+        await _disconnect_quietly(client)
         server_task.cancel()
         try:
-            await server_task
-        except asyncio.CancelledError:
+            await asyncio.wait_for(server_task, timeout=2.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
             pass
 
 
@@ -48,6 +61,7 @@ async def test_appstate_change_propagates_to_pv(test_pv_prefix):
     server_task = asyncio.create_task(ioc.run())
     await ioc.wait_until_running()
 
+    client: ClientContext | None = None
     try:
         client = ClientContext()
         heartbeat_pv, = await client.get_pvs(test_pv_prefix + "HEALTH:HEARTBEAT")
@@ -59,8 +73,9 @@ async def test_appstate_change_propagates_to_pv(test_pv_prefix):
         result = await heartbeat_pv.read()
         assert result.data[0] == 42
     finally:
+        await _disconnect_quietly(client)
         server_task.cancel()
         try:
-            await server_task
-        except asyncio.CancelledError:
+            await asyncio.wait_for(server_task, timeout=2.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
             pass

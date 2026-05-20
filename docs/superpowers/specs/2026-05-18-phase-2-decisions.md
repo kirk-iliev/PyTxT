@@ -196,3 +196,28 @@ Append-only log of implementation-time decisions: choices made during coding tha
 
 **Forward impact:** All future subagent dispatches in this project must include the explicit guardrails block (see `workflow_subagent_guardrails` memory). The `.claude/settings.json` pytest entries are kept; consider tightening `.claude/settings.local.json`'s `Bash(git *)` / `Bash(python *)` entries at the next housekeeping pass.
 
+
+## 2026-05-20 — Integration suite hangs at end-of-test on Linux; root cause is leaked caproto `ClientContext`, not the IOC
+
+**Context:** During M1 control-room validation (`docs/phase-2-m1-controlroom-validation.md` §4), `make test-integration` appeared to hang at the end of every test on appsdev2 — Ctrl-C surfaced an already-recorded PASSED. The same symptom reproduced on the dev Fedora box once integration tests were actually exercised on Linux for the first time (earlier local runs only ran unit tests / `--collect-only`). Test bodies completed; teardown spun.
+
+**Decision (three layered changes):**
+
+1. **Root cause fix — disconnect `ClientContext` in every test that creates one.** Each test instantiated `caproto.asyncio.client.Context()` and never called `disconnect()`. `pytest-asyncio` creates a fresh event loop per test, so the leftover client's `_command_queue_loop` background task ended up bound to a dead loop. When the *next* test wrote to a PV, the IOC's circuit response triggered the dead-loop client to queue work via `_get_loop()`, which raised `RuntimeError: <Queue ...> is bound to a different event loop` — *forever*, hot-spinning at 100% CPU because caproto's circuit handler swallows the exception and immediately retries. Added `_disconnect_quietly(client)` helper (2-second `wait_for`) and called it from every `finally` block that owns a `ClientContext`. Files: `tests/integration/test_ioc_lifecycle.py`, `tests/integration/test_parity.py` (in `_do_via_ca`), `tests/integration/test_ping_via_ca.py`.
+
+2. **Defense in depth — bound `await server_task` after `cancel()`.** caproto's own `Context.run()` cancellation handler awaits `tasks.cancel_all()`, which can itself block if any spawned task (e.g. `broadcaster_receive_loop`) is wedged in a UDP recv. Wrapped every test-side `await server_task` with `asyncio.wait_for(..., timeout=2.0)` and broadened the swallow to `(CancelledError, TimeoutError)`. Same pattern applied to the `fake_bpm_ioc` fixture.
+
+3. **Force-close IOC sockets on cancel.** Added a `try: ... except CancelledError: self._force_close_context_sockets(); raise` wrapper around `Context.run()` in `pytxt/ioc/server.py`. Brute-force-closes `tcp_sockets`, `udp_socks`, and `beacon_socks` so any blocked recv unblocks and caproto's internal cleanup can complete. This is the production-relevant fix — operator Ctrl-C of `python -m pytxt` benefits from it too.
+
+**Why:** The hang looked environmental but wasn't — it was a test-isolation bug we'd never noticed because the dev box happened to be macOS (which we'd been running on) or had only exercised unit tests on Linux. The cross-loop error spam was buried under pytest's output capture, so it presented as "hung." Once one test ran a CA write that triggered the previous test's leaked client, the spam loop began.
+
+Result on dev Fedora: integration suite went from `Ctrl-C required per test`/`4+ minute hang at test 12` to **23 passed in 5.66s**, slowest individual test 2.22s. Unit suite: 49 passed in 0.09s.
+
+**Spec relationship:** Fills gap — spec was silent on caproto client lifecycle in tests. Did not change any production interface; both pytxt/ioc/server.py and the tests still hold the same contract.
+
+**Forward impact:**
+- Anyone adding a new integration test that uses `ClientContext` must disconnect it. Consider promoting `_disconnect_quietly` to `tests/conftest.py` (or providing a `ca_client` fixture that auto-disconnects) before the next round of integration tests is written.
+- The `_force_close_context_sockets` hatch in `pytxt/ioc/server.py` is best-effort. If caproto upstream improves its cancellation behavior, this can be removed. Not blocking M1.
+- Validates the choice to walk through `phase-2-m1-controlroom-validation.md` on real hardware before declaring M1 done — this bug would have shipped silently otherwise.
+
+Tag: `[ca-client-lifecycle-fixed]`.

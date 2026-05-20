@@ -4,6 +4,15 @@ import pytest
 from caproto.asyncio.client import Context as ClientContext
 
 
+async def _disconnect_quietly(client: ClientContext | None) -> None:
+    if client is None:
+        return
+    try:
+        await asyncio.wait_for(client.disconnect(), timeout=2.0)
+    except (asyncio.TimeoutError, Exception):
+        pass
+
+
 @pytest.mark.asyncio
 async def test_ca_caput_to_cmd_ping_increments_count(test_pv_prefix):
     from pytxt.state.app_state import AppState
@@ -16,6 +25,7 @@ async def test_ca_caput_to_cmd_ping_increments_count(test_pv_prefix):
     server_task = asyncio.create_task(ioc.run())
     await ioc.wait_until_running()
 
+    client: ClientContext | None = None
     try:
         client = ClientContext()
         cmd_pv, count_pv, last_at_pv = await client.get_pvs(
@@ -38,10 +48,11 @@ async def test_ca_caput_to_cmd_ping_increments_count(test_pv_prefix):
         assert last_str
         assert "T" in last_str  # ISO format check
     finally:
+        await _disconnect_quietly(client)
         server_task.cancel()
         try:
-            await server_task
-        except asyncio.CancelledError:
+            await asyncio.wait_for(server_task, timeout=2.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
             pass
 
 
@@ -58,6 +69,7 @@ async def test_ca_caput_value_is_ignored(test_pv_prefix):
     server_task = asyncio.create_task(ioc.run())
     await ioc.wait_until_running()
 
+    client: ClientContext | None = None
     try:
         client = ClientContext()
         cmd_pv, count_pv = await client.get_pvs(
@@ -72,8 +84,9 @@ async def test_ca_caput_value_is_ignored(test_pv_prefix):
         result = await count_pv.read()
         assert result.data[0] == 4  # incremented once per write regardless of value
     finally:
+        await _disconnect_quietly(client)
         server_task.cancel()
         try:
-            await server_task
-        except asyncio.CancelledError:
+            await asyncio.wait_for(server_task, timeout=2.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
             pass

@@ -234,7 +234,38 @@ class PyTxTIOC:
             running_event.set()
 
         self._context = Context(self.pvgroup.pvdb)
-        await self._context.run(log_pv_names=False, startup_hook=_startup_hook)
+        try:
+            await self._context.run(log_pv_names=False, startup_hook=_startup_hook)
+        except asyncio.CancelledError:
+            # caproto's own CancelledError handler awaits `tasks.cancel_all()`,
+            # which can hang on multi-interface Linux hosts (e.g. appsdev2) when
+            # broadcaster_receive_loop is blocked in a UDP recv that doesn't
+            # honor cancellation. Force-close every socket the Context owns so
+            # those blocked recvs unblock; then re-raise so the task is marked
+            # cancelled.
+            self._force_close_context_sockets()
+            raise
+
+    def _force_close_context_sockets(self) -> None:
+        ctx = self._context
+        if ctx is None:
+            return
+        for sock in list(getattr(ctx, "tcp_sockets", {}).values()):
+            try:
+                sock.close()
+            except Exception:
+                logger.debug("force-close: TCP sock.close() raised", exc_info=True)
+        for sock in list(getattr(ctx, "udp_socks", {}).values()):
+            try:
+                sock.close()
+            except Exception:
+                logger.debug("force-close: UDP sock.close() raised", exc_info=True)
+        for entry in list(getattr(ctx, "beacon_socks", {}).values()):
+            sock = entry[1] if isinstance(entry, tuple) and len(entry) > 1 else entry
+            try:
+                sock.close()
+            except Exception:
+                logger.debug("force-close: beacon sock.close() raised", exc_info=True)
 
     async def wait_until_running(self, timeout: float = 5.0) -> None:
         await asyncio.wait_for(self._running_event.wait(), timeout=timeout)

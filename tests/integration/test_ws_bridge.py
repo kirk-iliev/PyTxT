@@ -57,8 +57,8 @@ async def test_ws_subscribe_receives_initial_value(test_pv_prefix):
         await api_task
         server_task.cancel()
         try:
-            await server_task
-        except asyncio.CancelledError:
+            await asyncio.wait_for(server_task, timeout=2.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
             pass
 
 
@@ -91,8 +91,8 @@ async def test_ws_receives_updates_on_change(test_pv_prefix):
         await api_task
         server_task.cancel()
         try:
-            await server_task
-        except asyncio.CancelledError:
+            await asyncio.wait_for(server_task, timeout=2.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
             pass
 
 
@@ -119,6 +119,6 @@ async def test_ws_unknown_pv_returns_error(test_pv_prefix):
         await api_task
         server_task.cancel()
         try:
-            await server_task
-        except asyncio.CancelledError:
+            await asyncio.wait_for(server_task, timeout=2.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
             pass

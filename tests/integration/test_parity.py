@@ -56,9 +56,17 @@ def _fake_raw(prefix):
 
 async def _do_via_ca(prefix: str, cmd: str) -> None:
     client = ClientContext()
-    pv, = await client.get_pvs(prefix + cmd)
-    await pv.write(1)
-    await asyncio.sleep(0.2)   # let listener fan-out complete
+    try:
+        pv, = await client.get_pvs(prefix + cmd)
+        await pv.write(1)
+        await asyncio.sleep(0.2)   # let listener fan-out complete
+    finally:
+        # Disconnect so background command-queue tasks don't outlive the test
+        # and spin against a dead event loop on the next parametrize round.
+        try:
+            await asyncio.wait_for(client.disconnect(), timeout=2.0)
+        except (asyncio.TimeoutError, Exception):
+            pass
 
 
 async def _do_via_rest(app, path: str) -> None:
@@ -108,8 +116,8 @@ async def test_parity_ca_vs_rest(test_pv_prefix, command_name, ca_pv_suffix, res
     finally:
         server_task.cancel()
         try:
-            await server_task
-        except asyncio.CancelledError:
+            await asyncio.wait_for(server_task, timeout=2.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
             pass
 
     diff_ca = {k: (before_ca[k], after_ca[k]) for k in after_ca if before_ca[k] != after_ca[k]}

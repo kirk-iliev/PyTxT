@@ -122,6 +122,19 @@ async def fake_bpm_ioc(request) -> FakeBpmIoc:
     try:
         yield handle
     finally:
+        # Force-close caproto sockets first so any blocked UDP recv unblocks
+        # and the task can actually respond to cancel(). See decisions log
+        # entry "IOC server shutdown blocks on appsdev2" (2026-05-20).
+        for sock in list(getattr(ctx, "tcp_sockets", {}).values()):
+            with contextlib.suppress(Exception):
+                sock.close()
+        for sock in list(getattr(ctx, "udp_socks", {}).values()):
+            with contextlib.suppress(Exception):
+                sock.close()
+        for entry in list(getattr(ctx, "beacon_socks", {}).values()):
+            sock = entry[1] if isinstance(entry, tuple) and len(entry) > 1 else entry
+            with contextlib.suppress(Exception):
+                sock.close()
         task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
+        with contextlib.suppress(asyncio.CancelledError, asyncio.TimeoutError):
+            await asyncio.wait_for(task, timeout=2.0)
