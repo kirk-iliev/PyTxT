@@ -192,9 +192,12 @@ class PyTxTIOC:
             logger.exception("IOC publish of LastAcquireResult / RESULT:BPM:* failed")
 
     async def run(self) -> None:
+        # Only set server-side env (EPICS_CAS_*). EPICS_CA_SERVER_PORT (no S)
+        # is the *client* search port — setting it would force the in-process
+        # BpmReader to look for ring PVs on our IOC's non-standard port and
+        # never find them.
         if self.port:
             os.environ["EPICS_CAS_SERVER_PORT"] = str(self.port)
-            os.environ["EPICS_CA_SERVER_PORT"] = str(self.port)
         if self.host:
             os.environ["EPICS_CAS_INTF_ADDR_LIST"] = self.host
         if self.repeater_port:

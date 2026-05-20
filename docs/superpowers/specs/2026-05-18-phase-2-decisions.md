@@ -221,3 +221,17 @@ Result on dev Fedora: integration suite went from `Ctrl-C required per test`/`4+
 - Validates the choice to walk through `phase-2-m1-controlroom-validation.md` on real hardware before declaring M1 done — this bug would have shipped silently otherwise.
 
 Tag: `[ca-client-lifecycle-fixed]`.
+
+## 2026-05-20 — IOC.run() must not mutate EPICS_CA_SERVER_PORT (breaks in-process BpmReader)
+
+**Context:** First end-to-end run on appsdev2 against the real ring. `caput OSPREY:TEST:TXT:CMD:ACQUIRE 1` succeeded but the result PVs were `STATUS=FAILED`, `OK_COUNT=0`, `FAIL_COUNT=1`, `X/Y_FIRST_TURN=all NaN`. Network was fine — direct `caget SR01C:BPM1:wfr:TBT:c0` from a clean shell worked. Logs would show BpmReader CA name-resolution timeouts.
+
+**Decision:** Remove the `os.environ["EPICS_CA_SERVER_PORT"] = str(self.port)` line from `PyTxTIOC.run()` (`pytxt/ioc/server.py`). Only the server-side `EPICS_CAS_SERVER_PORT` (with S) is needed for caproto to bind the IOC; `EPICS_CA_SERVER_PORT` (no S) is the *client* search port.
+
+**Why:** Setting `EPICS_CA_SERVER_PORT=59064` in our process env meant the in-process `BpmReader`'s `ClientContext` broadcast CA name-resolution requests to port 59064 (where only our own IOC listens) instead of port 5064 (where the real ring BPM IOC listens). The search never reached `SR01C:BPM1` and BpmReader returned `None` for every BPM. Acquire handler converted that to NaN sentinels and FAILED status. Easy to miss because the IOC itself was healthy and serving its own PVs correctly — the failure was entirely in the embedded CA client.
+
+This was previously latent: in tests, conftest pins `EPICS_CA_SERVER_PORT` to the ephemeral test-IOC port intentionally because the test client *should* talk to our test IOC, not a real ring. In production, the embedded client needs ring access.
+
+**Spec relationship:** Fills gap — spec mentioned both env vars in the same breath without flagging the client-vs-server distinction.
+
+**Forward impact:** None of the other env-var assignments need to change. `EPICS_CAS_SERVER_PORT` (server bind), `EPICS_CAS_INTF_ADDR_LIST` (server interface), `EPICS_CA_REPEATER_PORT` (shared repeater for in-process client) are all correct. The conftest still sets `EPICS_CA_SERVER_PORT` *for tests only* — that's the right place for it because tests genuinely want the client routed at the test IOC. Tag: `[client-vs-server-env-distinguished]`.
