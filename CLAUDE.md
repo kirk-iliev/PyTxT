@@ -76,7 +76,7 @@ to and from this pure core.
 
 ## Stack
 
-Python 3.11+, FastAPI + uvicorn, **caproto** (IOC server *and* CA client,
+Python 3.10+ (control-room hosts run 3.10), FastAPI + uvicorn, **caproto** (IOC server *and* CA client,
 both async on one event loop), **pySC** (port of MATLAB SC toolkit —
 lattice modeling, response matrix, SVD pseudo-inverse), numpy/scipy,
 Pillow. Frontend: vanilla JS + Canvas + CSS custom properties (no

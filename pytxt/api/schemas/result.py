@@ -4,13 +4,13 @@ The status enum has both a string form (REST/JSON-friendly) and an int form
 (EPICS-friendly). The two mappings here are the single source of truth.
 """
 from datetime import datetime
-from enum import StrEnum
+from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 
-class AcquireStatus(StrEnum):
+class AcquireStatus(str, Enum):
     NEVER = "NEVER"
     ACQUIRING = "ACQUIRING"
     OK = "OK"
