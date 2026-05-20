@@ -65,12 +65,23 @@ class AppState:
     async def update(self, **changes: Any) -> None:
         """Atomically apply changes and notify listeners.
 
+        Two-pass: apply *all* field changes first, then fire listeners. This
+        guarantees a listener reading other fields of `self` always sees the
+        post-update state, not a half-applied snapshot from mid-iteration.
+        Important for multi-field updates like:
+
+            state.update(last_acquire=..., last_acquire_raws=...)
+
+        where a listener on `last_acquire` needs to read `last_acquire_raws`.
+
         - Equality check suppresses spurious notifications.
         - Per-listener try/except: a failing listener logs and is skipped;
           other listeners on the same field still fire.
         - Raises AttributeError on unknown or internal field names (catches
           caller typos at the source of the mutation).
         """
+        # Pass 1: validate + apply
+        actually_changed: list[tuple[str, Any]] = []
         for k, v in changes.items():
             if k.startswith("_") or not hasattr(self, k) or callable(getattr(type(self), k, None)):
                 raise AttributeError(f"AppState has no settable field {k!r}")
@@ -78,6 +89,10 @@ class AppState:
             if old == v:
                 continue
             setattr(self, k, v)
+            actually_changed.append((k, v))
+
+        # Pass 2: notify (state is now fully consistent)
+        for k, v in actually_changed:
             for cb in self._listeners.get(k, []):
                 try:
                     await cb(v)

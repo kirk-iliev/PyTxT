@@ -252,3 +252,25 @@ This was previously latent: in tests, conftest pins `EPICS_CA_SERVER_PORT` to th
 - Tests are unaffected: conftest sets the env to the ephemeral test-IOC port for the whole session; tests pass `port=0` to `PyTxTIOC`, so the `if self.port:` block in `run()` is skipped, no save-and-restore happens, and the test client correctly reads the ephemeral port from env.
 - If anything ever constructs `Context(pvdb)` outside `PyTxTIOC.run()`, the same dance must be repeated.
 - Document the env-var-quirk in the validation handbook so the next person who hits "IOC is alive but its PVs are unreachable from a CA tool" can find the explanation quickly. Tag: `[follow-up: handbook-env-var-note]`.
+
+## 2026-05-20 — AppState.update is now two-pass: apply all changes, then fire all listeners
+
+**Context:** During M1 control-room validation, after fixing the IOC env-var bug, `caput CMD:ACQUIRE 1` reported `OK_COUNT=1`, `FAIL_COUNT=0` (acquire succeeded against the real ring), but `RESULT:BPM:X_FIRST_TURN` and `Y_FIRST_TURN` were all-NaN — including element [0], which should have held the real BPM1 value. The handler's local computation was correct; only the IOC-published waveforms were wrong.
+
+**Decision:** Rewrite `AppState.update(**changes)` as two passes:
+1. Validate every kwarg, then apply *all* `setattr`s.
+2. Then fire all listeners for the fields that actually changed.
+
+Previously it interleaved: apply field → fire listeners → apply next field → fire next listeners. The IOC's `_publish_last_acquire` listener on `last_acquire` reads `self.state.last_acquire_raws` to re-derive the result waveforms. When the handler called `state.update(last_acquire=..., last_acquire_raws=...)`, the listener fired *between* the two assignments, observing `last_acquire_raws` still at its empty initial value → re-derivation found no BPM data → all NaN published.
+
+**Why:** A function called `update` advertises atomicity — listeners should observe the *post-update* state, not a half-applied mid-iteration snapshot. The bug was masked by every existing test happening to update only one field at a time, or to update related fields in an order that didn't surface the cross-field read.
+
+**Spec relationship:** Fills gap — spec was silent on `update`'s ordering semantics.
+
+**Forward impact:**
+- Tests pass unchanged (72/72) because no existing test depends on the broken ordering. The previous behavior was a latent invariant violation.
+- Any future listener that reads multiple state fields can now safely assume a consistent snapshot.
+- The handler's `state.update(last_acquire=..., last_acquire_raws=...)` call is now order-independent.
+- A unit test asserting cross-field consistency during a multi-field update would be a good follow-up.
+
+Tag: `[atomic-update-fixed]`.
