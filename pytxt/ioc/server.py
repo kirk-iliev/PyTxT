@@ -192,12 +192,17 @@ class PyTxTIOC:
             logger.exception("IOC publish of LastAcquireResult / RESULT:BPM:* failed")
 
     async def run(self) -> None:
-        # Only set server-side env (EPICS_CAS_*). EPICS_CA_SERVER_PORT (no S)
-        # is the *client* search port — setting it would force the in-process
-        # BpmReader to look for ring PVs on our IOC's non-standard port and
-        # never find them.
+        # caproto's server reads EPICS_CA_SERVER_PORT (no S) at Context.__init__
+        # to decide both (a) where to bind TCP and (b) where to listen for
+        # search broadcasts. We must set it to our IOC port *before* Context()
+        # is constructed below — but we restore it immediately after, so the
+        # in-process CA client (BpmReader) inherits the operator's normal
+        # ring-reachable value (typically unset → caproto default 5064).
+        # EPICS_CAS_SERVER_PORT is also set for parity with EPICS-base servers.
+        saved_ca_server_port = os.environ.get("EPICS_CA_SERVER_PORT")
         if self.port:
             os.environ["EPICS_CAS_SERVER_PORT"] = str(self.port)
+            os.environ["EPICS_CA_SERVER_PORT"] = str(self.port)
         if self.host:
             os.environ["EPICS_CAS_INTF_ADDR_LIST"] = self.host
         if self.repeater_port:
@@ -237,6 +242,15 @@ class PyTxTIOC:
             running_event.set()
 
         self._context = Context(self.pvgroup.pvdb)
+        # Server has now captured `EPICS_CA_SERVER_PORT` into its own state
+        # (`self.ca_server_port` on caproto's Context). Restore the env var so
+        # the embedded CA client used by BpmReader sees the original value and
+        # can search the ring on the standard port.
+        if self.port:
+            if saved_ca_server_port is None:
+                os.environ.pop("EPICS_CA_SERVER_PORT", None)
+            else:
+                os.environ["EPICS_CA_SERVER_PORT"] = saved_ca_server_port
         try:
             await self._context.run(log_pv_names=False, startup_hook=_startup_hook)
         except asyncio.CancelledError:

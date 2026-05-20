@@ -235,3 +235,20 @@ This was previously latent: in tests, conftest pins `EPICS_CA_SERVER_PORT` to th
 **Spec relationship:** Fills gap — spec mentioned both env vars in the same breath without flagging the client-vs-server distinction.
 
 **Forward impact:** None of the other env-var assignments need to change. `EPICS_CAS_SERVER_PORT` (server bind), `EPICS_CAS_INTF_ADDR_LIST` (server interface), `EPICS_CA_REPEATER_PORT` (shared repeater for in-process client) are all correct. The conftest still sets `EPICS_CA_SERVER_PORT` *for tests only* — that's the right place for it because tests genuinely want the client routed at the test IOC. Tag: `[client-vs-server-env-distinguished]`.
+
+## 2026-05-20 — EPICS_CA_SERVER_PORT: set before Context(), restore after (server vs client conflict)
+
+**Context:** Follow-up to the previous entry. Removing the `EPICS_CA_SERVER_PORT` env-var override broke the IOC entirely on appsdev2 — `caput OSPREY:TEST:TXT:CMD:ACQUIRE 1` from terminal 2 returned `Channel connect timed out`. PyTxT process was alive but `ss -ulnp | grep 59064` showed nothing listening.
+
+**Decision:** caproto's server reads `EPICS_CA_SERVER_PORT` (no S) at `Context.__init__`, captures it as `self.ca_server_port`, and uses it to choose both its TCP bind port and its UDP search-listen port. So we *must* set it before constructing the server Context. The fix is to set the env, construct `Context(pvdb)`, then immediately restore the env to its prior value so the in-process `ClientContext` (used by BpmReader) reads the operator's normal ring-reachable value (typically unset → caproto's default 5064). Both Context.__init__'s read env synchronously, so the set→construct→restore sequence is race-free.
+
+**Why:** The earlier entry's premise was wrong: I'd thought `EPICS_CAS_SERVER_PORT` (with S) controlled the server bind, but caproto only reads the no-S variant. The two roles really do collide in one env var; the *only* way to keep both sides working in a single process is to mutate env around the server-Context construction site. Code paths verified:
+- Server path: `os.environ["EPICS_CA_SERVER_PORT"] = "59064"` → `Context(pvdb)` → caproto caches `self.ca_server_port = 59064` → binds TCP and listens for UDP searches on 59064.
+- Client path: restore env (pop if previously unset) → BpmReader → `ClientContext()` → `SharedBroadcaster.__init__` reads `EPICS_CA_SERVER_PORT` → falls back to caproto default 5064 → searches ring on 5064 → finds `SR01C:BPM1`.
+
+**Spec relationship:** Fills gap — the spec assumed the env vars were cleanly partitioned by role. They are not in caproto.
+
+**Forward impact:**
+- Tests are unaffected: conftest sets the env to the ephemeral test-IOC port for the whole session; tests pass `port=0` to `PyTxTIOC`, so the `if self.port:` block in `run()` is skipped, no save-and-restore happens, and the test client correctly reads the ephemeral port from env.
+- If anything ever constructs `Context(pvdb)` outside `PyTxTIOC.run()`, the same dance must be repeated.
+- Document the env-var-quirk in the validation handbook so the next person who hits "IOC is alive but its PVs are unreachable from a CA tool" can find the explanation quickly. Tag: `[follow-up: handbook-env-var-note]`.
