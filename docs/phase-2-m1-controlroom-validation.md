@@ -65,8 +65,12 @@ git log --oneline -3     # confirm 9e00b76 (dep caps) is at the tip
 
 ```bash
 cd ~/coding/PyTxT
-python3 -m venv .venv
+
+# Reuse the existing .venv if it's already there (it was created with the
+# system's 3.10 interpreter — that matches our floor, no rebuild needed):
+[ -d .venv ] || python3 -m venv .venv
 source .venv/bin/activate
+
 pip install --upgrade pip    # in-venv only; does NOT touch system pip
 pip install uv               # in-venv only; gives us a sane resolver
 uv pip install -e ".[dev]"
@@ -77,8 +81,9 @@ but is prone to multi-minute backtracking on this box — the upper bounds
 in `pyproject.toml` help but don't fully fix pip's resolver behavior.
 
 **Everything above stays inside `.venv/`** — no system-wide changes are
-made or required. If you need to scrap and retry, `rm -rf .venv` is the
-complete undo.
+made or required. The only reason to `rm -rf .venv` and start over is if
+a half-finished install left site-packages in a weird state; otherwise
+`uv pip install` reconciles the existing venv to match `pyproject.toml`.
 
 Sanity check:
 
