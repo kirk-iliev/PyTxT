@@ -1,4 +1,9 @@
-"""Integration: WS bridge subscribes to PVs in-process via CA and forwards updates."""
+"""Integration: WS bridge subscribes to PVs in-process via CA and forwards updates.
+
+Note: all websockets.connect() calls pass ``proxy=None`` to skip auto-detection
+of HTTP_PROXY / ALL_PROXY env vars. Without this, hosts with a system-wide
+corp proxy (e.g. appsdev2) route ws://127.0.0.1 through the proxy, which 403s.
+"""
 import asyncio
 import json
 import pytest
@@ -42,7 +47,7 @@ async def test_ws_subscribe_receives_initial_value(test_pv_prefix):
 
     try:
         url = f"ws://127.0.0.1:{port}/api/v1/pvs"
-        async with websockets.connect(url) as ws:
+        async with websockets.connect(url, proxy=None) as ws:
             await ws.send(json.dumps({
                 "action": "subscribe",
                 "pvs": [test_pv_prefix + "HEALTH:HEARTBEAT"],
@@ -73,7 +78,7 @@ async def test_ws_receives_updates_on_change(test_pv_prefix):
 
     try:
         url = f"ws://127.0.0.1:{port}/api/v1/pvs"
-        async with websockets.connect(url) as ws:
+        async with websockets.connect(url, proxy=None) as ws:
             await ws.send(json.dumps({
                 "action": "subscribe",
                 "pvs": [test_pv_prefix + "STATE:PING_COUNT"],
@@ -106,7 +111,7 @@ async def test_ws_unknown_pv_returns_error(test_pv_prefix):
 
     try:
         url = f"ws://127.0.0.1:{port}/api/v1/pvs"
-        async with websockets.connect(url) as ws:
+        async with websockets.connect(url, proxy=None) as ws:
             await ws.send(json.dumps({
                 "action": "subscribe",
                 "pvs": [test_pv_prefix + "STATE:DOES_NOT_EXIST"],
