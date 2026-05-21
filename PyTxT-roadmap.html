@@ -894,10 +894,10 @@
 <div class="next-box">
   <h3>Immediate — Kirk</h3>
   <ol>
-    <li><strong>M1 DoD on appsdev2.</strong> <code>python -m pytxt</code> locally (page loads but BPM unreachable), then scp/pull to appsdev2 and verify ACQUIRE renders real <code>SR01C:BPM1</code> data. Tag <code>phase-2-m1-complete</code>.</li>
+    <li><strong>Tag M1.</strong> M1 validated on appsdev2 2026-05-20 (CA + REST + browser all read real <code>SR01C:BPM1</code> first-turn data). Tag <code>phase-2-m1-complete</code> when ready.</li>
     <li><strong>M2 prerequisite.</strong> Dump the full BPM prefix list from MATLAB on appsdev2 and commit as <code>pytxt/config/bpm_prefixes.txt</code> (one-liner in plan §M2-1).</li>
   </ol>
-  <h3 style="margin-top:1rem">After M1 DoD — code (subagent-dispatched)</h3>
+  <h3 style="margin-top:1rem">M2 / M3 / M4 — code (subagent-dispatched)</h3>
   <ol>
     <li>M2-2: swap composition's hardcoded list for the config-file loader.</li>
     <li>M2-3: parametric integration test — parallel read of 10 BPMs under 3s.</li>
