@@ -768,19 +768,19 @@
     <div class="ms-label">M2</div>
     <span class="ms-status"><span class="badge badge-now">Next</span></span>
     <div class="ms-title">Scale to ~120 BPMs</div>
-    <div class="ms-meta">~2 days · needs MATLAB BPM-list dump (Kirk) before code can land</div>
+    <div class="ms-meta">Needs MATLAB BPM-list dump (Kirk) before code can land</div>
   </div>
   <div class="ms todo">
     <div class="ms-label">M3</div>
     <span class="ms-status"><span class="badge badge-fut">Queued</span></span>
     <div class="ms-title">Failure handling</div>
-    <div class="ms-meta">~2 days · fault-injection fixture, PARTIAL status, 409 concurrency tests</div>
+    <div class="ms-meta">Fault-injection fixture, PARTIAL status, 409 concurrency tests</div>
   </div>
   <div class="ms todo">
     <div class="ms-label">M4</div>
     <span class="ms-status"><span class="badge badge-fut">Queued</span></span>
     <div class="ms-title">Raw REST + polish + e2e</div>
-    <div class="ms-meta">~2 days · <code>/result/bpm/raw</code>, hover tooltips, Playwright spec</div>
+    <div class="ms-meta"><code>/result/bpm/raw</code>, hover tooltips, Playwright spec</div>
   </div>
 </div>
 
@@ -913,44 +913,44 @@
 
 <div class="activity">
   <div class="commit">
-    <div class="hash">76656a3</div>
-    <div class="msg">trajectory page with stacked X/Y canvases (M1-14)</div>
-    <div class="tag">feat(frontend)</div>
+    <div class="hash">b44d6ee</div>
+    <div class="msg">update What's next — M1 validated, tag pending</div>
+    <div class="tag">docs(roadmap)</div>
   </div>
   <div class="commit">
-    <div class="hash">c015f92</div>
-    <div class="msg">wire BpmReader through composition root (M1-13)</div>
-    <div class="tag">feat(composition)</div>
+    <div class="hash">4c3a9ba</div>
+    <div class="msg">mark M1 validated on real ring (2026-05-20)</div>
+    <div class="tag">docs(roadmap)</div>
   </div>
   <div class="commit">
-    <div class="hash">fd59370</div>
-    <div class="msg">add ACQUIRE row to the keystone parity test (M1-12)</div>
-    <div class="tag">test(parity)</div>
+    <div class="hash">7efda86</div>
+    <div class="msg">patch M1 validation handbook to match actual M1 scope</div>
+    <div class="tag">docs(handbook)</div>
   </div>
   <div class="commit">
-    <div class="hash">a71e454</div>
-    <div class="msg">extend /api/v1/state with phase-2 fields (M1-11)</div>
-    <div class="tag">feat(api)</div>
+    <div class="hash">a5056b4</div>
+    <div class="msg">AppState.update equality check tolerates numpy-bearing fields</div>
+    <div class="tag">fix(state)</div>
   </div>
   <div class="commit">
-    <div class="hash">a87563e</div>
-    <div class="msg">POST /api/v1/cmd/acquire route (M1-10)</div>
-    <div class="tag">feat(api)</div>
+    <div class="hash">a87c40c</div>
+    <div class="msg">make AppState.update atomic across fields</div>
+    <div class="tag">fix(state)</div>
   </div>
   <div class="commit">
-    <div class="hash">ff6a1ad</div>
-    <div class="msg">bind phase-2 AppState fields to RESULT:BPM:* / STATE:ACQUIRE:* (M1-9)</div>
-    <div class="tag">feat(ioc)</div>
+    <div class="hash">203e84a</div>
+    <div class="msg">set EPICS_CA_SERVER_PORT around server Context, then restore</div>
+    <div class="tag">fix(ioc)</div>
   </div>
   <div class="commit">
-    <div class="hash">88306c4</div>
-    <div class="msg">add CMD:ACQUIRE + STATE:ACQUIRE:* + RESULT:BPM:* pvproperties (M1-8)</div>
-    <div class="tag">feat(ioc)</div>
+    <div class="hash">81720cb</div>
+    <div class="msg">bypass system HTTP proxy for ws://127.0.0.1 in WS bridge tests</div>
+    <div class="tag">fix(tests)</div>
   </div>
   <div class="commit">
-    <div class="hash">724d9b7</div>
-    <div class="msg">handle_acquire with in-flight guard and try/finally (M1-7)</div>
-    <div class="tag">feat(handlers)</div>
+    <div class="hash">d046f60</div>
+    <div class="msg">disconnect leaked caproto ClientContext + harden IOC shutdown</div>
+    <div class="tag">fix(tests,ioc)</div>
   </div>
 </div>
 
