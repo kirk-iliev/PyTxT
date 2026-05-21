@@ -895,11 +895,11 @@
 <div class="next-box">
   <h3>Immediate — Kirk</h3>
   <ol>
-    <li><strong>Commit pre-M2 housekeeping.</strong> Uncommitted: <code>pytxt/config/bpm_prefixes.txt</code> (107 entries + provenance header), deletion of superseded <code>docs/bpm_prefixes.txt</code>, spec + decision-log updates. Optional: bundle with the M2-1 composition-loader commit instead.</li>
+    <li><strong>Validate M2-1 on appsdev2.</strong> Pull, restart the soft-IOC service, confirm startup log shows <code>bpms=107</code> and that <code>caget OSPREY:TEST:TXT:RESULT:BPM:NAMES</code> returns the full list. No real-ring acquisition required yet — that's M2-2's territory.</li>
   </ol>
   <h3 style="margin-top:1rem">M2 — code (next, subagent-dispatched)</h3>
   <ol>
-    <li>M2-1: <strong>composition loader.</strong> Replace M1's <code>_PHASE_2_M1_BPM_PREFIXES</code> hardcode with a load from <code>settings.bpm_prefixes_path</code> (skip <code>#</code>/blank lines); seed <code>AppState.bpm_prefixes</code> and pass list to <code>BpmReader</code>. Fail-fast if file missing/empty.</li>
+    <li>M2-1 ✅ <strong>composition loader.</strong> Replaced M1's <code>_PHASE_2_M1_BPM_PREFIXES</code> hardcode with <code>load_bpm_prefixes(settings.bpm_prefixes_path)</code> in <code>pytxt/config/bpm_prefixes.py</code>; seeds <code>AppState.bpm_prefixes</code> and passes the list to <code>BpmReader</code>. Fails fast with <code>FileNotFoundError</code> / <code>ValueError</code> on missing/empty file. 6 new unit tests + full suite (79 passed).</li>
     <li>M2-2: parametric integration test — parallel read of N BPMs (10, then 107) under 3s using a multi-BPM fake-IOC fixture.</li>
     <li>M2-3: frontend — render connected polylines across all 107 datapoints (replace M1 single-dot rendering).</li>
   </ol>
@@ -918,8 +918,13 @@
 <div class="activity">
   <div class="commit">
     <div class="hash">uncommitted</div>
-    <div class="msg">2026-05-21 · live MML BPM-list dump (107 entries) + spec/log refresh; M2 prereq cleared</div>
-    <div class="tag">pre-M2 housekeeping</div>
+    <div class="msg">2026-05-21 · M2-1 composition loader: <code>load_bpm_prefixes</code> module + composition wiring + 6 unit tests; full suite 79 ✓</div>
+    <div class="tag">feat(config)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">3dc2694</div>
+    <div class="msg">drop in live 107-entry BPM prefix list (pytxt/config/bpm_prefixes.txt) — M2 prereq cleared</div>
+    <div class="tag">chore(config)</div>
   </div>
   <div class="commit">
     <div class="hash">117c518</div>

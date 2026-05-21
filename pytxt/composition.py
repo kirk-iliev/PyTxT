@@ -10,6 +10,7 @@ import uvicorn
 
 from pytxt.api.server import create_app
 from pytxt.ca_client.bpm_reader import BpmReader
+from pytxt.config.bpm_prefixes import load_bpm_prefixes
 from pytxt.config.settings import Settings
 from pytxt.ioc.server import PyTxTIOC
 from pytxt.state.app_state import AppState
@@ -24,10 +25,6 @@ def _resolve_version() -> str:
         return "0.0.0+dev"
 
 
-# M1: hardcoded single-BPM list. M2-T2 replaces this with config-file loading.
-_PHASE_2_M1_BPM_PREFIXES = ["SR01C:BPM1"]
-
-
 async def main() -> None:
     settings = Settings()
     settings.version = _resolve_version()
@@ -37,22 +34,25 @@ async def main() -> None:
         format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
         datefmt="%H:%M:%S",
     )
+
+    bpm_prefixes = load_bpm_prefixes(settings.bpm_prefixes_path)
+
     logger.info(
-        "PyTxT %s starting | prefix=%s | ioc=%s:%d | api=%s:%d | bpms=%d",
+        "PyTxT %s starting | prefix=%s | ioc=%s:%d | api=%s:%d | bpms=%d (%s)",
         settings.version, settings.pv_prefix,
         settings.ioc_host, settings.ioc_port,
         settings.api_host, settings.api_port,
-        len(_PHASE_2_M1_BPM_PREFIXES),
+        len(bpm_prefixes), settings.bpm_prefixes_path,
     )
 
     state = AppState(
         version=settings.version,
         started_at=time.time(),
-        bpm_prefixes=_PHASE_2_M1_BPM_PREFIXES,
+        bpm_prefixes=bpm_prefixes,
     )
 
     reader = BpmReader(
-        prefixes=_PHASE_2_M1_BPM_PREFIXES,
+        prefixes=bpm_prefixes,
         per_pv_timeout_s=settings.bpm_read_timeout_s,
     )
 
@@ -88,7 +88,7 @@ async def main() -> None:
         await asyncio.sleep(1.0)
         try:
             await reader.start()
-            logger.info("BpmReader connected to %d BPMs", len(_PHASE_2_M1_BPM_PREFIXES))
+            logger.info("BpmReader connected to %d BPMs", len(bpm_prefixes))
         except Exception:
             logger.exception("BpmReader.start() failed — ACQUIRE will fail until reachable")
 

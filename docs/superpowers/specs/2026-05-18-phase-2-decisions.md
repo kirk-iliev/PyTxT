@@ -338,3 +338,29 @@ for i=1:size(n,1); s = strtrim(n(i,:)); disp(s(1:end-5)); end
 - If `getbpmlist` ever returns substantially fewer than 111 (e.g. <100) or substantially more (e.g. >120), that's a signal of upstream MML / electronics change worth investigating before re-committing.
 
 Tag: `[bpm-prefix-list-dumped]`.
+
+## 2026-05-21 — M2-1 composition loader: standalone module + fail-fast error policy
+
+**Context:** M2-1 task per the roadmap: replace M1's `_PHASE_2_M1_BPM_PREFIXES = ["SR01C:BPM1"]` hardcode in `composition.py` with a load from `settings.bpm_prefixes_path`. Spec §6.11 specified the file format (one prefix per line, `#` comments, blank lines OK); spec §6.12 specified that composition wires the loaded list into `AppState.bpm_prefixes` and `BpmReader`. The spec did *not* specify *where* the parsing logic lives or what the error contract is.
+
+**Decisions:**
+
+1. **Loader lives in its own module: `pytxt/config/bpm_prefixes.py`** (data file is `pytxt/config/bpm_prefixes.txt`, side-by-side, distinguished by extension). Composition imports `load_bpm_prefixes` rather than inlining the 10-line parse loop. Rationale: keeps `composition.py` focused on wiring, makes the loader trivially unit-testable without spinning up the IOC/API, and matches the existing convention of small focused modules under `pytxt/config/`.
+
+2. **Fail-fast error contract:**
+   - `FileNotFoundError` if `settings.bpm_prefixes_path` doesn't exist — the app exits at startup, before any IOC/API is bound. Hint message points the user at `PYTXT_BPM_PREFIXES_PATH`.
+   - `ValueError` if the file parses to zero entries (only comments + blanks). Same effect — startup aborts.
+   The roadmap explicitly called for fail-fast on missing/empty, so no surprise here; the only choice was whether to use `FileNotFoundError` (native, semantically correct for the missing case) vs a custom exception. Native wins — no error class to maintain.
+
+3. **`Path | str` signature.** `settings.bpm_prefixes_path` is a `str` (pydantic default), but callers may pass a `Path` (tests). The loader accepts either and normalizes via `Path(path)`. Cheap; avoids forcing every caller to convert.
+
+4. **Whitespace-tolerant parse.** Lines are `.strip()`-ed before the empty-line / `#` check, so trailing `\r\n` (Windows line endings if anyone ever edits the file there), leading/trailing spaces, and `#`-with-leading-spaces all behave as expected. The shipped file is clean LF-only, but the tolerance costs nothing.
+
+5. **No alternative-format support.** The loader does *not* accept JSON, YAML, or CSV variants — only the plain-text format documented in the file header. If a different format ever becomes needed (e.g. per-BPM metadata: planes, ring index, calibration), introduce a second loader function rather than overloading this one. Keeping the file format dead-simple is the point.
+
+**Forward impact:**
+- M2-2 (parametric multi-BPM perf test) can construct test fixtures via `tmp_path` + arbitrary prefix lists, then call `load_bpm_prefixes(tmp_path / "prefixes.txt")` directly — no monkey-patching of composition needed.
+- M2-3 (frontend polyline) is independent of this work; the loader change is invisible to the browser.
+- If someone later wants `load_bpm_prefixes` to deduplicate or validate the `SR##C:BPM#` shape, add it then — the current loader is intentionally permissive about content (only about presence/format).
+
+Tag: `[m2-1-composition-loader]`.
