@@ -547,7 +547,7 @@
 <div class="topbar">
   <h1>PyTxT</h1>
   <div class="tagline">Turn-by-turn beam analysis for the ALS injection chain — roadmap &amp; live status</div>
-  <div class="meta" id="last-updated">Last updated: 2026-05-19</div>
+  <div class="meta" id="last-updated">Last updated: 2026-05-21</div>
 </div>
 
 <!-- ============================================== -->
@@ -556,18 +556,19 @@
 <div class="hero">
   <div class="hero-current">
     <div class="label">Current phase</div>
-    <h2>Phase 2 · Read path (M1 validated on real ring · M2 next)</h2>
+    <h2>Phase 2 · Read path (M1 tagged · M2 in flight)</h2>
     <p>
       M1 validated on appsdev2 on 2026-05-20: <code>SR01C:BPM1</code> first-turn position read end-to-end via
       CA, REST, and browser — all three transports producing matching results. Validation walkthrough also
       surfaced five real bugs (caproto cross-loop client leak, IOC socket cleanup, IOC env-var conflict,
-      AppState ordering, numpy-eq); all pinned by regression tests + decision-log entries. Composition still
-      hardcodes <code>SR01C:BPM1</code>; M2 swaps in the full ~120-BPM list from a config file.
+      AppState ordering, numpy-eq); all pinned by regression tests + decision-log entries. M2 prereq cleared
+      2026-05-21: live MML dump produced the canonical 107-entry <code>pytxt/config/bpm_prefixes.txt</code>.
+      Next: wire <code>composition.py</code> to read it; replace M1's <code>SR01C:BPM1</code> hardcode.
     </p>
     <div class="progress" title="M1 validated; 1 of 4 milestone DoDs signed off">
       <div class="progress-fill" style="width: 28%"></div>
     </div>
-    <div class="progress-text">M1 ✓ validated · M2 next · M3/M4 queued</div>
+    <div class="progress-text">M1 ✓ tagged · M2 in flight · M3/M4 queued</div>
   </div>
 
   <div class="stats">
@@ -626,14 +627,14 @@
     <summary>
       <div class="num">Phase 2</div>
       <div class="title">Read path</div>
-      <div class="blurb">~120 BPM TBT reads → ring trajectory plot. <code>CMD:ACQUIRE</code>.</div>
-      <div class="badges"><span class="badge badge-now">→ M1 validated · M2 next</span></div>
+      <div class="blurb">107 BPM TBT reads → ring trajectory plot. <code>CMD:ACQUIRE</code>.</div>
+      <div class="badges"><span class="badge badge-now">→ M1 tagged · M2 in flight</span></div>
     </summary>
     <div class="body">
       <h4>Scope decisions locked</h4>
       <ul>
         <li>Read-only (no arming, no triggering) — phase-4 black box avoided</li>
-        <li>All ~120 BPMs, first turn, snapshot mode (no continuous monitoring)</li>
+        <li>All 107 BPMs, first turn, snapshot mode (no continuous monitoring)</li>
         <li>Faithful MATLAB port for injection-turn detection (per-BPM argmax, 1370 fallback)</li>
         <li>Result PVs (small extracted) + raw waveforms via REST</li>
         <li>Best-effort with NaN holes; state PVs report failed counts/names</li>
@@ -650,7 +651,7 @@
       <h4>Milestones</h4>
       <ul>
         <li><strong>M1</strong> — Vertical slice, 1 real BPM · <em>validated on real ring 2026-05-20</em></li>
-        <li><strong>M2</strong> — Scale to all ~120 BPMs · <em>next (Kirk supplies BPM list first)</em></li>
+        <li><strong>M2</strong> — Scale to all 107 BPMs · <em>now (prereq cleared 2026-05-21; composition loader is first task)</em></li>
         <li><strong>M3</strong> — Failure handling · queued</li>
         <li><strong>M4</strong> — Raw REST + UI polish + e2e · queued</li>
       </ul>
@@ -766,9 +767,9 @@
   </div>
   <div class="ms now">
     <div class="ms-label">M2</div>
-    <span class="ms-status"><span class="badge badge-now">Next</span></span>
-    <div class="ms-title">Scale to ~120 BPMs</div>
-    <div class="ms-meta">Needs MATLAB BPM-list dump (Kirk) before code can land</div>
+    <span class="ms-status"><span class="badge badge-now">Now</span></span>
+    <div class="ms-title">Scale to all 107 BPMs</div>
+    <div class="ms-meta">Prereq cleared 2026-05-21: live MML dump committed to <code>pytxt/config/bpm_prefixes.txt</code> (107 entries). First task: wire composition to read it.</div>
   </div>
   <div class="ms todo">
     <div class="ms-label">M3</div>
@@ -894,15 +895,18 @@
 <div class="next-box">
   <h3>Immediate — Kirk</h3>
   <ol>
-    <li><strong>Tag M1.</strong> M1 validated on appsdev2 2026-05-20 (CA + REST + browser all read real <code>SR01C:BPM1</code> first-turn data). Tag <code>phase-2-m1-complete</code> when ready.</li>
-    <li><strong>M2 prerequisite.</strong> Dump the full BPM prefix list from MATLAB on appsdev2 and commit as <code>pytxt/config/bpm_prefixes.txt</code> (one-liner in plan §M2-1).</li>
+    <li><strong>Commit pre-M2 housekeeping.</strong> Uncommitted: <code>pytxt/config/bpm_prefixes.txt</code> (107 entries + provenance header), deletion of superseded <code>docs/bpm_prefixes.txt</code>, spec + decision-log updates. Optional: bundle with the M2-1 composition-loader commit instead.</li>
   </ol>
-  <h3 style="margin-top:1rem">M2 / M3 / M4 — code (subagent-dispatched)</h3>
+  <h3 style="margin-top:1rem">M2 — code (next, subagent-dispatched)</h3>
   <ol>
-    <li>M2-2: swap composition's hardcoded list for the config-file loader.</li>
-    <li>M2-3: parametric integration test — parallel read of 10 BPMs under 3s.</li>
-    <li>M3-1/2/3: fault-injection in fake IOC fixture; PARTIAL-status path; concurrent-ACQUIRE 409 test.</li>
-    <li>M4-1/2/3: real <code>/result/bpm/raw</code> endpoint; hover tooltip + axis polish; Playwright trajectory spec.</li>
+    <li>M2-1: <strong>composition loader.</strong> Replace M1's <code>_PHASE_2_M1_BPM_PREFIXES</code> hardcode with a load from <code>settings.bpm_prefixes_path</code> (skip <code>#</code>/blank lines); seed <code>AppState.bpm_prefixes</code> and pass list to <code>BpmReader</code>. Fail-fast if file missing/empty.</li>
+    <li>M2-2: parametric integration test — parallel read of N BPMs (10, then 107) under 3s using a multi-BPM fake-IOC fixture.</li>
+    <li>M2-3: frontend — render connected polylines across all 107 datapoints (replace M1 single-dot rendering).</li>
+  </ol>
+  <h3 style="margin-top:1rem">M3 / M4 — queued</h3>
+  <ol>
+    <li>M3: fault-injection in fake IOC fixture; PARTIAL-status path; concurrent-ACQUIRE 409 test.</li>
+    <li>M4: real <code>/result/bpm/raw</code> endpoint; hover tooltip + axis polish; Playwright trajectory spec.</li>
   </ol>
 </div>
 
@@ -912,6 +916,21 @@
 <h2 class="section">Recent activity <span class="hint">most recent commits</span></h2>
 
 <div class="activity">
+  <div class="commit">
+    <div class="hash">uncommitted</div>
+    <div class="msg">2026-05-21 · live MML BPM-list dump (107 entries) + spec/log refresh; M2 prereq cleared</div>
+    <div class="tag">pre-M2 housekeeping</div>
+  </div>
+  <div class="commit">
+    <div class="hash">117c518</div>
+    <div class="msg">add 104 ALS SR BPM PV prefixes extracted from legacy reference trajectory (later superseded by live MML dump)</div>
+    <div class="tag">docs</div>
+  </div>
+  <div class="commit">
+    <div class="hash">03b42d2</div>
+    <div class="msg">refresh Recent activity + drop optimistic day estimates</div>
+    <div class="tag">docs(roadmap)</div>
+  </div>
   <div class="commit">
     <div class="hash">b44d6ee</div>
     <div class="msg">update What's next — M1 validated, tag pending</div>
@@ -998,7 +1017,7 @@
     // ---- Upstream (external) ----
     { id: 'bpm-iocs', x: 290, y: 30, w: 600, h: 78, status: 'upstream',
       title: 'BPM IOCs (LBL controls)',
-      sub: '~120 × wfr:TBT:{c0, c1, c3, armed}',
+      sub: '107 × wfr:TBT:{c0, c1, c3, armed}',
       badge: 'EXTERNAL',
       tip: 'Production beam-position monitors. PyTxT reads turn-by-turn waveforms over Channel Access. Live on appsdev2; armed/triggered externally for phase 2.' },
 

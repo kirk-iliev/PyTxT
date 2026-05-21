@@ -302,3 +302,39 @@ The first real second acquire against the ring exposed it.
 - A possible future refinement: if a field type explicitly opts into a structural equality method, we could prefer that over try/except. Not needed yet.
 
 Tag: `[numpy-eq-tolerant]`.
+
+## 2026-05-21 — Real BPM prefix list dumped from live MML: 107 entries, `getname` returns `:SA:X` form
+
+**Context:** Pre-M2 housekeeping. Spec §6.11 wanted a one-time MATLAB dump of the operational BPM prefix list, committed as `pytxt/config/bpm_prefixes.txt`, to replace M1's hardcoded `["SR01C:BPM1"]`. Done today at an ALS control-room MATLAB session.
+
+**Decision:** Commit a 107-entry `pytxt/config/bpm_prefixes.txt` produced by the following exact sequence, and delete the predecessor `docs/bpm_prefixes.txt` (104 entries, extracted from a legacy reference-trajectory file in commit `117c518`) which is now superseded.
+
+```matlab
+setpathals('StorageRing');
+b = getbpmlist('nonBergoz');
+b([1 2 8 37],:) = [];
+n = getname('BPMx', b);
+for i=1:size(n,1); s = strtrim(n(i,:)); disp(s(1:end-5)); end
+```
+
+**Surprises worth logging:**
+
+1. **Count: 107, not ~120.** The spec, the bpm-tbt-pv-pattern-confirmed memory, and the legacy lattice filename (`alslat_loco_..._124bpms.m`) all suggested ~120. Live MML `getbpmlist('nonBergoz')` returned **111** rows (not 124), so after the 4-index excision the answer is 107. Best hypothesis: more BPM channels have migrated off Bergoz electronics than the 124-BPM lattice file assumes — the lattice is the *modeling* truth, the MML query is the *operational* truth. Operational wins for our use case.
+
+2. **`getname('BPMx', b)` returns SA-PV names, not bare prefixes.** Output rows look like `'SR01C:BPM3:SA:X  '` (slow-acquisition X PV, padded char matrix). The legacy `SCexp_ALS_setupBPMs.m` shape-shifts these by `findstr('X')` + truncate + cell-convert + `end-4` strip — but for our purposes we want the bare prefix `SR01C:BPM3`, so the cleaner transform is `strtrim()` then `s(1:end-5)` (drop the trailing `:SA:X`). The spec's snippet showed `disp(n(i,:))` with no strip; that was based on inference, not a live dump, and would have produced unusable PV-not-prefix output. Updated.
+
+3. **MML exclusion `[1 2 8 37]` is correct; UI default `[1 2 8 27]` is not.** The audit of `legacy/` flagged that `legacy/TxT_GUI/_unpacked/TxT_GUI.m:928` has `'[1 2 8 27]'` as the GUI field default — likely a typo. The operational truth from `SCexp_ALS_setupBPMs.m:7` (function default) and `load_default_SC.m:17` (SC config default) is `[1 2 8 37]`, and that's what we used. Documenting here so a future reader doesn't try to "reconcile" with the GUI's stray value.
+
+4. **Filename: spec said `bpm_prefixes.txt` but MATLAB session output was named `bpm_prefix_list.txt`.** Renamed to match the spec / settings.py field (`bpm_prefixes_path`). Trivial but worth flagging because the spec and `pytxt/config/settings.py:40` were already coherent; nothing else needed to change.
+
+5. **No static fallback exists in the legacy tree.** Confirmed by exhaustive audit of all 136 `.m`/`.mlapp` files under `legacy/`: there is no checked-in BPM name list anywhere. Every operational path derives names live from MML. The `.mat` files contain calibration/position/trajectory data, never name catalogs. If the lattice or electronics change, this file *must* be re-dumped — there is no other authoritative source.
+
+**Spec relationship:** Updates §6.11 (snippet now reflects the real `setpathals` + `strtrim` + `end-5` shape, count is 107), §11 M2 header ("Scale to all 107 BPMs"), and §12 DoD line 2 ("107 entries as of the 2026-05-21 dump"). All authoritative wording now matches reality.
+
+**Forward impact:**
+- M2 implementation can proceed: `composition.py` reads `settings.bpm_prefixes_path` (already populated, value `"pytxt/config/bpm_prefixes.txt"`), parses the file (skip `#` comments and blank lines), populates `app_state.bpm_prefixes`, hands the list to `BpmReader`.
+- The IOC's `RESULT:BPM:NAMES` waveform PV is pre-sized for `max_bpms` via `_pad_string_array` — confirm the current `max_bpms` setting accommodates 107 with headroom (current spec discussion expected ~120, so 107 fits trivially).
+- `BpmReader.read_all` already uses `asyncio.gather` per M1's commit `d137181` — no code change required to scale from 1 to 107.
+- If `getbpmlist` ever returns substantially fewer than 111 (e.g. <100) or substantially more (e.g. >120), that's a signal of upstream MML / electronics change worth investigating before re-committing.
+
+Tag: `[bpm-prefix-list-dumped]`.

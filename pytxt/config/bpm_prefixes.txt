@@ -1,17 +1,25 @@
-# ALS storage-ring BPM PV prefixes
-# Source: legacy/TxT_GUI/2025-03-23_12:43:16_reference_trajectory.mat (BPMs.Names)
-# Count: 104
-# Original entries were SA (slow-acquisition) X PVs, e.g. SR01C:BPM1:SA:X.
-# Stripping the :SA:X suffix yields the per-BPM prefix; append :SA:X, :SA:Y, or :TBT:X/Y etc. as needed.
-
-SR01C:BPM1
-SR01C:BPM2
+# ALS storage-ring TBT BPM prefixes — colon-form, one per line.
+# Consumed by composition.py at startup; populates AppState.bpm_prefixes
+# and the per-BPM PV construction `<prefix>:wfr:TBT:{c0,c1,c3,arm,armed}`.
+#
+# Sourced 2026-05-21 from MATLAB on an ALS control-room workstation via:
+#   setpathals('StorageRing');
+#   b = getbpmlist('nonBergoz');
+#   b([1 2 8 37],:) = [];
+#   n = getname('BPMx', b);
+#   for i=1:size(n,1); s = strtrim(n(i,:)); disp(s(1:end-5)); end
+#
+# `getname('BPMx', ...)` returns slow-acquisition X PV names of the form
+# `SR01C:BPM3:SA:X`; the `end-5` strip drops the trailing ':SA:X' to
+# yield the bare prefix used here.
+#
+# 107 entries = 111 nonBergoz BPMs - 4 MML exclusions [1 2 8 37].
+# Re-dump on lattice / electronics changes (no static fallback exists).
 SR01C:BPM3
 SR01C:BPM4
 SR01C:BPM5
 SR01C:BPM6
 SR01C:BPM8
-SR02S:IDBPM1
 SR02S:IDBPM2
 SR02C:BPM2
 SR02C:BPM3
@@ -35,11 +43,11 @@ SR04S:IDBPM2
 SR04C:BPM1
 SR04C:BPM2
 SR04C:BPM3
+SR04C:BPM6
 SR04C:BPM7
 SR04C:BPM8
 SR05S:IDBPM1
 SR05S:IDBPM2
-SR05C:BPM1
 SR05C:BPM2
 SR05C:BPM3
 SR05C:BPM4
@@ -51,10 +59,14 @@ SR06S:IDBPM1
 SR06S:IDBPM3
 SR06S:IDBPM4
 SR06S:IDBPM2
+SR06C:BPM1
+SR06C:BPM2
 SR06C:BPM3
 SR06C:BPM4
 SR06C:BPM5
 SR06C:BPM7
+SR06C:BPM8
+SR07S:IDBPM1
 SR07S:IDBPM3
 SR07S:IDBPM4
 SR07S:IDBPM2
@@ -89,7 +101,9 @@ SR10C:BPM2
 SR10C:BPM3
 SR10C:BPM4
 SR10C:BPM5
+SR10C:BPM7
 SR10C:BPM8
+SR11S:IDBPM1
 SR11S:IDBPM3
 SR11S:IDBPM4
 SR11S:IDBPM2

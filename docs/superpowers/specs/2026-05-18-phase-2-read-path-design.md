@@ -429,17 +429,21 @@ The phase-1 page at `/` is preserved. A new top-of-page nav link added to both: 
   ```python
   bpm_prefixes_path: Path = Path("pytxt/config/bpm_prefixes.txt")
   ```
-- **`pytxt/config/bpm_prefixes.txt`** — committed file, one BPM prefix per line, comments with `#`:
+- **`pytxt/config/bpm_prefixes.txt`** — committed file, one BPM prefix per line, comments with `#`. Dumped 2026-05-21 from a control-room MATLAB session:
   ```
   # ALS storage-ring TBT BPM prefixes
-  # Sourced <YYYY-MM-DD of dump, filled in during M2> from MATLAB on appsdev2:
-  #   b = getbpmlist('nonBergoz'); b([1 2 8 37],:) = [];
-  #   n = getname('BPMx', b); for i=1:size(n,1); disp(n(i,:)); end
-  # ~120 entries after MML exclusions [1 2 8 37]
-  SR01C:BPM1
-  SR01C:BPM2
+  # Sourced 2026-05-21 from MATLAB on an ALS control-room workstation via:
+  #   setpathals('StorageRing');
+  #   b = getbpmlist('nonBergoz');
+  #   b([1 2 8 37],:) = [];
+  #   n = getname('BPMx', b);
+  #   for i=1:size(n,1); s = strtrim(n(i,:)); disp(s(1:end-5)); end
+  # 107 entries = 111 nonBergoz BPMs - 4 MML exclusions [1 2 8 37]
+  SR01C:BPM3
+  SR01C:BPM4
   ...
   ```
+  `getname('BPMx', ...)` returns slow-acquisition-X PV names of the form `SR01C:BPM3:SA:X` (whitespace-padded char matrix). The `end-5` strip drops the trailing `:SA:X` suffix to yield the bare prefix. Count is 107, not the original ~120 estimate — the `'nonBergoz'` filter returned 111 (not 124) from live MML, presumably because more BPM channels have migrated off Bergoz electronics than the lattice file assumes.
 - **`composition.py`** — at startup, reads the file, parses, populates `app_state.bpm_prefixes`, then constructs `BpmReader(prefixes)`.
 
 ### 6.12 `pytxt/composition.py` extension
@@ -627,13 +631,13 @@ Following the vertical-slice approach: 1 BPM end-to-end first, then scale, then 
 - Tests: full domain unit suite; parity test grows by one row.
 - **DoD:** click ACQUIRE in the browser, see real `SR01C:BPM1` first-turn position render. Same effect via `caput OSPREY:TEST:TXT:CMD:ACQUIRE 1`.
 
-### M2 — Scale to all ~120 BPMs (~2 days)
+### M2 — Scale to all 107 BPMs (~2 days)
 
 - BPM list loads from `pytxt/config/bpm_prefixes.txt` (one-time MATLAB dump, committed).
 - `read_all` uses `asyncio.gather`; RESULT waveforms become length-N (N ≈ 120).
 - Frontend renders connected polylines in stacked panels.
 - Tests: ca_client integration tests with multi-BPM fake IOC fixture.
-- **DoD:** ACQUIRE completes in <3s end-to-end; ring trajectory visible across all ~120 BPMs.
+- **DoD:** ACQUIRE completes in <3s end-to-end; ring trajectory visible across all 107 BPMs.
 
 ### M3 — Failure handling (~2 days)
 
@@ -660,7 +664,7 @@ Following the vertical-slice approach: 1 BPM end-to-end first, then scale, then 
 Phase 2 is shippable when **all** of the following pass:
 
 1. `python -m pytxt` runs locally; the trajectory page at `http://localhost:8008/trajectory.html` loads.
-2. With `pytxt/config/bpm_prefixes.txt` populated with the real ALS BPM list and the app running on appsdev2 (or any host on the ALS subnet), clicking **ACQUIRE** completes in <3 seconds and renders a ring trajectory across all ~120 BPMs.
+2. With `pytxt/config/bpm_prefixes.txt` populated with the real ALS BPM list (107 entries as of the 2026-05-21 dump) and the app running on appsdev2 (or any host on the ALS subnet), clicking **ACQUIRE** completes in <3 seconds and renders a ring trajectory across all BPMs.
 3. `caput OSPREY:TEST:TXT:CMD:ACQUIRE 1` from a separate terminal triggers the same effect; `caget OSPREY:TEST:TXT:RESULT:BPM:X_FIRST_TURN` returns the same waveform the browser displayed.
 4. `caget OSPREY:TEST:TXT:STATE:LAST_ACQUIRE_OK_COUNT` and `:FAIL_COUNT` return values matching the on-screen status header.
 5. `curl http://localhost:8008/api/v1/state` returns JSON including the new `last_acquire`, `acquire_in_flight`, `bpm_prefixes` fields.
