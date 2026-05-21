@@ -86,7 +86,15 @@ class AppState:
             if k.startswith("_") or not hasattr(self, k) or callable(getattr(type(self), k, None)):
                 raise AttributeError(f"AppState has no settable field {k!r}")
             old = getattr(self, k)
-            if old == v:
+            # Some fields hold numpy-bearing structures (e.g. dict[str, RawBPM]
+            # for last_acquire_raws). Numpy's element-wise __eq__ + Python's
+            # bool() on the result raises ValueError. Treat any uncomparable
+            # value as "changed" — that's the safe semantic when we can't tell.
+            try:
+                unchanged = bool(old == v)
+            except (ValueError, TypeError):
+                unchanged = False
+            if unchanged:
                 continue
             setattr(self, k, v)
             actually_changed.append((k, v))

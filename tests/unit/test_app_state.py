@@ -174,3 +174,44 @@ async def test_acquire_in_flight_is_listener_observable():
     await s.update(acquire_in_flight=False)
 
     assert captured == [True, False]
+
+
+@pytest.mark.asyncio
+async def test_update_handles_numpy_bearing_field_replacement():
+    """Replacing last_acquire_raws (dict[str, RawBPM] containing numpy arrays)
+    on a non-empty prior value must not crash on the equality check.
+
+    Regression test for the M1 control-room bug where the second acquire on a
+    real ring raised ``ValueError: truth value of an array ... ambiguous``
+    because dict-eq dove into RawBPM's auto-generated numpy __eq__.
+    """
+    from datetime import datetime, timezone
+    import numpy as np
+    from pytxt.domain.types import RawBPM
+    from pytxt.state.app_state import AppState
+
+    def make_raw(seed: int) -> RawBPM:
+        rng = np.random.default_rng(seed)
+        return RawBPM(
+            prefix="SR01C:BPM1",
+            x_wf=rng.integers(-1000, 1000, 100000, dtype=np.int32),
+            y_wf=rng.integers(-1000, 1000, 100000, dtype=np.int32),
+            sum_wf=rng.integers(0, 100000, 100000, dtype=np.int32),
+            armed=0,
+            read_timestamp=datetime.now(timezone.utc),
+        )
+
+    state = AppState()
+    # First acquire: old is {} → eq short-circuits to False, applies fine.
+    await state.update(last_acquire_raws={"SR01C:BPM1": make_raw(1)})
+    # Second acquire on same key with *different* numpy arrays — this is the
+    # case that historically crashed.
+    received = []
+
+    async def cb(v):
+        received.append(v)
+
+    state.subscribe("last_acquire_raws", cb)
+    await state.update(last_acquire_raws={"SR01C:BPM1": make_raw(2)})
+    assert len(received) == 1
+    assert "SR01C:BPM1" in received[0]

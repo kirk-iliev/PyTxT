@@ -274,3 +274,31 @@ Previously it interleaved: apply field → fire listeners → apply next field �
 - A unit test asserting cross-field consistency during a multi-field update would be a good follow-up.
 
 Tag: `[atomic-update-fixed]`.
+
+## 2026-05-20 — AppState.update equality check now numpy-tolerant
+
+**Context:** After the two-pass `AppState.update` fix, the first REST-driven ACQUIRE on appsdev2 raised `HTTP 500`. Terminal-1 traceback:
+```
+File "pytxt/state/app_state.py", line 89, in update
+    if old == v:
+ValueError: The truth value of an array with more than one element is ambiguous.
+```
+`last_acquire_raws` is `dict[str, RawBPM]`. RawBPM is a dataclass with numpy-array fields. Dict equality dives into per-key value equality, which invokes RawBPM's auto-generated `__eq__`, which compares numpy arrays element-wise — returning a bool array that fails `if <array>`.
+
+**Decision:** Wrap the no-op equality check in `try/except (ValueError, TypeError)` and treat any uncomparable value as "changed." This is the correct semantic: when we can't tell whether two values are equal, the safe assumption is that they differ; firing listeners on a possibly-unchanged value is fine (they already filter duplicates downstream), but *not* firing on a genuinely-changed value silently desyncs PVs from state. Added a regression unit test (`test_update_handles_numpy_bearing_field_replacement`) that builds two RawBPMs with different numpy arrays and proves the second `update()` doesn't crash and the listener fires.
+
+**Why:** This bug was already latent in the original `update()` code — the equality check existed before today. It just never surfaced because every existing test path either:
+- updates a scalar field (no numpy involved), or
+- updates `last_acquire_raws` while the prior value was the empty dict `{}` (Python dict-eq short-circuits on length mismatch without touching values), or
+- updates with the same reader-mock-returned value (same object, eq trivially true).
+
+The first real second acquire against the ring exposed it.
+
+**Spec relationship:** Fills gap — the spec didn't speak to equality semantics for compound fields.
+
+**Forward impact:**
+- Tests: now 73 passing (added one regression test).
+- Any new AppState field that holds numpy / arbitrary objects automatically works — the try/except is type-agnostic.
+- A possible future refinement: if a field type explicitly opts into a structural equality method, we could prefer that over try/except. Not needed yet.
+
+Tag: `[numpy-eq-tolerant]`.
