@@ -141,8 +141,23 @@ source .venv/bin/activate
 python3 -m pytxt
 ```
 
-Leave this running. In a second terminal, also `source .venv/bin/activate`
-for the `pytxt`-installed binaries.
+Leave this running. Watch for the line
+
+```
+BpmReader connected to 1 BPMs
+```
+
+a second or two after startup — that confirms the in-process CA client
+successfully resolved `SR01C:BPM1:wfr:TBT:*` against the ring. Without
+this line, ACQUIRE will return `STATUS=FAILED` with all-NaN positions;
+debug by checking that this terminal's `EPICS_CA_ADDR_LIST` (etc.) is
+the operator default that lets plain `caget SR01C:BPM1:...` work.
+
+In a **second terminal** (any shell — the validation commands in §6 are
+plain `caget`/`caput`/`curl`, none of which need the venv). You will
+override EPICS env vars in that terminal for the `OSPREY:TEST:TXT:*`
+namespace; do not also activate the venv there unless you want to use
+`pytest` from it.
 
 ---
 
@@ -170,41 +185,78 @@ and REST paths next.
 
 ### 6.2 Via CA (the control-system-citizen path)
 
+PyTxT runs its IOC on **port 59064**, not the standard CA port 5064.
+Your operator shell's `EPICS_CA_*` defaults point at the production
+ring, so plain `caput`/`caget` against the `OSPREY:TEST:TXT:*` namespace
+will time out. Before the commands below, redirect this shell's CA at
+PyTxT:
+
+```bash
+export EPICS_CA_SERVER_PORT=59064
+export EPICS_CA_REPEATER_PORT=59065
+export EPICS_CA_ADDR_LIST=127.0.0.1
+export EPICS_CA_AUTO_ADDR_LIST=NO
+```
+
+While those exports are set, this shell can **only** see PyTxT — direct
+reads of ring PVs (e.g. `caget SR01C:BPM1:wfr:TBT:c0`) will fail in
+*this* shell. Use a third terminal without these exports if you need to
+read ring PVs concurrently.
+
 ```bash
 # Trigger acquire over CA. Same effect as the button.
 caput OSPREY:TEST:TXT:CMD:ACQUIRE 1
+# Expected output:
+#   Old : OSPREY:TEST:TXT:CMD:ACQUIRE    0
+#   New : OSPREY:TEST:TXT:CMD:ACQUIRE    0
+# CMD:ACQUIRE is a trigger PV — the *write itself* fires the handler;
+# the displayed value being 0/0 is not a bug. (See test_ca_caput_value_is_ignored.)
 
 # State PVs should reflect the acquire:
-caget OSPREY:TEST:TXT:STATE:ACQUIRE_IN_FLIGHT
-caget OSPREY:TEST:TXT:STATE:LAST_ACQUIRE_OK_COUNT     # expect 1
-caget OSPREY:TEST:TXT:STATE:LAST_ACQUIRE_FAIL_COUNT   # expect 0
+caget OSPREY:TEST:TXT:STATE:ACQUIRE_IN_FLIGHT       # expect 0 (after acquire returns)
+caget OSPREY:TEST:TXT:STATE:LAST_ACQUIRE_OK_COUNT   # expect 1
+caget OSPREY:TEST:TXT:STATE:LAST_ACQUIRE_FAIL_COUNT # expect 0
+caget OSPREY:TEST:TXT:STATE:LAST_ACQUIRE_STATUS     # expect 2 (= OK; see STATUS_INT_TO_STR)
 
-# Result waveforms (length-1 in M1):
+# Result waveforms — padded to length 128. For M1 (1 BPM) the real
+# value sits at element [0]; elements [1..127] are NaN padding.
 caget OSPREY:TEST:TXT:RESULT:BPM:X_FIRST_TURN
 caget OSPREY:TEST:TXT:RESULT:BPM:Y_FIRST_TURN
 ```
 
-Confirm `X_FIRST_TURN` and `Y_FIRST_TURN` match what the browser
-rendered (within float-print precision).
+Confirm element [0] of `X_FIRST_TURN` and `Y_FIRST_TURN` matches what
+the browser rendered (within float-print precision). The X/Y values
+will be in **mm** (caproto's float PV holds the post-conversion value);
+a stored beam typically shows sub-mm offsets at BPM1.
 
 ### 6.3 Via REST (the agent-callable path)
 
+REST is HTTP, not CA — no `EPICS_CA_*` env needed. Run these from any
+terminal that can reach `localhost:8008` (your SSH-tunnel laptop is
+convenient since you already have it open):
+
 ```bash
-# State endpoint should expose acquire bookkeeping:
+# State endpoint — unified snapshot of every published field:
 curl -s http://localhost:8008/api/v1/state | python3 -m json.tool
 
 # Trigger acquire over REST:
 curl -s -X POST http://localhost:8008/api/v1/cmd/acquire \
      -H 'Content-Type: application/json' -d '{}' \
    | python3 -m json.tool
-
-# Raw waveforms for one BPM:
-curl -s 'http://localhost:8008/api/v1/result/bpm/raw?bpm=SR01C:BPM1' \
-   | python3 -m json.tool | head -40
+# Expect: {"status": "OK", "ok_count": 1, "fail_count": 0, ...}
 ```
 
-Confirm the `acquire` response and the `raw` endpoint return the same
-X / Y values seen in the browser and via `caget`.
+Confirm the `acquire` response status is `OK` and the `last_acquire`
+block of `/api/v1/state` shows the same `timestamp` and
+`injection_turn_median` as the REST acquire's response — that's the
+agentic-parity invariant: CA and REST drive the same handler and surface
+the same state.
+
+> **M4 (not M1):** The raw-waveform endpoint
+> `GET /api/v1/result/bpm/raw?bpm=<prefix>` is not implemented in M1 —
+> `pytxt/api/routes/result.py` is an intentional stub. Any curl against
+> it returns 404 until M4 lands. The M1 DoD is met by `acquire` + `state`
+> alone.
 
 ### 6.4 OpenAPI discoverability check
 
@@ -213,14 +265,22 @@ curl -s http://localhost:8008/openapi.json | python3 -m json.tool \
   | grep -E '"/api/v1/(cmd/acquire|result/bpm/raw|state)"'
 ```
 
-All three endpoints should be listed. (This is DoD item 12.)
+For M1 you should see **two** of the three paths listed:
+
+```
+"/api/v1/state": {
+"/api/v1/cmd/acquire": {
+```
+
+`result/bpm/raw` is **not** listed in M1 — the stub doesn't register a
+route. It will appear in M4 when the endpoint lands.
 
 ---
 
 ## 7. Failure-mode spot checks
 
-These are M3-territory features, but a couple are easy to verify in M1
-and confirm the foundation is solid:
+These are M3-territory features, but the 409 case is easy to verify in
+M1 and confirms the concurrency guard works on real hardware:
 
 ```bash
 # Concurrent acquire — fire two acquires back-to-back. Second should 409:
@@ -229,13 +289,17 @@ curl -s -X POST http://localhost:8008/api/v1/cmd/acquire -d '{}' \
 curl -s -X POST http://localhost:8008/api/v1/cmd/acquire -d '{}' \
      -H 'Content-Type: application/json' -w '\nstatus=%{http_code}\n'
 wait
-
-# Unknown BPM on the raw endpoint — should 404:
-curl -s -o /dev/null -w '%{http_code}\n' \
-     'http://localhost:8008/api/v1/result/bpm/raw?bpm=NOT:A:BPM'
 ```
 
-If either of these doesn't behave, log it in
+Whichever curl finishes second should print `status=409`. If both return
+200, the in-flight guard regressed.
+
+> **Skipped in M1:** the "unknown BPM on raw endpoint → 404" check from
+> earlier drafts of this doc is meaningless in M1 because the whole
+> `result/bpm/raw` route 404s (M4 territory). It's tracked as part of
+> M4-T1 in the phase-2 plan.
+
+If the 409 spot check misbehaves, log it in
 `docs/superpowers/specs/2026-05-18-phase-2-decisions.md` — but it does
 not block M2 since the formal scope is M3.
 
@@ -243,24 +307,28 @@ not block M2 since the formal scope is M3.
 
 ## 8. Sign-off checklist before starting M2
 
-Copy this into a scratchpad or the decisions log and tick each:
+Copy this into a scratchpad or the decisions log and tick each. Items
+marked **(M4)** are noted here for context but are not M1 deliverables —
+do not block M2 on them.
 
-- [ ] `caget SR01C:BPM1:wfr:TBT:c0` returns a waveform from this host
-- [ ] `scripts/probe_bpm.py SR01C:BPM1` prints all four PVs cleanly
-- [ ] `make test-unit` passes on the host
-- [ ] `make test-integration` passes on the host
-- [ ] `python3 -m pytxt` starts and serves `/trajectory.html`
-- [ ] Browser ACQUIRE renders a real `SR01C:BPM1` datapoint on both canvases
-- [ ] `caput OSPREY:TEST:TXT:CMD:ACQUIRE 1` triggers the same render
-- [ ] `RESULT:BPM:X_FIRST_TURN` and `Y_FIRST_TURN` match the browser values
-- [ ] `POST /api/v1/cmd/acquire` returns matching values
-- [ ] `GET /api/v1/result/bpm/raw?bpm=SR01C:BPM1` returns matching values
-- [ ] `openapi.json` lists `acquire`, `result/bpm/raw`, `state`
-- [ ] Concurrent acquire → second returns 409
-- [ ] Unknown BPM raw → 404
+- [ ] `caget SR01C:BPM1:wfr:TBT:c0` returns a waveform from this host (§3)
+- [ ] `scripts/probe_bpm.py SR01C:BPM1` prints all four PVs cleanly (§3)
+- [ ] `make test-unit` passes on the host (§4)
+- [ ] `make test-integration` passes on the host (§4)
+- [ ] `python3 -m pytxt` starts and serves `/trajectory.html` (§5)
+- [ ] PyTxT log shows `BpmReader connected to 1 BPMs` (§5)
+- [ ] Browser ACQUIRE renders a real `SR01C:BPM1` datapoint on both canvases (§6.1)
+- [ ] `caput OSPREY:TEST:TXT:CMD:ACQUIRE 1` triggers the same render (§6.2)
+- [ ] `RESULT:BPM:X_FIRST_TURN[0]` and `Y_FIRST_TURN[0]` are real numbers (sub-mm); elements [1..127] are NaN padding (§6.2)
+- [ ] `POST /api/v1/cmd/acquire` returns `{"status": "OK", "ok_count": 1, "fail_count": 0, ...}` (§6.3)
+- [ ] `/api/v1/state` shows `last_acquire` matching the REST response's timestamp and injection_turn_median (§6.3)
+- [ ] `openapi.json` lists `acquire` and `state` (§6.4); `result/bpm/raw` is **expected to be absent** (M4)
+- [ ] Concurrent acquire → second returns 409 (§7)
+- [ ] **(M4)** `GET /api/v1/result/bpm/raw?bpm=SR01C:BPM1` returns matching values
+- [ ] **(M4)** Unknown BPM raw → 404
 
-All ticked ⇒ M1 is validated against the real ring. Proceed to M2
-(scale to ~120 BPMs from `pytxt/config/bpm_prefixes.txt`).
+All non-M4 boxes ticked ⇒ M1 is validated against the real ring.
+Proceed to M2 (scale to ~120 BPMs from `pytxt/config/bpm_prefixes.txt`).
 
 ---
 
