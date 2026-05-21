@@ -556,23 +556,25 @@
 <div class="hero">
   <div class="hero-current">
     <div class="label">Current phase</div>
-    <h2>Phase 2 · Read path (M1 code shipped · awaiting manual DoD)</h2>
+    <h2>Phase 2 · Read path (M1 validated on real ring · M2 next)</h2>
     <p>
-      All M1 code tasks complete: domain (injection-turn + first-turn extract), CA client (BpmReader), handler,
-      IOC PVs, REST routes, frontend trajectory page. 72 tests passing. Composition hardcodes <code>SR01C:BPM1</code>
-      for M1; M2 swaps in the full ~120-BPM list once you dump it from MATLAB.
+      M1 validated on appsdev2 on 2026-05-20: <code>SR01C:BPM1</code> first-turn position read end-to-end via
+      CA, REST, and browser — all three transports producing matching results. Validation walkthrough also
+      surfaced five real bugs (caproto cross-loop client leak, IOC socket cleanup, IOC env-var conflict,
+      AppState ordering, numpy-eq); all pinned by regression tests + decision-log entries. Composition still
+      hardcodes <code>SR01C:BPM1</code>; M2 swaps in the full ~120-BPM list from a config file.
     </p>
-    <div class="progress" title="M1 code complete; 0 of 4 milestone DoDs signed off">
-      <div class="progress-fill" style="width: 22%"></div>
+    <div class="progress" title="M1 validated; 1 of 4 milestone DoDs signed off">
+      <div class="progress-fill" style="width: 28%"></div>
     </div>
-    <div class="progress-text">M1 code ✓ · M1 DoD pending Kirk · M2/M3/M4 queued</div>
+    <div class="progress-text">M1 ✓ validated · M2 next · M3/M4 queued</div>
   </div>
 
   <div class="stats">
     <div class="stat"><div class="num">1 / 6</div><div class="lbl">Phases complete</div></div>
-    <div class="stat"><div class="num">72 / 72</div><div class="lbl">Tests passing</div></div>
+    <div class="stat"><div class="num">73 / 73</div><div class="lbl">Tests passing</div></div>
     <div class="stat"><div class="num">4</div><div class="lbl">E2E specs</div></div>
-    <div class="stat"><div class="num">28</div><div class="lbl">Unpushed commits</div></div>
+    <div class="stat"><div class="num">0</div><div class="lbl">Unpushed commits</div></div>
   </div>
 </div>
 
@@ -625,7 +627,7 @@
       <div class="num">Phase 2</div>
       <div class="title">Read path</div>
       <div class="blurb">~120 BPM TBT reads → ring trajectory plot. <code>CMD:ACQUIRE</code>.</div>
-      <div class="badges"><span class="badge badge-now">→ M1 code done · DoD pending</span></div>
+      <div class="badges"><span class="badge badge-now">→ M1 validated · M2 next</span></div>
     </summary>
     <div class="body">
       <h4>Scope decisions locked</h4>
@@ -647,8 +649,8 @@
       </ul>
       <h4>Milestones</h4>
       <ul>
-        <li><strong>M1</strong> — Vertical slice, 1 real BPM · <em>code complete · awaiting Kirk's DoD</em></li>
-        <li><strong>M2</strong> — Scale to all ~120 BPMs · <em>queued (Kirk supplies BPM list first)</em></li>
+        <li><strong>M1</strong> — Vertical slice, 1 real BPM · <em>validated on real ring 2026-05-20</em></li>
+        <li><strong>M2</strong> — Scale to all ~120 BPMs · <em>next (Kirk supplies BPM list first)</em></li>
         <li><strong>M3</strong> — Failure handling · queued</li>
         <li><strong>M4</strong> — Raw REST + UI polish + e2e · queued</li>
       </ul>
@@ -758,9 +760,9 @@
 <div class="milestones">
   <div class="ms done">
     <div class="ms-label">M1</div>
-    <span class="ms-status"><span class="badge badge-done">Code ✓</span></span>
+    <span class="ms-status"><span class="badge badge-done">✓ Validated</span></span>
     <div class="ms-title">Vertical slice, 1 real BPM</div>
-    <div class="ms-meta">14 tasks · 24 commits · 72 tests · manual DoD on appsdev2 pending Kirk</div>
+    <div class="ms-meta">14 tasks · 73 tests · validated on real ring 2026-05-20 (CA + REST + browser)</div>
   </div>
   <div class="ms now">
     <div class="ms-label">M2</div>
