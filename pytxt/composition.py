@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from importlib.metadata import PackageNotFoundError, version as pkg_version
 
@@ -25,6 +26,34 @@ def _resolve_version() -> str:
         return "0.0.0+dev"
 
 
+def _ensure_local_ioc_in_ca_addr_list(host: str, port: int) -> None:
+    """Prepend our IOC's host:port to EPICS_CA_ADDR_LIST.
+
+    On appsdev2 (and any ALS control-room host), EPICS_CA_ADDR_LIST is
+    set to the ring's broadcast addresses and EPICS_CA_AUTO_ADDR_LIST=NO,
+    so localhost is invisible to CA clients. Our own IOC binds at
+    `{host}:{port}` (typically 127.0.0.1:59064 per als-profiles safety
+    rules), which means in-process CA clients — the WS-to-CA bridge and
+    BpmReader — can't find our IOC's PVs unless we add it explicitly.
+
+    EPICS_CA_ADDR_LIST entries accept the `host:port` form; an entry
+    without a port falls back to EPICS_CA_SERVER_PORT (typically 5064
+    for the ring). Prepending here gives our IOC the first response slot
+    for `OSPREY:TEST:TXT:*` searches while leaving ring-BPM searches
+    (`SR01C:BPM3:*`) to fall through to the existing ring entries.
+    """
+    entry = f"{host}:{port}"
+    current = os.environ.get("EPICS_CA_ADDR_LIST", "").strip()
+    parts = current.split() if current else []
+    if entry in parts:
+        return
+    os.environ["EPICS_CA_ADDR_LIST"] = " ".join([entry, *parts])
+    # If AUTO_ADDR_LIST is not explicitly NO, caproto will also broadcast
+    # on every local interface — harmless but noisy. Leave whatever the
+    # operator set; only set NO if completely unset.
+    os.environ.setdefault("EPICS_CA_AUTO_ADDR_LIST", "NO")
+
+
 async def main() -> None:
     settings = Settings()
     settings.version = _resolve_version()
@@ -37,12 +66,18 @@ async def main() -> None:
 
     bpm_prefixes = load_bpm_prefixes(settings.bpm_prefixes_path)
 
+    # Must run before gather() — once IOC / WS bridge / BpmReader start
+    # constructing caproto Contexts, they capture EPICS_CA_ADDR_LIST as-is.
+    _ensure_local_ioc_in_ca_addr_list(settings.ioc_host, settings.ioc_port)
+
     logger.info(
-        "PyTxT %s starting | prefix=%s | ioc=%s:%d | api=%s:%d | bpms=%d (%s)",
+        "PyTxT %s starting | prefix=%s | ioc=%s:%d | api=%s:%d | bpms=%d (%s) | "
+        "EPICS_CA_ADDR_LIST=%r",
         settings.version, settings.pv_prefix,
         settings.ioc_host, settings.ioc_port,
         settings.api_host, settings.api_port,
         len(bpm_prefixes), settings.bpm_prefixes_path,
+        os.environ.get("EPICS_CA_ADDR_LIST", ""),
     )
 
     state = AppState(

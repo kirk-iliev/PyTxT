@@ -396,3 +396,45 @@ The internal `elapsed` measurement (which is what the test's `< 3.0` assertion g
 - Headroom (~1.3 s of the 3 s budget used at N=107) is comfortable but not enormous; if M3's per-PV timeout work adds significant per-read overhead, this test will catch the regression before it ships.
 
 Tag: `[m2-2-scale-tests]`.
+
+## 2026-05-22 — WS bridge couldn't see our own IOC on appsdev2: prepend `127.0.0.1:<ioc_port>` to EPICS_CA_ADDR_LIST in composition
+
+**Context:** First attempt at M2-3 visual validation (deploy current `main` to appsdev2, click ACQUIRE in the browser, expect 107-BPM polyline). REST `POST /api/v1/cmd/acquire` returned `OK · 107 OK · 0 FAIL` correctly, so `BpmReader` against the real ring worked. But every browser WS subscription to our own IOC's PVs (`OSPREY:TEST:TXT:RESULT:BPM:*`, `STATE:LAST_ACQUIRE_*`) timed out with `"initial read timeout"` from `ws_bridge.py:80`. Canvases stayed empty; status header stayed at "No acquisition yet".
+
+**Diagnosis:** On appsdev2 (and any ALS control-room host), the shell environment sets:
+
+```
+EPICS_CA_SERVER_PORT=5064
+EPICS_CA_ADDR_LIST=131.243.71.255 131.243.84.255 131.243.89.255 131.243.93.255 131.243.95.255 131.243.199.255 131.243.53.255
+EPICS_CA_AUTO_ADDR_LIST=NO
+```
+
+Our IOC binds at `127.0.0.1:59064` (per als-profiles safety rule). The IOC's startup code (`pytxt/ioc/server.py:202-253`) temporarily sets `EPICS_CA_SERVER_PORT=59064` around `Context()` construction, then restores it to 5064 so `BpmReader` can read real ring BPMs at the ring's standard port. But it never touches `EPICS_CA_ADDR_LIST` — which has zero localhost entries and `EPICS_CA_AUTO_ADDR_LIST=NO` to forbid auto-adding any.
+
+Result: the in-process CA clients (WS bridge per-connection and BpmReader at startup) inherit an address list that **doesn't include our own IOC at all**. Every `get_pvs("OSPREY:TEST:TXT:*")` broadcasts to the seven ring subnets at port 5064; no ring server has those PV names; the search times out. `BpmReader` is unaffected because it searches for real ring PVs (`SR01C:BPM3:wfr:TBT:c0`), which the ring does have.
+
+This bug was present from M1 too — but M1's "browser validation" (per memory note) may have worked locally on Kirk's Mac, where the shell env doesn't pin EPICS_CA_ADDR_LIST to ring-only addresses (caproto defaults to broadcasting on the local subnet, which includes the loopback IOC). Only the appsdev2 deploy with the operator's strict ring-targeting env exposes the bug.
+
+**Decisions:**
+
+1. **Fix lives in `composition.py`, not in `ws_bridge.py` or `bpm_reader.py`.** New helper `_ensure_local_ioc_in_ca_addr_list(host, port)` prepends `"{host}:{port}"` (in `EPICS_CA_ADDR_LIST` `host:port` syntax) to the address list, called once in `main()` *before* `asyncio.gather()` kicks off the IOC, API, and reader subsystems. caproto captures env vars at `Context()` construction; doing the prepend up front ensures every subsequent in-process CA client sees the localhost entry. The IOC startup juggling only touches `EPICS_CA_SERVER_PORT` (not `EPICS_CA_ADDR_LIST`), so the prepend survives.
+
+2. **One address list, not separate ones per subsystem.** A localhost entry doesn't interfere with ring reads: searches for ring PVs match the ring servers and ignore the localhost responder; searches for `OSPREY:TEST:TXT:*` match the local IOC and are ignored by the ring. The "single address list for both clients" approach is simpler than threading separate broadcaster configs through the WS bridge and BpmReader. If a future ALS deployment ever runs a *second* IOC on localhost with overlapping PV names, this assumption breaks — but that's hypothetical.
+
+3. **Idempotent helper.** If the operator (or a future code path) has already added `127.0.0.1:59064` to the list, the helper is a no-op. This keeps the helper safe to call from any startup ordering without double-listing.
+
+4. **Helper respects operator-set `EPICS_CA_AUTO_ADDR_LIST`.** Only `setdefault` to `NO` if the variable is unset. On appsdev2 it's already `NO`; in unit tests it's whatever the test sets via `monkeypatch`. We don't override an explicit operator choice.
+
+5. **Logged the resolved `EPICS_CA_ADDR_LIST` at startup** so future deploys make this observable — if the prepend didn't take effect, the log line shows it immediately rather than waiting for browser-side timeouts.
+
+**Tests:** 5 new unit tests in `tests/unit/test_composition.py` covering empty list / existing entries / idempotent re-call / operator-set AUTO_ADDR_LIST preservation / different host:port. Full suite 88/88 green.
+
+**Spec relationship:** Fills a gap in spec §3 / §6 that quietly assumed in-process CA clients would resolve our IOC's PVs without special configuration. Not strictly a spec change — more a "this is what 'localhost-discoverable' really requires" footnote that the spec didn't anticipate.
+
+**Forward impact:**
+- M2-3 visual validation unblocked; redeploy + browser-click ACQUIRE should now render the 107-BPM polyline.
+- Removes a latent footgun for any future agent or developer trying to wire a new in-process CA client (e.g. a Phoebus-style scripting endpoint, an MCP wrapper). The address list is now correct from `composition.main()` onward.
+- M3 work (per-PV timeout + concurrent-ACQUIRE rejection) is unaffected — those changes live in `BpmReader` and `handle_acquire`, neither of which touches address-list resolution.
+- The single integration test `tests/integration/test_ws_bridge.py` already exercises the WS path in the conftest-pinned localhost environment, so it doesn't catch this class of bug (the conftest sets `EPICS_CA_ADDR_LIST=127.0.0.1`). A future test that specifically simulates the appsdev2-style "ring-only addr list" environment would be a useful guard; deferring to M4 polish.
+
+Tag: `[ws-bridge-ca-addr-list]`.
