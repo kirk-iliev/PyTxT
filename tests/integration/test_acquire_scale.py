@@ -36,7 +36,16 @@ async def test_handle_acquire_end_to_end_under_3s(fake_bpm_ioc):
         f"(fail_reason={state.last_acquire.fail_reason!r}, "
         f"failed={state.last_acquire.failed_bpm_names[:5]})"
     )
-    assert state.last_acquire.ok_count == 107
-    assert state.last_acquire.fail_count == 0
-    assert state.acquire_in_flight is False
+    assert state.last_acquire.ok_count == 107, (
+        f"ok_count={state.last_acquire.ok_count}, "
+        f"failed={state.last_acquire.failed_bpm_names[:5]}, "
+        f"elapsed={elapsed:.2f}s"
+    )
+    assert state.last_acquire.fail_count == 0, (
+        f"fail_count={state.last_acquire.fail_count}, "
+        f"failed={state.last_acquire.failed_bpm_names[:5]}"
+    )
+    assert state.acquire_in_flight is False, (
+        "acquire_in_flight was not cleared — handler finally-block may have failed"
+    )
     assert elapsed < 3.0, f"handle_acquire of 107 BPMs took {elapsed:.2f}s, expected <3s"
