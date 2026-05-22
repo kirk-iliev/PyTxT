@@ -547,7 +547,7 @@
 <div class="topbar">
   <h1>PyTxT</h1>
   <div class="tagline">Turn-by-turn beam analysis for the ALS injection chain — roadmap &amp; live status</div>
-  <div class="meta" id="last-updated">Last updated: 2026-05-21</div>
+  <div class="meta" id="last-updated">Last updated: 2026-05-22</div>
 </div>
 
 <!-- ============================================== -->
@@ -556,19 +556,21 @@
 <div class="hero">
   <div class="hero-current">
     <div class="label">Current phase</div>
-    <h2>Phase 2 · Read path (M1 tagged · M2 in flight)</h2>
+    <h2>Phase 2 · Read path (M1 ✓ · M2-1 ✓ · M2-2 ✓ · M2-3 next)</h2>
     <p>
-      M1 validated on appsdev2 on 2026-05-20: <code>SR01C:BPM1</code> first-turn position read end-to-end via
-      CA, REST, and browser — all three transports producing matching results. Validation walkthrough also
-      surfaced five real bugs (caproto cross-loop client leak, IOC socket cleanup, IOC env-var conflict,
-      AppState ordering, numpy-eq); all pinned by regression tests + decision-log entries. M2 prereq cleared
-      2026-05-21: live MML dump produced the canonical 107-entry <code>pytxt/config/bpm_prefixes.txt</code>.
-      Next: wire <code>composition.py</code> to read it; replace M1's <code>SR01C:BPM1</code> hardcode.
+      M1 validated on appsdev2 2026-05-20: <code>SR01C:BPM1</code> first-turn position read end-to-end via
+      CA, REST, and browser. M2-1 (composition loader) merged 2026-05-22 at <code>dd4d8f0</code> and validated
+      live the same day on appsdev2: both <code>caget OSPREY:TEST:TXT:RESULT:BPM:NAMES</code> and
+      <code>GET /api/v1/state</code> return the full 107-entry ring loaded from
+      <code>pytxt/config/bpm_prefixes.txt</code>. M2-2 closed 2026-05-22: two new integration tests prove the
+      read path scales to N=107 under the 3 s DoD budget — <code>BpmReader.read_all</code> at
+      N∈{10,50,107} in ≤1.5 s and full <code>handle_acquire</code> at N=107 in ~1.2 s. Next: M2-3 frontend
+      polyline render across all 107 datapoints.
     </p>
-    <div class="progress" title="M1 validated; 1 of 4 milestone DoDs signed off">
-      <div class="progress-fill" style="width: 28%"></div>
+    <div class="progress" title="M1, M2-1, M2-2 done; M2-3 next">
+      <div class="progress-fill" style="width: 42%"></div>
     </div>
-    <div class="progress-text">M1 ✓ tagged · M2 in flight · M3/M4 queued</div>
+    <div class="progress-text">M1 ✓ · M2-1 ✓ · M2-2 ✓ · M2-3 next · M3/M4 queued</div>
   </div>
 
   <div class="stats">
@@ -651,7 +653,7 @@
       <h4>Milestones</h4>
       <ul>
         <li><strong>M1</strong> — Vertical slice, 1 real BPM · <em>validated on real ring 2026-05-20</em></li>
-        <li><strong>M2</strong> — Scale to all 107 BPMs · <em>now (prereq cleared 2026-05-21; composition loader is first task)</em></li>
+        <li><strong>M2</strong> — Scale to all 107 BPMs · <em>in flight: M2-1 ✓ + M2-2 ✓ as of 2026-05-22; M2-3 (frontend polyline) next</em></li>
         <li><strong>M3</strong> — Failure handling · queued</li>
         <li><strong>M4</strong> — Raw REST + UI polish + e2e · queued</li>
       </ul>
@@ -769,7 +771,7 @@
     <div class="ms-label">M2</div>
     <span class="ms-status"><span class="badge badge-now">Now</span></span>
     <div class="ms-title">Scale to all 107 BPMs</div>
-    <div class="ms-meta">Prereq cleared 2026-05-21: live MML dump committed to <code>pytxt/config/bpm_prefixes.txt</code> (107 entries). First task: wire composition to read it.</div>
+    <div class="ms-meta">M2-1 ✓ composition loader (validated on appsdev2 2026-05-22). M2-2 ✓ scale tests at N=107 (BpmReader.read_all ≤1.5 s, full handle_acquire ~1.2 s — both well under the 3 s DoD budget) 2026-05-22. M2-3 next: frontend polyline render across 107 datapoints.</div>
   </div>
   <div class="ms todo">
     <div class="ms-label">M3</div>
@@ -895,12 +897,12 @@
 <div class="next-box">
   <h3>Immediate — Kirk</h3>
   <ol>
-    <li><strong>Validate M2-1 on appsdev2.</strong> Pull, restart the soft-IOC service, confirm startup log shows <code>bpms=107</code> and that <code>caget OSPREY:TEST:TXT:RESULT:BPM:NAMES</code> returns the full list. No real-ring acquisition required yet — that's M2-2's territory.</li>
+    <li><strong>Kick off M2-3 (frontend polyline render).</strong> Replace M1's single-dot trajectory rendering with connected polylines across all 107 BPMs. Backend is proven at scale (M2-2 ✓); live <code>CMD:ACQUIRE</code> against the 107-BPM list is still deferred until M3 (per-PV timeout / NaN propagation) lands.</li>
   </ol>
   <h3 style="margin-top:1rem">M2 — code (next, subagent-dispatched)</h3>
   <ol>
-    <li>M2-1 ✅ <strong>composition loader.</strong> Replaced M1's <code>_PHASE_2_M1_BPM_PREFIXES</code> hardcode with <code>load_bpm_prefixes(settings.bpm_prefixes_path)</code> in <code>pytxt/config/bpm_prefixes.py</code>; seeds <code>AppState.bpm_prefixes</code> and passes the list to <code>BpmReader</code>. Fails fast with <code>FileNotFoundError</code> / <code>ValueError</code> on missing/empty file. 6 new unit tests + full suite (79 passed).</li>
-    <li>M2-2: parametric integration test — parallel read of N BPMs (10, then 107) under 3s using a multi-BPM fake-IOC fixture.</li>
+    <li>M2-1 ✅ <strong>composition loader.</strong> Replaced M1's <code>_PHASE_2_M1_BPM_PREFIXES</code> hardcode with <code>load_bpm_prefixes(settings.bpm_prefixes_path)</code> in <code>pytxt/config/bpm_prefixes.py</code>; seeds <code>AppState.bpm_prefixes</code> and passes the list to <code>BpmReader</code>. Fails fast with <code>FileNotFoundError</code> / <code>ValueError</code> on missing/empty file. 6 new unit tests + full suite (79 passed). Validated on appsdev2 2026-05-22.</li>
+    <li>M2-2 ✅ <strong>scale tests.</strong> Two new integration tests at <code>tests/integration/test_bpm_reader_scale.py</code> (N∈{10,50,107}, BpmReader.read_all in ≤1.5 s) and <code>tests/integration/test_acquire_scale.py</code> (N=107, full handle_acquire in ~1.2 s). No production code changes — fixture and read_all were already parametric/parallel from M1. Decision log entry <code>[m2-2-scale-tests]</code> captures wall times and the assertion-message follow-up.</li>
     <li>M2-3: frontend — render connected polylines across all 107 datapoints (replace M1 single-dot rendering).</li>
   </ol>
   <h3 style="margin-top:1rem">M3 / M4 — queued</h3>
@@ -917,8 +919,28 @@
 
 <div class="activity">
   <div class="commit">
-    <div class="hash">uncommitted</div>
-    <div class="msg">2026-05-21 · M2-1 composition loader: <code>load_bpm_prefixes</code> module + composition wiring + 6 unit tests; full suite 79 ✓</div>
+    <div class="hash">7a07474</div>
+    <div class="msg">M2-2 follow-up — improve assertion-message diagnostics in acquire scale test (per code review)</div>
+    <div class="tag">test(integration)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">800feec</div>
+    <div class="msg">M2-2 — <code>handle_acquire</code> end-to-end at N=107 under 3 s (full pipeline integration test, no mocks)</div>
+    <div class="tag">test(integration)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">0ae347f</div>
+    <div class="msg">M2-2 — <code>BpmReader.read_all</code> scales to 107 BPMs under 3 s (parametric N=10,50,107)</div>
+    <div class="tag">test(ca_client)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">live</div>
+    <div class="msg">2026-05-22 · M2-1 validated on appsdev2 — CA <code>RESULT:BPM:NAMES</code> and REST <code>/api/v1/state</code> both publish the full 107-BPM list from <code>bpm_prefixes.txt</code></div>
+    <div class="tag">validation</div>
+  </div>
+  <div class="commit">
+    <div class="hash">dd4d8f0</div>
+    <div class="msg">M2-1 composition loader: <code>load_bpm_prefixes</code> module + composition wiring + 6 unit tests; full suite 79 ✓</div>
     <div class="tag">feat(config)</div>
   </div>
   <div class="commit">
