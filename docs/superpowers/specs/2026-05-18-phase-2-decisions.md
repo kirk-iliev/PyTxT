@@ -491,3 +491,32 @@ Two failure modes for waveform PVs:
 - Any future PV shape that doesn't fit numeric-array or string-array (e.g. a structured PV from a different IOC) will need an extension here. Adding a new branch is straightforward.
 
 Tag: `[ws-coerce-waveform]`.
+
+## 2026-05-22 — Trajectory render polish: trim trailing NaN + per-BPM dot overlay
+
+**Context:** After fixing the WS bridge (`[ws-bridge-ca-addr-list]` + `[ws-coerce-waveform]`), browser rendering finally worked end-to-end against the live 107-BPM ring. First visual review surfaced two cosmetic issues that the spec §5.4 was silent on:
+
+1. The polyline only filled ~83% of the canvas width because the IOC pads `RESULT:BPM:{X,Y}_FIRST_TURN` to length 128 with NaN, and the renderer plotted across all 128 x-slots. With 107 valid + 21 trailing NaN, the polyline ended at `i = 106 → x ≈ 661/800 px` and the right strip was dead space.
+2. The 3×3 per-point fillRect markers were invisible at 107-BPM density (~6 px between points), so individual BPMs couldn't be picked out — visually you saw a single oscillating line, not 107 discrete measurements.
+
+**Decisions:**
+
+1. **Trim trailing non-finite entries in the renderer, not in the IOC.** New `trimTrailingNonFinite(data)` helper in `trajectory.js` walks back from the end and slices to the live prefix. Three reasons not to fix this server-side:
+   - The IOC's fixed-length pad keeps the PV waveform shape stable (downstream CA monitors don't see length flicker), which is desirable EPICS hygiene.
+   - The renderer needs a NaN-aware path anyway for M3 partial-fail (one or more interior BPMs returning NaN), so the trim is the same code path generalized.
+   - Trimming server-side would couple the IOC to a "current N" the frontend already knows from its own subscription.
+
+2. **Per-BPM markers as filled discs (radius 2.5) in a second pass.** Drawing the connecting line and then a separate disc pass guarantees the dot is on top of the line, so individual BPMs are visible against the polyline. Radius 2.5 was picked so that at 107 BPMs across ~660 px (≈6 px spacing) the dots are clearly separable but still touch enough to read as a "beaded line." This matches the spec §5.4 "polyline with broken-line segments" intent while making the underlying data points readable.
+
+3. **Polish only — no spec change.** The visualisation is still the spec's "two stacked panels, X above Y, position vs BPM index" with NaN-gap breaks. Spec §5.4's hover-tooltip is M4 scope and not touched here.
+
+4. **Confirmed the multi-line "Raw BPM Signal" view from the MATLAB manual is a different visualization (one line per BPM over the full turn waveform), not what phase 2 implements.** Phase 2's `RESULT:BPM:{X,Y}_FIRST_TURN` is the first-turn cross-section. The multi-line view is properly scoped to a later phase (likely phase 3 trajectory analysis or phase 4 polish). Documenting here so a future reader doesn't try to "fix" the single-polyline rendering to match the manual screenshot.
+
+**Tests:** No JS test infrastructure exists yet for the frontend (M4 e2e Playwright spec is what closes that gap). Manual visual verification on appsdev2 is the gate. The Python suite (103/103) is unchanged.
+
+**Forward impact:**
+- M2-3 closes after Kirk visually confirms the polyline now spans the full canvas with visible per-BPM dots.
+- M3 (partial-fail rendering) will reuse `trimTrailingNonFinite` and benefit from the dot overlay: a single NaN BPM in the middle of the ring will now be visually obvious as a missing dot, not a barely-visible line break.
+- M4 (Playwright e2e + hover tooltip) builds on these helpers — `xFor(i)` is now a named inner function ready to be reused for hit-testing.
+
+Tag: `[m2-3-render-polish]`.

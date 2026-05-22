@@ -29,6 +29,14 @@
     return ['NEVER', 'ACQUIRING', 'OK', 'PARTIAL', 'FAILED'][code] || 'UNKNOWN';
   }
 
+  function trimTrailingNonFinite(data) {
+    // The IOC pads waveform PVs to a fixed max length (128) with NaN. Plot
+    // only the live prefix so the polyline spans the full canvas width.
+    let end = data.length;
+    while (end > 0 && !Number.isFinite(data[end - 1])) end--;
+    return end === data.length ? data : data.slice(0, end);
+  }
+
   function render(canvas, data, color) {
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
@@ -43,6 +51,7 @@
     ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(w, cy); ctx.stroke();
     ctx.setLineDash([]);
 
+    data = trimTrailingNonFinite(data);
     if (!data.length) return;
     // Auto-range (symmetric around 0, padded)
     let maxAbs = 0;
@@ -52,25 +61,36 @@
     if (maxAbs === 0) maxAbs = 1;  // avoid div-by-zero
     const yScale = (h / 2 - 8) / maxAbs;
 
-    // Plot
+    function xFor(i) {
+      return data.length === 1 ? w / 2 : (i * (w - 20) / (data.length - 1)) + 10;
+    }
+
+    // Connecting polyline (interior NaN entries break the line into segments)
     ctx.strokeStyle = color;
-    ctx.fillStyle = color;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     let pendingMove = true;
     for (let i = 0; i < data.length; i++) {
       const v = data[i];
       if (!Number.isFinite(v)) { pendingMove = true; continue; }
-      const x = data.length === 1
-        ? w / 2
-        : (i * (w - 20) / (data.length - 1)) + 10;
-      const y = cy - v * yScale;
+      const x = xFor(i), y = cy - v * yScale;
       if (pendingMove) { ctx.moveTo(x, y); pendingMove = false; }
       else { ctx.lineTo(x, y); }
-      // Point marker (especially useful for N=1)
-      ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
     }
     ctx.stroke();
+
+    // Per-BPM dot overlay — separate pass so the line doesn't paint over
+    // the dots. Filled disc, radius 2.5, gives a visible "beaded line"
+    // even at 107 points across ~660px (~6 px spacing).
+    ctx.fillStyle = color;
+    for (let i = 0; i < data.length; i++) {
+      const v = data[i];
+      if (!Number.isFinite(v)) continue;
+      const x = xFor(i), y = cy - v * yScale;
+      ctx.beginPath();
+      ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   function redraw() {
