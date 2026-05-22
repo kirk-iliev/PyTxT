@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 from datetime import datetime, timezone
 from typing import Any
 
@@ -26,18 +27,46 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _coerce_nan(v: Any) -> Any:
+    """JSON has no NaN; map float NaN → None so the WS message parses on the client."""
+    if isinstance(v, float) and math.isnan(v):
+        return None
+    return v
+
+
+def _coerce_element(v: Any) -> Any:
+    if isinstance(v, (bytes, bytearray)):
+        return v.decode("utf-8", errors="replace")
+    return _coerce_nan(v)
+
+
 def _coerce_value(raw: Any) -> Any:
     """Convert caproto values to JSON-friendly Python primitives.
 
-    Single-element arrays come through as numpy scalars / bytes; unwrap.
+    Handles three shapes caproto delivers:
+    - Numeric scalars and waveforms as numpy arrays / numpy scalars
+      (unboxed via .tolist()).
+    - String scalars as bytes / 1-element DbrStringArray (decoded to str).
+    - String waveforms as multi-element DbrStringArray (decoded to list[str]).
+
+    Multi-element containers become Python lists; size-1 containers are
+    unwrapped to scalars so scalar PVs flow as plain values.
     """
-    if hasattr(raw, "__len__") and len(raw) == 1:
-        raw = raw[0]
-    if isinstance(raw, bytes):
+    if isinstance(raw, (bytes, bytearray)):
         return raw.decode("utf-8", errors="replace")
-    if hasattr(raw, "item"):  # numpy scalar
-        return raw.item()
-    return raw
+
+    if hasattr(raw, "tolist"):                      # numpy arrays / scalars
+        value = raw.tolist()
+    elif hasattr(raw, "__len__") and not isinstance(raw, str):
+        value = list(raw)                           # caproto DbrStringArray, etc.
+    else:
+        return _coerce_nan(raw)
+
+    if isinstance(value, list):
+        cleaned = [_coerce_element(v) for v in value]
+        return cleaned[0] if len(cleaned) == 1 else cleaned
+
+    return _coerce_nan(value)
 
 
 @router.websocket("/api/v1/pvs")

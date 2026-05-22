@@ -438,3 +438,56 @@ This bug was present from M1 too — but M1's "browser validation" (per memory n
 - The single integration test `tests/integration/test_ws_bridge.py` already exercises the WS path in the conftest-pinned localhost environment, so it doesn't catch this class of bug (the conftest sets `EPICS_CA_ADDR_LIST=127.0.0.1`). A future test that specifically simulates the appsdev2-style "ring-only addr list" environment would be a useful guard; deferring to M4 polish.
 
 Tag: `[ws-bridge-ca-addr-list]`.
+
+## 2026-05-22 — WS bridge `_coerce_value` couldn't serialize waveform PVs
+
+**Context:** Second iteration of M2-3 visual validation. After fixing the CA address list (entry `[ws-bridge-ca-addr-list]` above), the scalar STATE PVs flowed correctly through the WS bridge and the status header populated (`OK · 107 OK · 0 FAIL · <timestamp>`). The waveform PVs still failed, but now with different errors visible in the browser console:
+
+```
+PV error: ...RESULT:BPM:X_FIRST_TURN — read failed: can only convert an array of size 1 to a Python scalar
+PV error: ...RESULT:BPM:Y_FIRST_TURN — read failed: can only convert an array of size 1 to a Python scalar
+PV error: ...RESULT:BPM:INJECTION_TURN — read failed: can only convert an array of size 1 to a Python scalar
+PV error: ...RESULT:BPM:NAMES — read failed: Unable to serialize unknown type: <class 'caproto._dbr.DbrStringArray'>
+```
+
+**Diagnosis:** The pre-existing `_coerce_value(raw)` helper in `pytxt/api/ws_bridge.py` was written for phase-1 scalar PVs. Its logic was:
+
+```python
+if hasattr(raw, "__len__") and len(raw) == 1: raw = raw[0]
+if isinstance(raw, bytes): return raw.decode(...)
+if hasattr(raw, "item"): return raw.item()  # numpy scalar
+return raw
+```
+
+Two failure modes for waveform PVs:
+
+1. Numeric arrays (X/Y/INJECTION_TURN) arrive as numpy ndarrays of size 128. `hasattr(arr, "item")` is True (numpy arrays *do* have `.item()`), but `arr.item()` raises `ValueError: can only convert an array of size 1 to a Python scalar` for multi-element arrays.
+2. String arrays (NAMES) arrive as caproto `DbrStringArray` of size 128. `_coerce_value` returns it as-is; pydantic then can't serialize the unknown type when `WSValueUpdate(...).model_dump_json()` runs.
+
+**Decisions:**
+
+1. **Rewrote `_coerce_value` to handle both scalar and waveform shapes explicitly.** New logic dispatches on:
+   - `bytes / bytearray` → decode to str (CA string scalar via DbrChar).
+   - has `tolist()` (numpy arrays and 0-d numpy scalars) → `.tolist()` unboxes to native Python primitives.
+   - has `__len__` and not `str` (caproto `DbrStringArray` and similar) → manual `list(raw)` then per-element decode of any surviving bytes.
+   - anything else → passthrough (scrubbing NaN if applicable).
+   - Multi-element containers stay as lists; length-1 containers are unwrapped to scalars so scalar PVs flow as plain values.
+
+2. **NaN → None for JSON safety.** JSON has no NaN literal. Forward-looking for M3 (per-PV timeout + NaN propagation) — when failures map to NaN sentinels, the browser must receive a parseable message. Python `float('nan')` and numpy NaN both get mapped to `None`. The frontend's existing `Number.isFinite(v)` and `v >= 0` filters already handle null correctly, so no frontend change needed.
+
+3. **Decode-on-output, not on-input.** Bytes objects appear in two places: scalar PVs (after unwrapping a length-1 container) and string array elements. Both go through `_coerce_element` which handles bytes uniformly. Avoids a single mega-conditional and makes the per-element rule explicit.
+
+4. **Helper split into three small functions** (`_coerce_nan`, `_coerce_element`, `_coerce_value`) rather than one branching block. Each has a single responsibility and is independently testable; the dispatch logic in `_coerce_value` stays under 15 lines.
+
+5. **No frontend change required.** `trajectory.js` already subscribes via `Array.isArray(msg.value) ? msg.value : [msg.value]` and the render function handles N>1 with NaN gaps. The fix is purely server-side serialization.
+
+**Tests:** 15 new unit tests in `tests/unit/test_ws_coerce.py` covering: scalar bytes / 1-element bytes array / numpy scalars / 1-element numpy array / plain Python scalars / NaN scalar (Python and numpy) / numpy int and float arrays / array with NaN / 128-element array length preservation / multi-element bytes-list (DbrStringArray duck type) / empty-string padding pass-through / mixed str+bytes array / JSON round-trip smoke for the typical PV shapes. Full suite 103/103 green.
+
+**Spec relationship:** Fills a gap in spec §6.5 / WS-bridge design that didn't specify the JSON-coercion rules for waveform shapes (the spec assumed pydantic + `Any` would just work, which is true only for scalar shapes).
+
+**Forward impact:**
+- M2-3 visual validation should now show 107-BPM polylines in both X and Y canvases after a redeploy + browser refresh.
+- M3's NaN propagation already has the JSON-safe path in place — no further bridge changes needed when failure paths come online.
+- Any future PV shape that doesn't fit numeric-array or string-array (e.g. a structured PV from a different IOC) will need an extension here. Adding a new branch is straightforward.
+
+Tag: `[ws-coerce-waveform]`.
