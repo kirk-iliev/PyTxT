@@ -364,3 +364,35 @@ Tag: `[bpm-prefix-list-dumped]`.
 - If someone later wants `load_bpm_prefixes` to deduplicate or validate the `SR##C:BPM#` shape, add it then — the current loader is intentionally permissive about content (only about presence/format).
 
 Tag: `[m2-1-composition-loader]`.
+
+## 2026-05-22 — M2-2 multi-BPM scale tests: N=107 ACQUIRE under 3 s confirmed
+
+**Context:** M2-2 task per spec §11 / DoD §12 line 2: prove the read path scales from 1 → 107 BPMs in <3 s end-to-end. Spec didn't prescribe exactly *which* tests; it just specified the integration tier needed multi-BPM coverage and the DoD wall-time bound.
+
+**Decisions:**
+
+1. **Two test files, two scopes.** `tests/integration/test_bpm_reader_scale.py` exercises just `BpmReader.read_all` parametrically at N ∈ {10, 50, 107} — isolates the CA-client transport. `tests/integration/test_acquire_scale.py` exercises the full `handle_acquire` pipeline (real reader + real domain + real state) at N=107 — isolates the handler+domain budget. Both pin the <3 s bound. Two files because the failure modes are distinct: a reader-only failure indicates caproto/network, a handler-only failure indicates domain or state-update overhead.
+
+2. **`per_pv_timeout_s=5.0` in tests, not the default 2.0.** Test reads run against an in-process fake IOC where `caproto`'s first-PV resolution can take ~1 s even on localhost; the *aggregate* `<3 s` assertion is what enforces the SLA, while the per-PV timeout just has to be large enough to avoid spurious flakes on a loaded CI host. Production code keeps the 2 s default.
+
+3. **No production code changes.** The fake-IOC fixture was already parametric (M1 work). `BpmReader.read_all` already uses `asyncio.gather` (M1 work). M2-2 is a pure proof-of-scale milestone; the architecture was load-bearing for the spec's N=107 claim from the start, and these tests are the evidence.
+
+4. **Assertion-message diagnostics added in follow-up commit.** Initial Task 2 implementation matched the plan literally; code-quality review caught that `ok_count`, `fail_count`, and `acquire_in_flight` asserts lacked the failure-context messages that the `status` assert already provided. Follow-up commit `7a07474` adds inline diagnostics — counts, first-five failed BPM names, elapsed wall time — so CI failures print useful context without `--tb=long`. Captured for future test-file style reference: every assertion in a multi-step pipeline test should carry the same level of failure context.
+
+**Observed pytest `call` durations (`pytest --durations=0`):**
+
+- `test_read_all_scales_under_3s[10]`: ~0.13 s (start + read_all + stop combined)
+- `test_read_all_scales_under_3s[50]`: ~0.58 s
+- `test_read_all_scales_under_3s[107]`: ~1.52 s
+- `test_handle_acquire_end_to_end_under_3s[107]`: ~2.33 s pytest total (includes fixture caproto-bind startup); the test's internal `elapsed` (handle_acquire alone) measured 1.23 s on the implementer's run
+
+The internal `elapsed` measurement (which is what the test's `< 3.0` assertion gates on) is necessarily faster than the pytest `call` figures because the latter include `start()`/`stop()` overhead. Both bounds are well under the 3 s DoD budget.
+
+**Spec relationship:** No spec change. M2-2 closes spec §11 M2 ("Tests: ca_client integration tests with multi-BPM fake IOC fixture") and provides the evidence for DoD §12 line 2 wall-time claim.
+
+**Forward impact:**
+- M2-3 (frontend polyline) can be developed without re-litigating backend scale.
+- M3 (failure handling) will *reuse* `fake_bpm_ioc`'s `bpm_offline`/`bpm_timeout` hooks (already designed into the fixture per its dataclass docstring) plus these scale tests as a regression base. The 3 s wall-time bound should stay green in M3 (no per-BPM serial fallbacks slipped in).
+- Headroom (~1.3 s of the 3 s budget used at N=107) is comfortable but not enormous; if M3's per-PV timeout work adds significant per-read overhead, this test will catch the regression before it ships.
+
+Tag: `[m2-2-scale-tests]`.
