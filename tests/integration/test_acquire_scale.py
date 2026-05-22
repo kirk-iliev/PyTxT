@@ -46,6 +46,8 @@ async def test_handle_acquire_end_to_end_under_3s(fake_bpm_ioc):
         f"failed={state.last_acquire.failed_bpm_names[:5]}"
     )
     assert state.acquire_in_flight is False, (
-        "acquire_in_flight was not cleared — handler finally-block may have failed"
+        f"acquire_in_flight was not cleared — handler finally-block may have failed "
+        f"(ok_count={state.last_acquire.ok_count}, "
+        f"fail_count={state.last_acquire.fail_count}, elapsed={elapsed:.2f}s)"
     )
     assert elapsed < 3.0, f"handle_acquire of 107 BPMs took {elapsed:.2f}s, expected <3s"
