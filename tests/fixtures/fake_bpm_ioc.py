@@ -91,7 +91,16 @@ _SLOW_DELAY_S_DEFAULT = 3.0  # > production per_pv_timeout_s=2.0
 def _make_slow_bpm_group(prefix: str, bpm_index: int, delay_s: float) -> PVGroup:
     """Like _make_bpm_group, but each pvproperty has an async getter that
     sleeps `delay_s` seconds before returning the static value. Used to
-    exercise BpmReader._read_one's per-PV wait_for timeout path."""
+    exercise BpmReader._read_one's per-PV wait_for timeout path.
+
+    Getter syntax: the four async functions below are passed as the first
+    positional argument to pvproperty (`get` parameter per
+    pvproperty.__init__). In the installed caproto version both the
+    @c0.getter decorator and the read= keyword argument fail — the
+    decorator shadows the descriptor, and read= isn't a recognized kwarg
+    on ChannelData. The positional-get form is the documented primary
+    API; don't refactor to the decorator form without re-checking caproto
+    version compatibility. See decisions log entry [m3-task2-getter-syntax]."""
     x_nm, y_nm, sum_au = _synthesize_waveforms(bpm_index)
 
     async def slow_c0_read(group, instance):
