@@ -556,26 +556,26 @@
 <div class="hero">
   <div class="hero-current">
     <div class="label">Current phase</div>
-    <h2>Phase 2 · Read path (M1 ✓ · M2-1 ✓ · M2-2 ✓ · M2-3 next)</h2>
+    <h2>Phase 2 · Read path (M1 ✓ · M2 ✓ · M3 next)</h2>
     <p>
-      M1 validated on appsdev2 2026-05-20: <code>SR01C:BPM1</code> first-turn position read end-to-end via
-      CA, REST, and browser. M2-1 (composition loader) merged 2026-05-22 at <code>dd4d8f0</code> and validated
-      live the same day on appsdev2: both <code>caget OSPREY:TEST:TXT:RESULT:BPM:NAMES</code> and
-      <code>GET /api/v1/state</code> return the full 107-entry ring loaded from
-      <code>pytxt/config/bpm_prefixes.txt</code>. M2-2 closed 2026-05-22: two new integration tests prove the
-      read path scales to N=107 under the 3 s DoD budget — <code>BpmReader.read_all</code> at
-      N∈{10,50,107} in ≤1.5 s and full <code>handle_acquire</code> at N=107 in ~1.2 s. Next: M2-3 frontend
-      polyline render across all 107 datapoints.
+      M1 validated on appsdev2 2026-05-20. M2 closed 2026-05-22 — all three sub-milestones done:
+      M2-1 (composition loader for the 107-entry BPM list), M2-2 (scale tests proving <code>handle_acquire</code>
+      at N=107 in ~1.2 s, well under the 3 s DoD budget), and M2-3 (browser visual validation against the live
+      ring with polyline + per-BPM dot overlay). M2-3 surfaced two real backend bugs along the way — WS-bridge
+      couldn't see our own IOC because <code>EPICS_CA_ADDR_LIST</code> on appsdev2 is pinned to ring broadcasts
+      (fixed at <code>0d5ed25</code>), and <code>_coerce_value</code> couldn't serialize waveform PVs (numpy
+      arrays / DbrStringArray; fixed at <code>5031240</code>). Both pinned with new unit tests; full suite
+      now 103/103 green. Next: M3 failure-handling test coverage (timeout-simulation, partial-fail, all-fail).
     </p>
-    <div class="progress" title="M1, M2-1, M2-2 done; M2-3 next">
-      <div class="progress-fill" style="width: 42%"></div>
+    <div class="progress" title="M1 + M2 done; M3 next">
+      <div class="progress-fill" style="width: 50%"></div>
     </div>
-    <div class="progress-text">M1 ✓ · M2-1 ✓ · M2-2 ✓ · M2-3 next · M3/M4 queued</div>
+    <div class="progress-text">M1 ✓ · M2 ✓ · M3 next · M4 queued</div>
   </div>
 
   <div class="stats">
     <div class="stat"><div class="num">1 / 6</div><div class="lbl">Phases complete</div></div>
-    <div class="stat"><div class="num">83 / 83</div><div class="lbl">Tests passing</div></div>
+    <div class="stat"><div class="num">103 / 103</div><div class="lbl">Tests passing</div></div>
     <div class="stat"><div class="num">4</div><div class="lbl">E2E specs</div></div>
     <div class="stat"><div class="num">0</div><div class="lbl">Unpushed commits</div></div>
   </div>
@@ -653,7 +653,7 @@
       <h4>Milestones</h4>
       <ul>
         <li><strong>M1</strong> — Vertical slice, 1 real BPM · <em>validated on real ring 2026-05-20</em></li>
-        <li><strong>M2</strong> — Scale to all 107 BPMs · <em>in flight: M2-1 ✓ + M2-2 ✓ as of 2026-05-22; M2-3 (frontend polyline) next</em></li>
+        <li><strong>M2</strong> — Scale to all 107 BPMs · <em>✅ closed 2026-05-22 (M2-1 loader, M2-2 scale tests, M2-3 browser-render validated against the live ring)</em></li>
         <li><strong>M3</strong> — Failure handling · queued</li>
         <li><strong>M4</strong> — Raw REST + UI polish + e2e · queued</li>
       </ul>
@@ -767,17 +767,17 @@
     <div class="ms-title">Vertical slice, 1 real BPM</div>
     <div class="ms-meta">14 tasks · 73 tests · validated on real ring 2026-05-20 (CA + REST + browser)</div>
   </div>
-  <div class="ms now">
+  <div class="ms done">
     <div class="ms-label">M2</div>
-    <span class="ms-status"><span class="badge badge-now">Now</span></span>
+    <span class="ms-status"><span class="badge badge-done">✓ Validated</span></span>
     <div class="ms-title">Scale to all 107 BPMs</div>
-    <div class="ms-meta">M2-1 ✓ composition loader (validated on appsdev2 2026-05-22). M2-2 ✓ scale tests at N=107 (BpmReader.read_all ≤1.5 s, full handle_acquire ~1.2 s — both well under the 3 s DoD budget) 2026-05-22. M2-3 next: frontend polyline render across 107 datapoints.</div>
+    <div class="ms-meta">M2-1 ✓ composition loader · M2-2 ✓ scale tests at N=107 (handle_acquire ~1.2 s, well under the 3 s DoD budget) · M2-3 ✓ live browser-render validated against the real ALS ring 2026-05-22. Surfaced + fixed two latent backend bugs along the way (EPICS_CA_ADDR_LIST localhost discovery; WS-bridge waveform coercion).</div>
   </div>
-  <div class="ms todo">
+  <div class="ms now">
     <div class="ms-label">M3</div>
-    <span class="ms-status"><span class="badge badge-fut">Queued</span></span>
+    <span class="ms-status"><span class="badge badge-now">Now</span></span>
     <div class="ms-title">Failure handling</div>
-    <div class="ms-meta">Fault-injection fixture, PARTIAL status, 409 concurrency tests</div>
+    <div class="ms-meta">Per-PV 2 s timeout already in <code>BpmReader.read_all</code>; partial/all-fail handler paths already in code. M3's actual work is exercising those paths with <code>fake_bpm_ioc</code>'s <code>bpm_offline</code> / <code>bpm_timeout</code> hooks and proving PARTIAL status + 409 concurrent-ACQUIRE end-to-end.</div>
   </div>
   <div class="ms todo">
     <div class="ms-label">M4</div>
@@ -883,8 +883,8 @@
 
   <div class="pkg done">
     <div class="pkg-name">tests/</div>
-    <div class="pkg-role">Unit (10 files) + integration (12 files) + fixtures (fake BPM IOC) + e2e (2 specs)</div>
-    <div class="pkg-status"><span class="badge badge-done">83 passing</span></div>
+    <div class="pkg-role">Unit (12 files) + integration (12 files) + fixtures (fake BPM IOC) + e2e (2 specs)</div>
+    <div class="pkg-status"><span class="badge badge-done">103 passing</span></div>
   </div>
 
 </div>
@@ -897,13 +897,13 @@
 <div class="next-box">
   <h3>Immediate — Kirk</h3>
   <ol>
-    <li><strong>Kick off M2-3 (frontend polyline render).</strong> Replace M1's single-dot trajectory rendering with connected polylines across all 107 BPMs. Backend is proven at scale (M2-2 ✓); live <code>CMD:ACQUIRE</code> against the 107-BPM list is still deferred until M3 (per-PV timeout / NaN propagation) lands.</li>
+    <li><strong>Kick off M3 (failure-handling test coverage).</strong> Per-PV 2 s timeout already lives in <code>BpmReader.read_all</code>; <code>handle_acquire</code> already has partial/all-fail paths; <code>POST /api/v1/cmd/acquire</code> already returns 409 on concurrent calls. M3's actual remaining work is exercising those paths with <code>fake_bpm_ioc</code>'s designed-in <code>bpm_offline</code> / <code>bpm_timeout</code> hooks.</li>
   </ol>
-  <h3 style="margin-top:1rem">M2 — code (next, subagent-dispatched)</h3>
+  <h3 style="margin-top:1rem">M2 — closed 2026-05-22</h3>
   <ol>
-    <li>M2-1 ✅ <strong>composition loader.</strong> Replaced M1's <code>_PHASE_2_M1_BPM_PREFIXES</code> hardcode with <code>load_bpm_prefixes(settings.bpm_prefixes_path)</code> in <code>pytxt/config/bpm_prefixes.py</code>; seeds <code>AppState.bpm_prefixes</code> and passes the list to <code>BpmReader</code>. Fails fast with <code>FileNotFoundError</code> / <code>ValueError</code> on missing/empty file. 6 new unit tests + full suite (79 passed). Validated on appsdev2 2026-05-22.</li>
-    <li>M2-2 ✅ <strong>scale tests.</strong> Two new integration tests at <code>tests/integration/test_bpm_reader_scale.py</code> (N∈{10,50,107}, BpmReader.read_all in ≤1.5 s) and <code>tests/integration/test_acquire_scale.py</code> (N=107, full handle_acquire in ~1.2 s). No production code changes — fixture and read_all were already parametric/parallel from M1. Decision log entry <code>[m2-2-scale-tests]</code> captures wall times and the assertion-message follow-up.</li>
-    <li>M2-3: frontend — render connected polylines across all 107 datapoints (replace M1 single-dot rendering).</li>
+    <li>M2-1 ✅ <strong>composition loader.</strong> Replaced M1's <code>_PHASE_2_M1_BPM_PREFIXES</code> hardcode with <code>load_bpm_prefixes(settings.bpm_prefixes_path)</code>. 6 new unit tests. Validated on appsdev2 2026-05-22.</li>
+    <li>M2-2 ✅ <strong>scale tests.</strong> Two new integration tests pinning <code>BpmReader.read_all</code> at N∈{10,50,107} and full <code>handle_acquire</code> at N=107, both well under the 3 s DoD budget. Decision log <code>[m2-2-scale-tests]</code>.</li>
+    <li>M2-3 ✅ <strong>browser visual validation.</strong> Live ring trajectory rendering against the real ALS storage ring. Scope ballooned from "deploy + screenshot" to two real backend fixes plus polish: <code>0d5ed25</code> EPICS_CA_ADDR_LIST localhost prepend (so WS bridge can find our own IOC), <code>5031240</code> <code>_coerce_value</code> rewrite for waveform PVs (numpy arrays / DbrStringArray / NaN→None), and <code>9a27edb</code> renderer polish (trim trailing NaN + per-BPM dot overlay). 20 new unit tests; full suite 103/103 green. Decision logs <code>[ws-bridge-ca-addr-list]</code>, <code>[ws-coerce-waveform]</code>, <code>[m2-3-render-polish]</code>.</li>
   </ol>
   <h3 style="margin-top:1rem">M3 / M4 — queued</h3>
   <ol>
@@ -918,6 +918,31 @@
 <h2 class="section">Recent activity <span class="hint">most recent commits</span></h2>
 
 <div class="activity">
+  <div class="commit">
+    <div class="hash">live</div>
+    <div class="msg">2026-05-22 · M2-3 closed — live ALS-ring trajectory renders end-to-end in browser (107-BPM polyline + per-BPM dots, OK · 107 OK · 0 FAIL)</div>
+    <div class="tag">validation</div>
+  </div>
+  <div class="commit">
+    <div class="hash">9a27edb</div>
+    <div class="msg">M2-3 polish — trim trailing NaN slots and add per-BPM dot overlay (filled disc r=2.5) so individual BPMs are readable</div>
+    <div class="tag">polish(frontend)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">5031240</div>
+    <div class="msg">M2-3 fix — <code>_coerce_value</code> handles waveform PVs (numpy arrays via <code>.tolist()</code>, DbrStringArray via duck-typed iteration, NaN→None)</div>
+    <div class="tag">fix(ws_bridge)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">0d5ed25</div>
+    <div class="msg">M2-3 fix — prepend our IOC's <code>127.0.0.1:59064</code> to <code>EPICS_CA_ADDR_LIST</code> so in-process CA clients can find it</div>
+    <div class="tag">fix(composition)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">49c91c0</div>
+    <div class="msg">M2-2 final-review followups — refresh test-count stats and <code>acquire_in_flight</code> diagnostic</div>
+    <div class="tag">chore(m2-2)</div>
+  </div>
   <div class="commit">
     <div class="hash">7a07474</div>
     <div class="msg">M2-2 follow-up — improve assertion-message diagnostics in acquire scale test (per code review)</div>
