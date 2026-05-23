@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 from caproto.asyncio.client import Context as ClientContext
 
+from pytxt.api.schemas.result import STATUS_STR_TO_INT
 from pytxt.ca_client.bpm_reader import BpmReader
 from pytxt.handlers.acquire import handle_acquire
 from pytxt.ioc.server import PyTxTIOC
@@ -75,6 +76,14 @@ async def test_acquire_partial_fail_via_timeout(fake_bpm_ioc):
     their CA read requests enqueued (and answered) before BPM5's getter
     begins sleeping, so only BPM5 times out at 2 s.
     """
+    # Machine-enforced guard for the constraint above: if a maintainer ever
+    # changes `n` without updating `slow` (or vice versa), this fires before
+    # the slow read can produce timing-dependent results that mask the issue.
+    assert fake_bpm_ioc.prefixes[-1] == "FAKE:BPM5", (
+        "slow BPM must be last in the prefix list; see test docstring for "
+        "the shared-event-loop constraint that requires this."
+    )
+
     state = AppState(version="m3-test", bpm_prefixes=fake_bpm_ioc.prefixes)
     # Production-style 2.0 s timeout < slow BPM's 3.0 s delay → that BPM fails.
     reader = BpmReader(prefixes=fake_bpm_ioc.prefixes, per_pv_timeout_s=2.0)
@@ -91,6 +100,7 @@ async def test_acquire_partial_fail_via_timeout(fake_bpm_ioc):
     assert state.last_acquire.ok_count == 4
     assert state.last_acquire.fail_count == 1
     assert state.last_acquire.failed_bpm_names == ["FAKE:BPM5"]
+    assert state.acquire_in_flight is False
 
 
 @pytest.mark.asyncio
@@ -103,18 +113,20 @@ async def test_partial_fail_state_pvs_published(fake_bpm_ioc, test_pv_prefix):
     """The IOC publishes LAST_ACQUIRE_* PVs reflecting the partial-fail state."""
     state = AppState(version="m3-test", bpm_prefixes=fake_bpm_ioc.prefixes)
     reader = BpmReader(prefixes=fake_bpm_ioc.prefixes, per_pv_timeout_s=2.0)
-    await reader.start()
-
-    ioc = PyTxTIOC(
-        prefix=test_pv_prefix,
-        host="127.0.0.1", port=0, repeater_port=0,
-        state=state, reader=reader,
-    )
-    server_task = asyncio.create_task(ioc.run())
-    await ioc.wait_until_running()
 
     client: ClientContext | None = None
+    server_task: asyncio.Task | None = None
     try:
+        await reader.start()
+
+        ioc = PyTxTIOC(
+            prefix=test_pv_prefix,
+            host="127.0.0.1", port=0, repeater_port=0,
+            state=state, reader=reader,
+        )
+        server_task = asyncio.create_task(ioc.run())
+        await ioc.wait_until_running()
+
         # Trigger an acquire via the handler (not via CA, to keep the test
         # independent of Task 6's CA-acquire path).
         await handle_acquire(state, reader)
@@ -130,16 +142,18 @@ async def test_partial_fail_state_pvs_published(fake_bpm_ioc, test_pv_prefix):
         ok = await ok_pv.read()
         fail = await fail_pv.read()
 
-        # AcquireStatus.PARTIAL is enum value 3 (per STATUS_INT_TO_STR in
-        # pytxt/api/schemas/result.py).
-        assert int(status.data[0]) == 3, f"status int = {int(status.data[0])}"
+        expected_status = STATUS_STR_TO_INT["PARTIAL"]
+        assert int(status.data[0]) == expected_status, (
+            f"expected {expected_status} (PARTIAL), got {int(status.data[0])}"
+        )
         assert int(ok.data[0]) == 4
         assert int(fail.data[0]) == 1
     finally:
         await _disconnect_quietly(client)
         await reader.stop()
-        server_task.cancel()
-        try:
-            await asyncio.wait_for(server_task, timeout=2.0)
-        except (asyncio.CancelledError, asyncio.TimeoutError):
-            pass
+        if server_task is not None:
+            server_task.cancel()
+            try:
+                await asyncio.wait_for(server_task, timeout=2.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
