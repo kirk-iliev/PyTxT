@@ -647,6 +647,97 @@ Following the vertical-slice approach: 1 BPM end-to-end first, then scale, then 
 - Tests: timeout-simulation, partial-fail, all-fail scenarios.
 - **DoD:** simulated timeout produces NaN gap in plot + correct fail count in state PV; concurrent ACQUIRE returns 409 cleanly.
 
+#### M3 detailed design (locked 2026-05-22)
+
+The phase-1 / M1 / M2 work already shipped the actual failure-handling *code*:
+per-PV `asyncio.wait_for` is in `BpmReader._read_one`, `handle_acquire._classify`
+produces `OK` / `PARTIAL` / `FAILED`, the `try/finally` always clears
+`acquire_in_flight`, and `LAST_ACQUIRE_OK_COUNT` / `FAIL_COUNT` /
+`FAILED_BPM_NAMES` PVs are all wired. M3's job is to **prove** these paths
+work end-to-end and to **close the one outlier** where the production
+behavior doesn't match the spec yet (CA putter silently swallows
+`AcquisitionInFlightError`). Net change: one production-code edit (~3 lines),
+two fixture parameters, ~5 integration tests + 1-2 unit tests.
+
+**Fixture extension** (`tests/fixtures/fake_bpm_ioc.py`)
+
+Extend `fake_bpm_ioc` parametrize handling to accept an optional dict with
+`offline` and `slow` keys, in addition to the existing `int` (N) and
+`list[str]` (prefixes) forms. Backwards-compatible.
+
+- `offline: list[str]` — these prefixes' PVs are simply not added to the
+  fake IOC's `pvdb`. `BpmReader.start()`'s `get_pvs(...)` resolution times
+  out for these names; they end up missing from `_pvs`; `_read_one` returns
+  `None` at the "channels is None" early return.
+- `slow: list[str]` — these prefixes' `c0/c1/c3/armed` pvproperty getters
+  `await asyncio.sleep(N)` before returning, where N defaults to ~3 s
+  (above the production `per_pv_timeout_s=2.0`). PVs resolve normally
+  at startup; reads time out inside `BpmReader._read_one`'s `wait_for`.
+  Different code path from offline; identical observable outcome.
+
+The construct-time-only API was preferred over runtime mutation because
+caproto doesn't gracefully handle a connected channel suddenly
+disappearing, and explicit test setup is easier to reason about than
+mid-test state changes. A future M-something can add runtime mutation if
+we ever need to model "BPM goes offline during a session."
+
+**Production code change** (`pytxt/ioc/pvs.py`)
+
+The `cmd_acquire` putter currently catches `AcquisitionInFlightError` and
+returns success to the CA client. Change to **re-raise** so caproto
+encodes the failure as a CA write error — symmetric to REST's `409`.
+`STATE:ACQUIRE_IN_FLIGHT` continues to publish `1` during the busy window
+so subscribers can observe the conflict without polling. Update the
+putter's docstring to match.
+
+The chosen behavior (re-raise) rather than "set MAJOR alarm on
+`STATE:ACQUIRE_IN_FLIGHT`" because the symmetry with REST 409 is more
+important for the agent-callable-first principle: any client that wrote
+to `CMD:ACQUIRE` cares whether their write took effect. Alarms are for
+*observers*; this is a *writer* concern.
+
+**Tests** (all under `tests/integration/` unless noted)
+
+1. `test_acquire_partial_fail.py::test_acquire_partial_fail_via_offline` —
+   N=5 with one in `offline`. Asserts `status=PARTIAL`, `ok_count=4`,
+   `fail_count=1`, offline prefix appears in `failed_bpm_names`, the
+   offline BPM's slot in `result_bpm_x_first_turn` is NaN.
+2. `test_acquire_partial_fail.py::test_acquire_partial_fail_via_timeout` —
+   same shape but using `slow` instead of `offline`. Confirms the
+   per-PV `wait_for` timeout path produces the same outcome.
+3. `test_acquire_all_fail.py::test_all_bpms_offline_marks_status_failed` —
+   N=3 all in `offline`. Asserts `status=FAILED`, `ok_count=0`,
+   `fail_count=3`.
+4. `test_acquire_concurrent_ca.py::test_concurrent_ca_acquire_raises` —
+   start a first ACQUIRE via the running IOC's `CMD:ACQUIRE` PV, then
+   immediately fire a second `caput`. Asserts the second put returns an
+   error on the CA client side. (REST 409 is already covered by
+   `test_acquire_via_rest.py::test_post_acquire_concurrent_returns_409`.)
+5. `test_acquire_partial_fail.py::test_partial_fail_state_pvs_published` —
+   same setup as #1 but reads `STATE:LAST_ACQUIRE_*` PVs via CA to confirm
+   the IOC publishes the partial-fail state correctly for external
+   observers. Closes the "browser sees PARTIAL" half of the DoD.
+
+Plus 1 unit test: `tests/unit/test_cmd_acquire_putter.py` — assert the
+modified putter re-raises `AcquisitionInFlightError` when
+`state.acquire_in_flight=True`. Mock reader; no fixture overhead.
+
+**Out of scope for M3**
+
+- No new render polish — NaN gaps in the X/Y polyline already work from M2-3.
+- No new state PVs — existing `LAST_ACQUIRE_*` PVs cover everything.
+- No retry / backoff logic — `handle_acquire` does one shot; retries are
+  the caller's responsibility.
+- No "BPM offline mid-acquire" simulation — explicitly rejected as runtime
+  mutation. Would be its own future milestone if ever needed.
+
+**Implementation note: `slow_prefixes` tests will be slow.** A 3 s sleep
+per timeout test means the integration suite will grow by ~6-9 s after
+M3 (3 slow-related tests × ~3 s each, plus the existing setup overhead).
+That's accepted — the alternative (mocking out `wait_for` entirely)
+wouldn't exercise the real `BpmReader` timeout path which is the whole
+point of the timeout-simulation scenario.
+
 ### M4 — Raw REST + UI polish + e2e (~2 days)
 
 - `GET /result/bpm/raw?bpm=X` implementation; 400/404/409 paths.
