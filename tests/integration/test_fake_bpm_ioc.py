@@ -30,3 +30,31 @@ async def test_fake_bpm_serves_tbt_channels(fake_bpm_ioc):
     sum_wf = np.asarray(r_c3.data)
     peak_idx = int(np.argmax(np.diff(sum_wf)))
     assert 1300 < peak_idx < 1500, f"expected peak ~1370, got {peak_idx}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "fake_bpm_ioc",
+    [{"n": 3, "offline": ["FAKE:BPM2"]}],
+    indirect=True,
+)
+async def test_offline_prefixes_omits_pvs_from_pvdb(fake_bpm_ioc):
+    """A prefix in `offline` is reported in fixture.prefixes but its PVs do not exist."""
+    assert fake_bpm_ioc.prefixes == ["FAKE:BPM1", "FAKE:BPM2", "FAKE:BPM3"]
+
+    # PVs for the online BPMs resolve.
+    async with ClientContext() as ctx:
+        online_pv, = await asyncio.wait_for(
+            ctx.get_pvs("FAKE:BPM1:wfr:TBT:c0"), timeout=2.0
+        )
+        result = await online_pv.read()
+        assert result.data is not None  # any non-error read is fine
+
+    # PVs for the offline BPM do NOT resolve within a short window.
+    # get_pvs() returns immediately with an unconnected PV object; the
+    # CaprotoTimeoutError surfaces on the first read() attempt.
+    async with ClientContext() as ctx:
+        offline_pvs = await ctx.get_pvs("FAKE:BPM2:wfr:TBT:c0")
+        offline_pv = offline_pvs[0]
+        with pytest.raises(Exception):
+            await asyncio.wait_for(offline_pv.read(timeout=0.5), timeout=1.0)

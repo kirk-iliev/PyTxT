@@ -96,19 +96,46 @@ class FakeBpmIoc:
 
 @pytest_asyncio.fixture
 async def fake_bpm_ioc(request) -> FakeBpmIoc:
-    """Parametrize via @pytest.mark.parametrize('fake_bpm_ioc', [N_or_list], indirect=True).
+    """Parametrize via @pytest.mark.parametrize('fake_bpm_ioc', [N_or_list_or_dict], indirect=True).
 
-    If param is an int N, generates prefixes ["FAKE:BPM1", "FAKE:BPM2", ...].
-    If param is a list[str], uses those exact prefixes.
+    Three accepted forms for `request.param`:
+    - int N → prefixes are ["FAKE:BPM1", ..., "FAKE:BPMN"], all healthy.
+    - list[str] → those exact prefixes, all healthy.
+    - dict with optional keys:
+        - "n" (int) OR "prefixes" (list[str]) — defines the prefix set (mutually exclusive).
+        - "offline" (list[str], optional) — these prefixes are reported in
+          fixture.prefixes but their PVs are not built into the IOC, so
+          BpmReader sees them as unreachable.
+        - "slow" — reserved for Task 2; ignored here.
     """
     param = request.param if hasattr(request, "param") else 1
+
+    offline_set: set[str] = set()
     if isinstance(param, int):
         prefixes = [f"FAKE:BPM{i+1}" for i in range(param)]
-    else:
+    elif isinstance(param, list):
         prefixes = list(param)
+    elif isinstance(param, dict):
+        if "n" in param and "prefixes" in param:
+            raise ValueError("fake_bpm_ioc: pass either 'n' or 'prefixes', not both")
+        if "n" in param:
+            prefixes = [f"FAKE:BPM{i+1}" for i in range(int(param["n"]))]
+        elif "prefixes" in param:
+            prefixes = list(param["prefixes"])
+        else:
+            raise ValueError("fake_bpm_ioc dict param needs 'n' or 'prefixes'")
+        offline_set = set(param.get("offline", []))
+    else:
+        raise TypeError(
+            f"fake_bpm_ioc: unsupported param type {type(param).__name__}"
+        )
 
-    # Build all PVGroups and merge their pvdbs
-    groups = [_make_bpm_group(p, i) for i, p in enumerate(prefixes)]
+    # Build PVGroups only for the online subset; offline prefixes get no PVs.
+    groups = [
+        _make_bpm_group(p, i)
+        for i, p in enumerate(prefixes)
+        if p not in offline_set
+    ]
     pvdb: dict = {}
     for g in groups:
         pvdb.update(g.pvdb)
