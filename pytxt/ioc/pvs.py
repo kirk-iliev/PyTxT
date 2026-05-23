@@ -10,7 +10,7 @@ from typing import Optional
 import caproto as ca
 from caproto.server import PVGroup, pvproperty
 
-from pytxt.handlers.acquire import AcquisitionInFlightError, handle_acquire
+from pytxt.handlers.acquire import handle_acquire
 from pytxt.handlers.ping import handle_ping
 from pytxt.state.app_state import AppState
 
@@ -145,14 +145,14 @@ class PyTxTPVGroup(PVGroup):
 
         If a reader is not configured (e.g., unit-style tests), the
         write is a no-op so the IOC remains testable in isolation.
-        AcquisitionInFlightError is swallowed and surfaced via the
-        STATE:ACQUIRE_IN_FLIGHT PV — CA writers see no exception.
+
+        AcquisitionInFlightError is RE-RAISED so caproto surfaces it as a
+        CA write error to the client — symmetric to REST's 409 returned
+        by POST /api/v1/cmd/acquire when an acquire is in flight. The
+        STATE:ACQUIRE_IN_FLIGHT PV continues to publish 1 during the
+        busy window for subscribers who prefer observation over retry.
         """
         if self._reader is None:
             return value
-        try:
-            await handle_acquire(self._state, self._reader)
-        except AcquisitionInFlightError:
-            # Already in flight — state PVs reflect that. CA write returns success.
-            pass
+        await handle_acquire(self._state, self._reader)
         return value
