@@ -30,3 +30,20 @@ async def test_cmd_acquire_putter_reraises_when_in_flight():
 
     with pytest.raises(AcquisitionInFlightError):
         await putter_fn(mock_self, instance, 1)
+
+
+@pytest.mark.asyncio
+async def test_cmd_acquire_putter_noop_when_no_reader():
+    """With no reader configured, the putter must silently return the written
+    value — the IOC stays testable in isolation. Regression guard for the
+    early-return guard that precedes the handle_acquire call."""
+    state = AppState(bpm_prefixes=["FAKE:BPM1"], acquire_in_flight=False)
+
+    putter_fn = PyTxTPVGroup.cmd_acquire.pvspec.put
+    mock_self = MagicMock()
+    mock_self._state = state
+    mock_self._reader = None
+    instance = MagicMock()
+
+    result = await putter_fn(mock_self, instance, 1)
+    assert result == 1
