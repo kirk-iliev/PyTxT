@@ -2,6 +2,7 @@
 import asyncio
 import pytest
 import numpy as np
+from caproto import CaprotoTimeoutError
 from caproto.asyncio.client import Context as ClientContext
 
 
@@ -48,7 +49,7 @@ async def test_offline_prefixes_omits_pvs_from_pvdb(fake_bpm_ioc):
             ctx.get_pvs("FAKE:BPM1:wfr:TBT:c0"), timeout=2.0
         )
         result = await online_pv.read()
-        assert result.data is not None  # any non-error read is fine
+        assert len(result.data) == 100000
 
     # PVs for the offline BPM do NOT resolve within a short window.
     # get_pvs() returns immediately with an unconnected PV object; the
@@ -56,5 +57,5 @@ async def test_offline_prefixes_omits_pvs_from_pvdb(fake_bpm_ioc):
     async with ClientContext() as ctx:
         offline_pvs = await ctx.get_pvs("FAKE:BPM2:wfr:TBT:c0")
         offline_pv = offline_pvs[0]
-        with pytest.raises(Exception):
+        with pytest.raises(CaprotoTimeoutError):
             await asyncio.wait_for(offline_pv.read(timeout=0.5), timeout=1.0)
