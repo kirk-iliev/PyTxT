@@ -85,6 +85,56 @@ def _make_bpm_group(prefix: str, bpm_index: int) -> PVGroup:
     return FakeBPM(prefix=prefix + ":" if not prefix.endswith(":") else prefix)
 
 
+_SLOW_DELAY_S_DEFAULT = 3.0  # > production per_pv_timeout_s=2.0
+
+
+def _make_slow_bpm_group(prefix: str, bpm_index: int, delay_s: float) -> PVGroup:
+    """Like _make_bpm_group, but each pvproperty has an async getter that
+    sleeps `delay_s` seconds before returning the static value. Used to
+    exercise BpmReader._read_one's per-PV wait_for timeout path."""
+    x_nm, y_nm, sum_au = _synthesize_waveforms(bpm_index)
+
+    async def slow_c0_read(group, instance):
+        await asyncio.sleep(delay_s)
+        return instance.value
+
+    async def slow_c1_read(group, instance):
+        await asyncio.sleep(delay_s)
+        return instance.value
+
+    async def slow_c3_read(group, instance):
+        await asyncio.sleep(delay_s)
+        return instance.value
+
+    async def slow_armed_read(group, instance):
+        await asyncio.sleep(delay_s)
+        return instance.value
+
+    class SlowFakeBPM(PVGroup):
+        c0 = pvproperty(
+            slow_c0_read,
+            value=x_nm.tolist(), dtype=int, read_only=True,
+            name="wfr:TBT:c0", max_length=_SAMPLES,
+        )
+        c1 = pvproperty(
+            slow_c1_read,
+            value=y_nm.tolist(), dtype=int, read_only=True,
+            name="wfr:TBT:c1", max_length=_SAMPLES,
+        )
+        c3 = pvproperty(
+            slow_c3_read,
+            value=sum_au.tolist(), dtype=int, read_only=True,
+            name="wfr:TBT:c3", max_length=_SAMPLES,
+        )
+        armed = pvproperty(
+            slow_armed_read,
+            value=0, dtype=int, read_only=True,
+            name="wfr:TBT:armed",
+        )
+
+    return SlowFakeBPM(prefix=prefix + ":" if not prefix.endswith(":") else prefix)
+
+
 @dataclass
 class FakeBpmIoc:
     """Handle returned from the fixture. Holds the running context and the
@@ -106,11 +156,15 @@ async def fake_bpm_ioc(request) -> FakeBpmIoc:
         - "offline" (list[str], optional) — these prefixes are reported in
           fixture.prefixes but their PVs are not built into the IOC, so
           BpmReader sees them as unreachable.
-        - "slow" — reserved for Task 2; ignored here.
+        - "slow" (list[str], optional) — these prefixes serve PVs whose
+          async getters sleep _SLOW_DELAY_S_DEFAULT seconds before returning.
+          PVs resolve on connect; the delay surfaces only on read. Used to
+          exercise BpmReader._read_one's per-PV wait_for timeout path.
     """
     param = request.param if hasattr(request, "param") else 1
 
     offline_set: set[str] = set()
+    slow_set: set[str] = set()
     if isinstance(param, int):
         prefixes = [f"FAKE:BPM{i+1}" for i in range(param)]
     elif isinstance(param, list):
@@ -125,17 +179,21 @@ async def fake_bpm_ioc(request) -> FakeBpmIoc:
         else:
             raise ValueError("fake_bpm_ioc dict param needs 'n' or 'prefixes'")
         offline_set = set(param.get("offline", []))
+        slow_set = set(param.get("slow", []))
     else:
         raise TypeError(
             f"fake_bpm_ioc: unsupported param type {type(param).__name__}"
         )
 
-    # Build PVGroups only for the online subset; offline prefixes get no PVs.
-    groups = [
-        _make_bpm_group(p, i)
-        for i, p in enumerate(prefixes)
-        if p not in offline_set
-    ]
+    # Build PVGroups: offline prefixes get no PVs; slow prefixes get delayed reads.
+    groups = []
+    for i, p in enumerate(prefixes):
+        if p in offline_set:
+            continue
+        if p in slow_set:
+            groups.append(_make_slow_bpm_group(p, i, _SLOW_DELAY_S_DEFAULT))
+        else:
+            groups.append(_make_bpm_group(p, i))
     pvdb: dict = {}
     for g in groups:
         pvdb.update(g.pvdb)

@@ -1,5 +1,6 @@
 """Sanity check: the fake BPM IOC fixture serves the expected PV shape."""
 import asyncio
+import time
 import pytest
 import numpy as np
 from caproto import CaprotoTimeoutError
@@ -59,3 +60,25 @@ async def test_offline_prefixes_omits_pvs_from_pvdb(fake_bpm_ioc):
         offline_pv = offline_pvs[0]
         with pytest.raises(CaprotoTimeoutError):
             await asyncio.wait_for(offline_pv.read(timeout=0.5), timeout=1.0)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "fake_bpm_ioc",
+    [{"n": 2, "slow": ["FAKE:BPM2"]}],
+    indirect=True,
+)
+async def test_slow_prefixes_read_takes_longer_than_default_delay(fake_bpm_ioc):
+    """A slow BPM's read takes at least the configured delay (~3 s default)."""
+    async with ClientContext() as ctx:
+        slow_pv, = await asyncio.wait_for(
+            ctx.get_pvs("FAKE:BPM2:wfr:TBT:c0"), timeout=2.0
+        )
+        # PV resolves quickly; the SLOW behavior is on read, not on connect.
+        # Pass timeout=5.0 to the caproto read() itself (default is 2 s which
+        # is shorter than the 3 s slow-getter delay and would raise prematurely).
+        t0 = time.monotonic()
+        result = await asyncio.wait_for(slow_pv.read(timeout=5.0), timeout=6.0)
+        elapsed = time.monotonic() - t0
+        assert elapsed >= 2.5, f"slow read returned in {elapsed:.2f}s; expected ≥2.5s"
+        assert len(result.data) == 100000
