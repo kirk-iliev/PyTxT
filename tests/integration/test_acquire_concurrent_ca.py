@@ -54,12 +54,23 @@ async def test_concurrent_ca_acquire_raises(test_pv_prefix):
         # therefore times out waiting for the response, raising
         # CaprotoTimeoutError (caproto._utils.CaprotoTimeoutError, exposed
         # at top-level caproto). Pinned on first run with caproto 0.8.x.
+        #
+        # ON CAPROTO UPGRADE: a newer caproto release may encode the
+        # putter's exception as an explicit CA error packet rather than
+        # silently dropping the write-ACK. If this test fails after an
+        # upgrade with `DID NOT RAISE` or a different class, check for
+        # `caproto.ErrorResponseReceived` / a write-NAK-style exception
+        # and broaden the pytest.raises tuple accordingly.
         with pytest.raises(CaprotoTimeoutError):
             await cmd_pv.write(1)
 
         # And the in-flight flag must still be True (the failed put did
         # not flip state — handle_acquire never even ran).
-        assert state.acquire_in_flight is True
+        assert state.acquire_in_flight is True, (
+            "acquire_in_flight was cleared, suggesting handle_acquire ran "
+            "to its finally clause — check that the putter still re-raises "
+            "AcquisitionInFlightError before reaching handle_acquire's body."
+        )
     finally:
         await _disconnect_quietly(client)
         server_task.cancel()
