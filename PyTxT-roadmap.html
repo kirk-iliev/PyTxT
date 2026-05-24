@@ -547,7 +547,7 @@
 <div class="topbar">
   <h1>PyTxT</h1>
   <div class="tagline">Turn-by-turn beam analysis for the ALS injection chain — roadmap &amp; live status</div>
-  <div class="meta" id="last-updated">Last updated: 2026-05-22</div>
+  <div class="meta" id="last-updated">Last updated: 2026-05-24</div>
 </div>
 
 <!-- ============================================== -->
@@ -556,26 +556,27 @@
 <div class="hero">
   <div class="hero-current">
     <div class="label">Current phase</div>
-    <h2>Phase 2 · Read path (M1 ✓ · M2 ✓ · M3 next)</h2>
+    <h2>Phase 2 · Read path (M1 ✓ · M2 ✓ · M3 ✓ · M4 next)</h2>
     <p>
-      M1 validated on appsdev2 2026-05-20. M2 closed 2026-05-22 — all three sub-milestones done:
-      M2-1 (composition loader for the 107-entry BPM list), M2-2 (scale tests proving <code>handle_acquire</code>
-      at N=107 in ~1.2 s, well under the 3 s DoD budget), and M2-3 (browser visual validation against the live
-      ring with polyline + per-BPM dot overlay). M2-3 surfaced two real backend bugs along the way — WS-bridge
-      couldn't see our own IOC because <code>EPICS_CA_ADDR_LIST</code> on appsdev2 is pinned to ring broadcasts
-      (fixed at <code>0d5ed25</code>), and <code>_coerce_value</code> couldn't serialize waveform PVs (numpy
-      arrays / DbrStringArray; fixed at <code>5031240</code>). Both pinned with new unit tests; full suite
-      now 103/103 green. Next: M3 failure-handling test coverage (timeout-simulation, partial-fail, all-fail).
+      M1 + M2 + M3 all closed as of 2026-05-24. M3 (failure handling) added construct-time fault-injection
+      hooks to <code>fake_bpm_ioc</code> (<code>offline_prefixes</code> + <code>slow_prefixes</code>) and
+      6 new integration tests exercising the partial-fail, all-fail (both emergency-catch-all AND
+      <code>_classify</code> paths), and concurrent-CA-acquire scenarios. One small production-code change
+      (commit <code>55201f6</code>): the IOC's <code>cmd_acquire</code> putter now re-raises
+      <code>AcquisitionInFlightError</code> instead of swallowing it, so <code>caput</code> while in-flight
+      surfaces as a CA write error symmetric to REST's 409. Full suite now 113/113 green (up from 103).
+      Next: M4 — raw REST <code>/result/bpm/raw</code> endpoint, frontend hover tooltip + axis polish,
+      Playwright trajectory e2e spec.
     </p>
-    <div class="progress" title="M1 + M2 done; M3 next">
-      <div class="progress-fill" style="width: 50%"></div>
+    <div class="progress" title="M1 + M2 + M3 done; M4 next">
+      <div class="progress-fill" style="width: 65%"></div>
     </div>
-    <div class="progress-text">M1 ✓ · M2 ✓ · M3 next · M4 queued</div>
+    <div class="progress-text">M1 ✓ · M2 ✓ · M3 ✓ · M4 next</div>
   </div>
 
   <div class="stats">
     <div class="stat"><div class="num">1 / 6</div><div class="lbl">Phases complete</div></div>
-    <div class="stat"><div class="num">103 / 103</div><div class="lbl">Tests passing</div></div>
+    <div class="stat"><div class="num">113 / 113</div><div class="lbl">Tests passing</div></div>
     <div class="stat"><div class="num">4</div><div class="lbl">E2E specs</div></div>
     <div class="stat"><div class="num">0</div><div class="lbl">Unpushed commits</div></div>
   </div>
@@ -654,8 +655,8 @@
       <ul>
         <li><strong>M1</strong> — Vertical slice, 1 real BPM · <em>validated on real ring 2026-05-20</em></li>
         <li><strong>M2</strong> — Scale to all 107 BPMs · <em>✅ closed 2026-05-22 (M2-1 loader, M2-2 scale tests, M2-3 browser-render validated against the live ring)</em></li>
-        <li><strong>M3</strong> — Failure handling · queued</li>
-        <li><strong>M4</strong> — Raw REST + UI polish + e2e · queued</li>
+        <li><strong>M3</strong> — Failure handling · <em>✅ closed 2026-05-24 (fixture fault injection + CA putter symmetry + classify-path coverage)</em></li>
+        <li><strong>M4</strong> — Raw REST + UI polish + e2e · <em>now</em></li>
       </ul>
       <h4>What landed in M1</h4>
       <ul>
@@ -773,17 +774,17 @@
     <div class="ms-title">Scale to all 107 BPMs</div>
     <div class="ms-meta">M2-1 ✓ composition loader · M2-2 ✓ scale tests at N=107 (handle_acquire ~1.2 s, well under the 3 s DoD budget) · M2-3 ✓ live browser-render validated against the real ALS ring 2026-05-22. Surfaced + fixed two latent backend bugs along the way (EPICS_CA_ADDR_LIST localhost discovery; WS-bridge waveform coercion).</div>
   </div>
-  <div class="ms now">
+  <div class="ms done">
     <div class="ms-label">M3</div>
-    <span class="ms-status"><span class="badge badge-now">Now</span></span>
+    <span class="ms-status"><span class="badge badge-done">✓ Validated</span></span>
     <div class="ms-title">Failure handling</div>
-    <div class="ms-meta">Per-PV 2 s timeout already in <code>BpmReader.read_all</code>; partial/all-fail handler paths already in code. M3's actual work is exercising those paths with <code>fake_bpm_ioc</code>'s <code>bpm_offline</code> / <code>bpm_timeout</code> hooks and proving PARTIAL status + 409 concurrent-ACQUIRE end-to-end.</div>
+    <div class="ms-meta">Construct-time fault injection on <code>fake_bpm_ioc</code> (<code>offline_prefixes</code> + <code>slow_prefixes</code>) + 6 integration tests covering partial-fail (offline / timeout / state-PV publication), all-fail (emergency catch-all AND <code>_classify</code> paths), and concurrent CA acquire raises. One small prod-code change: <code>cmd_acquire</code> putter re-raises <code>AcquisitionInFlightError</code>, symmetric to REST's 409. Closed 2026-05-24.</div>
   </div>
-  <div class="ms todo">
+  <div class="ms now">
     <div class="ms-label">M4</div>
-    <span class="ms-status"><span class="badge badge-fut">Queued</span></span>
+    <span class="ms-status"><span class="badge badge-now">Now</span></span>
     <div class="ms-title">Raw REST + polish + e2e</div>
-    <div class="ms-meta"><code>/result/bpm/raw</code>, hover tooltips, Playwright spec</div>
+    <div class="ms-meta"><code>GET /result/bpm/raw?bpm=X</code> implementation with 400/404/409 paths; frontend hover tooltip (BPM name + X/Y on hover); Playwright trajectory e2e spec. Final phase-2 milestone.</div>
   </div>
 </div>
 
@@ -883,8 +884,8 @@
 
   <div class="pkg done">
     <div class="pkg-name">tests/</div>
-    <div class="pkg-role">Unit (12 files) + integration (12 files) + fixtures (fake BPM IOC) + e2e (2 specs)</div>
-    <div class="pkg-status"><span class="badge badge-done">103 passing</span></div>
+    <div class="pkg-role">Unit (13 files) + integration (15 files) + fixtures (fake BPM IOC w/ fault-injection) + e2e (2 specs)</div>
+    <div class="pkg-status"><span class="badge badge-done">113 passing</span></div>
   </div>
 
 </div>
@@ -897,17 +898,20 @@
 <div class="next-box">
   <h3>Immediate — Kirk</h3>
   <ol>
-    <li><strong>Kick off M3 (failure-handling test coverage).</strong> Per-PV 2 s timeout already lives in <code>BpmReader.read_all</code>; <code>handle_acquire</code> already has partial/all-fail paths; <code>POST /api/v1/cmd/acquire</code> already returns 409 on concurrent calls. M3's actual remaining work is exercising those paths with <code>fake_bpm_ioc</code>'s designed-in <code>bpm_offline</code> / <code>bpm_timeout</code> hooks.</li>
+    <li><strong>Kick off M4 (raw REST endpoint + UI polish + Playwright e2e).</strong> The final phase-2 milestone. <code>GET /api/v1/result/bpm/raw?bpm=&lt;prefix&gt;</code> returning <code>BpmRawWaveforms</code> JSON with the per-BPM full 100 000-sample X/Y/sum waveforms; frontend hover tooltip showing BPM name and exact X/Y values; status header polish (timestamp formatting, ok/fail readout); Playwright e2e spec exercising the full click-ACQUIRE-render-plot cycle. Backend is fully proven; this is mostly REST + frontend.</li>
   </ol>
   <h3 style="margin-top:1rem">M2 — closed 2026-05-22</h3>
   <ol>
     <li>M2-1 ✅ <strong>composition loader.</strong> Replaced M1's <code>_PHASE_2_M1_BPM_PREFIXES</code> hardcode with <code>load_bpm_prefixes(settings.bpm_prefixes_path)</code>. 6 new unit tests. Validated on appsdev2 2026-05-22.</li>
     <li>M2-2 ✅ <strong>scale tests.</strong> Two new integration tests pinning <code>BpmReader.read_all</code> at N∈{10,50,107} and full <code>handle_acquire</code> at N=107, both well under the 3 s DoD budget. Decision log <code>[m2-2-scale-tests]</code>.</li>
-    <li>M2-3 ✅ <strong>browser visual validation.</strong> Live ring trajectory rendering against the real ALS storage ring. Scope ballooned from "deploy + screenshot" to two real backend fixes plus polish: <code>0d5ed25</code> EPICS_CA_ADDR_LIST localhost prepend (so WS bridge can find our own IOC), <code>5031240</code> <code>_coerce_value</code> rewrite for waveform PVs (numpy arrays / DbrStringArray / NaN→None), and <code>9a27edb</code> renderer polish (trim trailing NaN + per-BPM dot overlay). 20 new unit tests; full suite 103/103 green. Decision logs <code>[ws-bridge-ca-addr-list]</code>, <code>[ws-coerce-waveform]</code>, <code>[m2-3-render-polish]</code>.</li>
+    <li>M2-3 ✅ <strong>browser visual validation.</strong> Live ring trajectory rendering against the real ALS storage ring. Scope ballooned from "deploy + screenshot" to two real backend fixes plus polish: <code>0d5ed25</code> EPICS_CA_ADDR_LIST localhost prepend (so WS bridge can find our own IOC), <code>5031240</code> <code>_coerce_value</code> rewrite for waveform PVs (numpy arrays / DbrStringArray / NaN→None), and <code>9a27edb</code> renderer polish (trim trailing NaN + per-BPM dot overlay). Decision logs <code>[ws-bridge-ca-addr-list]</code>, <code>[ws-coerce-waveform]</code>, <code>[m2-3-render-polish]</code>.</li>
   </ol>
-  <h3 style="margin-top:1rem">M3 / M4 — queued</h3>
+  <h3 style="margin-top:1rem">M3 — closed 2026-05-24</h3>
   <ol>
-    <li>M3: fault-injection in fake IOC fixture; PARTIAL-status path; concurrent-ACQUIRE 409 test.</li>
+    <li>M3 ✅ <strong>failure handling — fixture fault injection + CA-putter symmetry + classify-path coverage.</strong> Construct-time hooks on <code>fake_bpm_ioc</code> (<code>offline_prefixes</code> + <code>slow_prefixes</code>); 6 new integration tests (partial-fail via offline, partial-fail via timeout, state-PV publication, all-fail via emergency catch-all, all-fail via <code>_classify</code>, concurrent CA acquire raises) + 2 unit tests pinning the modified <code>cmd_acquire</code> putter. One small prod-code change at <code>55201f6</code>: putter re-raises <code>AcquisitionInFlightError</code> instead of swallowing, so <code>caput</code> while in-flight surfaces as a CA write error (caproto 0.8.x observable: <code>CaprotoTimeoutError</code> waiting for write-ACK). Decision log <code>[m3-failure-handling]</code>.</li>
+  </ol>
+  <h3 style="margin-top:1rem">M4 — now</h3>
+  <ol>
     <li>M4: real <code>/result/bpm/raw</code> endpoint; hover tooltip + axis polish; Playwright trajectory spec.</li>
   </ol>
 </div>
@@ -918,6 +922,71 @@
 <h2 class="section">Recent activity <span class="hint">most recent commits</span></h2>
 
 <div class="activity">
+  <div class="commit">
+    <div class="hash">M3 ✓</div>
+    <div class="msg">2026-05-24 · M3 closed — failure-handling fixture hooks + 6 integration tests (partial-fail / all-fail / concurrent CA) + 2 unit tests + cmd_acquire putter re-raises. 113/113 green.</div>
+    <div class="tag">milestone</div>
+  </div>
+  <div class="commit">
+    <div class="hash">e63f943</div>
+    <div class="msg">M3 Task 6 follow-up — upgrade-hint comment + diagnostic message on in_flight assertion</div>
+    <div class="tag">test(integration)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">603e140</div>
+    <div class="msg">M3 — <code>caput CMD:ACQUIRE</code> while in-flight raises (CA-side concurrency rejection, observes CaprotoTimeoutError)</div>
+    <div class="tag">test(integration)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">69ffd13</div>
+    <div class="msg">M3 Task 5 follow-up — add <code>_classify</code> path coverage (all-slow variant) + polish</div>
+    <div class="tag">test(integration)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">28b159d</div>
+    <div class="msg">M3 — all-BPMs-offline scenario marks status FAILED via handler emergency catch-all</div>
+    <div class="tag">test(integration)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">10681c2</div>
+    <div class="msg">M3 Task 4 follow-up — machine-enforce slow-BPM-last + symbolic enum + structural cleanup</div>
+    <div class="tag">test(integration)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">2250d6e</div>
+    <div class="msg">M3 — partial-fail scenarios (offline, timeout, state-PV publication via running IOC + CA client)</div>
+    <div class="tag">test(integration)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">8ece629</div>
+    <div class="msg">M3 Task 3 follow-up — unit test for no-reader short-circuit in cmd_acquire putter</div>
+    <div class="tag">test(unit)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">55201f6</div>
+    <div class="msg">M3 — <code>cmd_acquire</code> putter re-raises <code>AcquisitionInFlightError</code> (symmetric to REST 409)</div>
+    <div class="tag">fix(ioc)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">132349d</div>
+    <div class="msg">M3 Task 2 follow-up — document caproto getter-syntax choice in <code>_make_slow_bpm_group</code></div>
+    <div class="tag">test(fixtures)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">b4ea2e1</div>
+    <div class="msg">M3 — <code>fake_bpm_ioc</code> supports <code>slow_prefixes</code> for timeout simulation (3.0 s default delay)</div>
+    <div class="tag">test(fixtures)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">aedbf4f</div>
+    <div class="msg">M3 Task 1 follow-up — pin <code>CaprotoTimeoutError</code> + tighten online-read assertion</div>
+    <div class="tag">test(fixtures)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">4ea4454</div>
+    <div class="msg">M3 — <code>fake_bpm_ioc</code> accepts dict param with <code>offline_prefixes</code></div>
+    <div class="tag">test(fixtures)</div>
+  </div>
   <div class="commit">
     <div class="hash">live</div>
     <div class="msg">2026-05-22 · M2-3 closed — live ALS-ring trajectory renders end-to-end in browser (107-BPM polyline + per-BPM dots, OK · 107 OK · 0 FAIL)</div>

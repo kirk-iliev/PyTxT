@@ -520,3 +520,48 @@ Tag: `[ws-coerce-waveform]`.
 - M4 (Playwright e2e + hover tooltip) builds on these helpers — `xFor(i)` is now a named inner function ready to be reused for hit-testing.
 
 Tag: `[m2-3-render-polish]`.
+
+## 2026-05-24 — M3 failure handling closed: fixture fault injection + CA putter symmetry + classify-path coverage
+
+**Context:** M3 per spec §11 M3 ("M3 detailed design (locked 2026-05-22)"). The actual failure-handling code shipped in M1: per-PV `asyncio.wait_for` in `BpmReader._read_one`, `handle_acquire._classify` for OK/PARTIAL/FAILED, `try/finally` clearing `acquire_in_flight`, and `LAST_ACQUIRE_*` PVs all wired. M3's job was (a) test coverage and (b) closing the one outlier where the CA putter didn't surface the in-flight error.
+
+**Implementation summary:**
+
+1. `tests/fixtures/fake_bpm_ioc.py` gained an `offline_prefixes` dict-key form (commit `4ea4454`): those prefixes appear in `fixture.prefixes` (so `BpmReader` is configured to look for them) but are not built into the IOC's `pvdb`. `BpmReader._read_one` returns `None` for them via the "channels is None" early return.
+2. Same fixture gained `slow_prefixes` (commit `b4ea2e1` + getter-syntax doc `132349d`): those prefixes get a custom PVGroup whose `c0/c1/c3/armed` getters `await asyncio.sleep(_SLOW_DELAY_S_DEFAULT=3.0)`. Reader resolves the PVs normally; the per-read `wait_for(timeout=2.0)` times out. Different `BpmReader._read_one` code branch from offline; same observable outcome.
+3. `pytxt/ioc/pvs.py::cmd_acquire` putter was reduced from "catch + swallow AcquisitionInFlightError" to "re-raise" (commit `55201f6` + no-reader-test follow-up `8ece629`). caproto encodes the failure as a CA write error, symmetric to REST's 409. `STATE:ACQUIRE_IN_FLIGHT` continues to publish 1 for observers.
+4. 6 integration tests + 2 unit tests pinned all the failure paths (commits `2250d6e`, `10681c2`, `28b159d`, `69ffd13`, `603e140`, `e63f943`): partial-fail via offline, partial-fail via timeout, state-PV publication on partial fail, all-fail via emergency catch-all path, all-fail via `_classify(ok=0, fail=N)` path, concurrent CA acquire raises, putter re-raise unit, putter no-reader-noop unit.
+
+**Decisions worth recording:**
+
+1. **Construct-time-only fault injection.** Rejected runtime mutation (`fake_ioc.bpm_offline(name)` mid-test). Caproto doesn't gracefully handle a connected channel suddenly disappearing, and explicit setup-time topology is easier to reason about than mid-test state changes. If a future M-something needs to model "BPM goes offline during a session," it'll be its own milestone.
+
+2. **`slow_prefixes` default delay = 3.0 s, not configurable per-prefix.** Single global delay above the production `per_pv_timeout_s=2.0` covers every test scenario currently anticipated. If a future test needs per-prefix delays (e.g. timeout-boundary testing), extend the parameter to a `dict[str, float]` then. YAGNI for now.
+
+3. **Caproto pvproperty getter syntax: positional `get` argument** (tag `[m3-task2-getter-syntax]`). The plan suggested two patterns: `@c0.getter` decorator first, `read=` keyword second. Neither worked in the installed caproto (the decorator shadows the descriptor; `read=` is rejected by `ChannelData.__init__`). The third pattern — passing the getter as the first positional argument to `pvproperty(...)` — is the documented primary API per `pvproperty.__init__(get: Optional[Getter] = None, ...)`. The fixture's `_make_slow_bpm_group` docstring documents this so a future maintainer doesn't refactor it back to the decorator form. caproto version at time of choice: 0.8.x.
+
+4. **Re-raise rather than alarm on STATE:ACQUIRE_IN_FLIGHT for concurrent CA acquire.** Symmetry with REST 409 is more important than EPICS-native alarm aesthetics: any client that wrote to `CMD:ACQUIRE` cares whether their write took effect. Alarms are for observers; this is a writer concern.
+
+5. **Concurrent CA test observes `CaprotoTimeoutError`, not an explicit error response.** When the putter re-raises, caproto 0.8.x's server logs the exception but doesn't send a write-NAK packet. The client times out waiting for the ACK. The test pins to `caproto.CaprotoTimeoutError` with an inline `ON CAPROTO UPGRADE` comment pointing at `ErrorResponseReceived` as the likely replacement if a future caproto version adds explicit write-error encoding. Pinned narrow rather than broadened to a tuple because importing a not-yet-existing class would itself break under the current version.
+
+6. **Concurrent test uses `state.acquire_in_flight=True` at entry rather than overlapping two real acquires.** Same idiom as the REST test (`test_post_acquire_concurrent_returns_409`). The behavior under test is "putter raises when in-flight is set," not "two concurrent puts race." Avoids timing flakiness.
+
+7. **Slow-prefix must be last in the prefix list** (test 2 of `test_acquire_partial_fail.py`). The in-process caproto fake IOC and the CA client share an asyncio event loop. When a slow getter calls `asyncio.sleep(3.0)`, it stalls the server's dispatch loop — reads queued AFTER the sleep don't get served until it completes, causing those clients to time out too. Placing the slow BPM last in the prefix list lets the four fast BPMs get fully served before the slow getter blocks. This is a test-fixture-only artefact, not a production behavior difference: real Libera BPMs are on separate networked IOCs. Machine-enforced by `assert fake_bpm_ioc.prefixes[-1] == "FAKE:BPM5"` at test entry so a future parametrize change can't silently break the timing guarantee.
+
+8. **All-fail has TWO valid paths and we test both.** The plan's original test only hit the handler's emergency catch-all (when `reader.start()` raises on get_pvs timeout, then `read_all` raises because `_started=False`). Code-quality review caught that this never exercised `_classify(ok=0, fail=N) → FAILED`. Added a second test using `all-slow` so `start()` succeeds, `read_all` returns `{prefix: None for all}`, and the handler reaches `_classify` normally. Both end states are identical from an observer's perspective; both internal paths deserve coverage.
+
+9. **Concurrent CA test's `pytest.raises` was pinned post-pass.** The plan started with `pytest.raises(Exception)` as a diagnostic shape, with explicit instructions to narrow after the first run revealed the actual class. Followed that process: ran with a diagnostic try/except print, observed `CaprotoTimeoutError`, narrowed and committed.
+
+**Tests:** 6 new integration tests + 2 new unit tests. Full suite is now 113/113 (up from 103 at end of M2). The slow-prefix tests add ~3 s wall time each (intentional — exercising the real `wait_for` timeout), so M3 added ~10 s to the full-suite total. Acceptable.
+
+**Spec relationship:** M3 closes spec §11 M3 and its DoD lines ("simulated timeout produces NaN gap in plot + correct fail count in state PV; concurrent ACQUIRE returns 409 cleanly").
+
+**Forward impact:**
+
+- Phase 2 has just one milestone left: M4 (Raw REST `/result/bpm/raw`, UI polish, Playwright e2e).
+- The fault-injection fixture is now reusable for any future "what if a BPM is unreachable?" test in any later phase.
+- The `cmd_acquire` putter is now in symmetric error-surfacing parity with REST. Future commands (if added) should follow the same pattern: handler raises → putter re-raises → CA client sees a failed write.
+- The slow-prefix-must-be-last constraint is a real limitation worth knowing about: any future test that wants more than one slow BPM, or a slow BPM in the middle, will hit the same shared-event-loop ordering issue. Two ways to address if it comes up: (a) split the fake IOC into a separate process, (b) construct a separate caproto `Context` per BPM. Both are bigger investments; defer until needed.
+- The caproto-version dependence of `CaprotoTimeoutError` in the concurrent-CA test will likely break on a future upgrade. The inline upgrade-hint comment points at the remediation path.
+
+Tag: `[m3-failure-handling]`.
