@@ -91,6 +91,24 @@
       ctx.arc(x, y, 2.5, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    // Y-axis numeric ticks: +maxAbs / 0 / -maxAbs, two decimals, mm on top.
+    ctx.fillStyle = '#888';
+    ctx.font = '10px ' + (getComputedStyle(canvas).getPropertyValue('--monospace').trim() || 'ui-monospace, Menlo, monospace');
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    const fmtTick = (v, withUnit) => {
+      const abs = Math.abs(v).toFixed(2);
+      if (v === 0) return '0.00';
+      const sign = v > 0 ? '+' : '−';  // unicode minus for visual width parity
+      return sign + abs + (withUnit ? ' mm' : '');
+    };
+    const tickValues = [maxAbs, 0, -maxAbs];
+    const tickYs = [8, cy, h - 8];
+    for (let k = 0; k < 3; k++) {
+      const label = fmtTick(tickValues[k], k === 0);
+      ctx.fillText(label, 4, tickYs[k]);
+    }
   }
 
   function redraw() {
