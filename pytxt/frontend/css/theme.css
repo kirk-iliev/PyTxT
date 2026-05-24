@@ -180,3 +180,27 @@ canvas {
   font-family: "SF Mono", Menlo, monospace;
   font-size: 0.85em;
 }
+
+.trajectory-tooltip {
+  position: absolute;
+  z-index: 10;
+  background: rgba(20, 22, 28, 0.96);
+  color: var(--fg);
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 0.35rem 0.6rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  font-size: 0.82rem;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.trajectory-tooltip[hidden] { display: none; }
+.trajectory-tooltip .tt-name {
+  font-weight: 600;
+  font-family: "SF Mono", Menlo, monospace;
+}
+.trajectory-tooltip .tt-values {
+  font-family: "SF Mono", Menlo, monospace;
+  color: var(--fg-muted, #9ba0a6);
+  margin-top: 0.15rem;
+}

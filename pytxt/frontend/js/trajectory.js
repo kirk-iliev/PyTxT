@@ -25,6 +25,57 @@
     status: 'NEVER', okCount: 0, failCount: 0, timestamp: '',
   };
 
+  const tooltipEl = document.getElementById('trajectoryTooltip');
+  const tooltipNameEl = document.getElementById('trajectoryTooltipName');
+  const tooltipValuesEl = document.getElementById('trajectoryTooltipValues');
+
+  const tooltip = {
+    visible: false,
+    pinned: false,    // wired in Task 5
+    bpmIndex: -1,
+  };
+
+  function fmtMm(v) {
+    if (!Number.isFinite(v)) return '   nan';
+    const sign = v >= 0 ? '+' : '−';
+    return sign + Math.abs(v).toFixed(2);
+  }
+
+  function indexForMouseX(canvas, clientX) {
+    // Inverse of xFor(i): i = round((mx - 10) * (n - 1) / (w - 20))
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const mx = (clientX - rect.left) * scaleX;
+    const data = trimTrailingNonFinite(state.x.length ? state.x : state.y);
+    const n = data.length;
+    if (n <= 0) return -1;
+    if (n === 1) return 0;
+    const i = Math.round((mx - 10) * (n - 1) / (canvas.width - 20));
+    return Math.max(0, Math.min(n - 1, i));
+  }
+
+  function showTooltipAt(pageX, pageY, i) {
+    if (i < 0 || i >= state.names.length) { hideTooltip(); return; }
+    const name = state.names[i] || `#${i}`;
+    const xv = state.x[i];
+    const yv = state.y[i];
+    if (!Number.isFinite(xv) && !Number.isFinite(yv)) { hideTooltip(); return; }
+    tooltipNameEl.textContent = name;
+    tooltipValuesEl.textContent = `X: ${fmtMm(xv)} mm   Y: ${fmtMm(yv)} mm`;
+    tooltipEl.style.left = (pageX + 12) + 'px';
+    tooltipEl.style.top = (pageY + 12) + 'px';
+    tooltipEl.hidden = false;
+    tooltip.visible = true;
+    tooltip.bpmIndex = i;
+  }
+
+  function hideTooltip() {
+    if (tooltip.pinned) return;  // pin path overrides hide; Task 5
+    tooltipEl.hidden = true;
+    tooltip.visible = false;
+    tooltip.bpmIndex = -1;
+  }
+
   function statusName(code) {
     return ['NEVER', 'ACQUIRING', 'OK', 'PARTIAL', 'FAILED'][code] || 'UNKNOWN';
   }
@@ -234,6 +285,21 @@
         acquireButton.disabled = false;
       }
     });
+
+    function onCanvasMove(canvas) {
+      return (ev) => {
+        if (tooltip.pinned) return;  // Task 5 honors pin
+        const i = indexForMouseX(canvas, ev.clientX);
+        showTooltipAt(ev.pageX, ev.pageY, i);
+      };
+    }
+    function onCanvasLeave() {
+      hideTooltip();
+    }
+    canvasX.addEventListener('mousemove', onCanvasMove(canvasX));
+    canvasY.addEventListener('mousemove', onCanvasMove(canvasY));
+    canvasX.addEventListener('mouseleave', onCanvasLeave);
+    canvasY.addEventListener('mouseleave', onCanvasLeave);
   }
 
   bootstrap();
