@@ -50,6 +50,8 @@ class Settings(BaseSettings):
         # version is set programmatically by composition.main() from package metadata,
         # not from env. Exclude it from the known set so PYTXT_VERSION is rejected.
         known = {f"PYTXT_{k.upper()}" for k in cls.model_fields if k != "version"}
+        # Whitelist env vars consumed outside Settings (composition-time switches).
+        known |= {"PYTXT_USE_SYNTHETIC_READER"}
         unknown = [k for k in os.environ if k.startswith("PYTXT_") and k not in known]
         if unknown:
             raise ValueError(f"Unknown PYTXT_* env vars: {unknown!r}")

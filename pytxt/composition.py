@@ -70,6 +70,19 @@ async def main() -> None:
     # constructing caproto Contexts, they capture EPICS_CA_ADDR_LIST as-is.
     _ensure_local_ioc_in_ca_addr_list(settings.ioc_host, settings.ioc_port)
 
+    if os.environ.get("PYTXT_USE_SYNTHETIC_READER") == "1":
+        from pytxt.ca_client.synthetic_reader import SyntheticBpmReader
+        bpm_prefixes = [f"SR{s:02d}C:BPM1" for s in range(1, 13)]
+        reader = SyntheticBpmReader(prefixes=bpm_prefixes)
+        logger.info(
+            "PYTXT_USE_SYNTHETIC_READER=1 — using SyntheticBpmReader with 12 fake BPMs"
+        )
+    else:
+        reader = BpmReader(
+            prefixes=bpm_prefixes,
+            per_pv_timeout_s=settings.bpm_read_timeout_s,
+        )
+
     logger.info(
         "PyTxT %s starting | prefix=%s | ioc=%s:%d | api=%s:%d | bpms=%d (%s) | "
         "EPICS_CA_ADDR_LIST=%r",
@@ -84,11 +97,6 @@ async def main() -> None:
         version=settings.version,
         started_at=time.time(),
         bpm_prefixes=bpm_prefixes,
-    )
-
-    reader = BpmReader(
-        prefixes=bpm_prefixes,
-        per_pv_timeout_s=settings.bpm_read_timeout_s,
     )
 
     ioc = PyTxTIOC(
