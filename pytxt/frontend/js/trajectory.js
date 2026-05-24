@@ -103,6 +103,13 @@
     hideTooltip();
   }
 
+  function formatTimestamp(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;  // fallback: invalid input
+    return d.toLocaleTimeString([], { hour12: false });
+  }
+
   function statusName(code) {
     return ['NEVER', 'ACQUIRING', 'OK', 'PARTIAL', 'FAILED'][code] || 'UNKNOWN';
   }
@@ -248,8 +255,9 @@
 
     trajectoryStatusEl.textContent = `Status: ${state.status} · turn ${
       Number.isFinite(state.medianTurn) ? state.medianTurn : '—'}`;
+    const ts = formatTimestamp(state.timestamp);
     trajectoryCountsEl.textContent =
-      `${state.okCount} OK · ${state.failCount} FAIL${state.timestamp ? ' · ' + state.timestamp : ''}`;
+      `${state.okCount} OK · ${state.failCount} FAIL${ts ? ' · ' + ts : ''}`;
   }
 
   function pv(name) { return state.prefix + name; }
