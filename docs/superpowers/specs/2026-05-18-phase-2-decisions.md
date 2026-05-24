@@ -527,8 +527,8 @@ Tag: `[m2-3-render-polish]`.
 
 **Implementation summary:**
 
-1. `tests/fixtures/fake_bpm_ioc.py` gained an `offline_prefixes` dict-key form (commit `4ea4454`): those prefixes appear in `fixture.prefixes` (so `BpmReader` is configured to look for them) but are not built into the IOC's `pvdb`. `BpmReader._read_one` returns `None` for them via the "channels is None" early return.
-2. Same fixture gained `slow_prefixes` (commit `b4ea2e1` + getter-syntax doc `132349d`): those prefixes get a custom PVGroup whose `c0/c1/c3/armed` getters `await asyncio.sleep(_SLOW_DELAY_S_DEFAULT=3.0)`. Reader resolves the PVs normally; the per-read `wait_for(timeout=2.0)` times out. Different `BpmReader._read_one` code branch from offline; same observable outcome.
+1. `tests/fixtures/fake_bpm_ioc.py` gained an `"offline"` dict-key form (commit `4ea4454`): prefixes listed under that key appear in `fixture.prefixes` (so `BpmReader` is configured to look for them) but are not built into the IOC's `pvdb`. `BpmReader._read_one` returns `None` for them via the "channels is None" early return.
+2. Same fixture gained a `"slow"` dict-key form (commit `b4ea2e1` + getter-syntax doc `132349d`): prefixes listed under that key get a custom PVGroup whose `c0/c1/c3/armed` getters `await asyncio.sleep(_SLOW_DELAY_S_DEFAULT=3.0)`. Reader resolves the PVs normally; the per-read `wait_for(timeout=2.0)` times out. Different `BpmReader._read_one` code branch from offline; same observable outcome.
 3. `pytxt/ioc/pvs.py::cmd_acquire` putter was reduced from "catch + swallow AcquisitionInFlightError" to "re-raise" (commit `55201f6` + no-reader-test follow-up `8ece629`). caproto encodes the failure as a CA write error, symmetric to REST's 409. `STATE:ACQUIRE_IN_FLIGHT` continues to publish 1 for observers.
 4. 6 integration tests + 2 unit tests pinned all the failure paths (commits `2250d6e`, `10681c2`, `28b159d`, `69ffd13`, `603e140`, `e63f943`): partial-fail via offline, partial-fail via timeout, state-PV publication on partial fail, all-fail via emergency catch-all path, all-fail via `_classify(ok=0, fail=N)` path, concurrent CA acquire raises, putter re-raise unit, putter no-reader-noop unit.
 
@@ -536,7 +536,7 @@ Tag: `[m2-3-render-polish]`.
 
 1. **Construct-time-only fault injection.** Rejected runtime mutation (`fake_ioc.bpm_offline(name)` mid-test). Caproto doesn't gracefully handle a connected channel suddenly disappearing, and explicit setup-time topology is easier to reason about than mid-test state changes. If a future M-something needs to model "BPM goes offline during a session," it'll be its own milestone.
 
-2. **`slow_prefixes` default delay = 3.0 s, not configurable per-prefix.** Single global delay above the production `per_pv_timeout_s=2.0` covers every test scenario currently anticipated. If a future test needs per-prefix delays (e.g. timeout-boundary testing), extend the parameter to a `dict[str, float]` then. YAGNI for now.
+2. **`"slow"` default delay = 3.0 s, not configurable per-prefix.** Single global delay above the production `per_pv_timeout_s=2.0` covers every test scenario currently anticipated. If a future test needs per-prefix delays (e.g. timeout-boundary testing), extend the parameter to a `dict[str, float]` then. YAGNI for now.
 
 3. **Caproto pvproperty getter syntax: positional `get` argument** (tag `[m3-task2-getter-syntax]`). The plan suggested two patterns: `@c0.getter` decorator first, `read=` keyword second. Neither worked in the installed caproto (the decorator shadows the descriptor; `read=` is rejected by `ChannelData.__init__`). The third pattern — passing the getter as the first positional argument to `pvproperty(...)` — is the documented primary API per `pvproperty.__init__(get: Optional[Getter] = None, ...)`. The fixture's `_make_slow_bpm_group` docstring documents this so a future maintainer doesn't refactor it back to the decorator form. caproto version at time of choice: 0.8.x.
 
@@ -552,7 +552,7 @@ Tag: `[m2-3-render-polish]`.
 
 9. **Concurrent CA test's `pytest.raises` was pinned post-pass.** The plan started with `pytest.raises(Exception)` as a diagnostic shape, with explicit instructions to narrow after the first run revealed the actual class. Followed that process: ran with a diagnostic try/except print, observed `CaprotoTimeoutError`, narrowed and committed.
 
-**Tests:** 6 new integration tests + 2 new unit tests. Full suite is now 113/113 (up from 103 at end of M2). The slow-prefix tests add ~3 s wall time each (intentional — exercising the real `wait_for` timeout), so M3 added ~10 s to the full-suite total. Acceptable.
+**Tests:** 10 new tests (2 fixture-verification in `test_fake_bpm_ioc.py` + 3 partial-fail + 2 all-fail + 1 concurrent-CA = 8 integration, plus 2 unit). Full suite is now 113/113 (up from 103 at end of M2). The slow-prefix tests add ~3 s wall time each (intentional — exercising the real `wait_for` timeout), so M3 added ~10 s to the full-suite total. Acceptable.
 
 **Spec relationship:** M3 closes spec §11 M3 and its DoD lines ("simulated timeout produces NaN gap in plot + correct fail count in state PV; concurrent ACQUIRE returns 409 cleanly").
 

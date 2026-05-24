@@ -7,9 +7,7 @@ reflect the partial-fail state correctly for external CA observers.
 Spec: docs/superpowers/specs/2026-05-18-phase-2-read-path-design.md §11 M3.
 """
 import asyncio
-import math
 
-import numpy as np
 import pytest
 from caproto.asyncio.client import Context as ClientContext
 
