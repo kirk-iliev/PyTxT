@@ -204,3 +204,29 @@ canvas {
   color: var(--fg-muted, #9ba0a6);
   margin-top: 0.15rem;
 }
+
+.trajectory-tooltip.pinned {
+  pointer-events: auto;
+  cursor: default;
+}
+.trajectory-tooltip .tt-close {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  width: 1rem;
+  height: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--fg-muted, #9ba0a6);
+  border: 0;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0;
+}
+.trajectory-tooltip .tt-close:hover { color: var(--fg); }
+.trajectory-tooltip.pinned {
+  padding-right: 1.4rem;  /* room for × */
+}

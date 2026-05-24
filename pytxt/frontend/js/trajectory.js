@@ -76,6 +76,33 @@
     tooltip.bpmIndex = -1;
   }
 
+  function pinTooltipAt(pageX, pageY, i) {
+    showTooltipAt(pageX, pageY, i);  // ensure visible with current data
+    if (tooltip.bpmIndex < 0) return;  // showTooltipAt rejected (e.g. NaN slot)
+    tooltip.pinned = true;
+    tooltipEl.classList.add('pinned');
+    if (!tooltipEl.querySelector('.tt-close')) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tt-close';
+      btn.setAttribute('aria-label', 'Dismiss');
+      btn.textContent = '×';  // ×
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        unpinTooltip();
+      });
+      tooltipEl.appendChild(btn);
+    }
+  }
+
+  function unpinTooltip() {
+    tooltip.pinned = false;
+    tooltipEl.classList.remove('pinned');
+    const btn = tooltipEl.querySelector('.tt-close');
+    if (btn) btn.remove();
+    hideTooltip();
+  }
+
   function statusName(code) {
     return ['NEVER', 'ACQUIRING', 'OK', 'PARTIAL', 'FAILED'][code] || 'UNKNOWN';
   }
@@ -300,6 +327,27 @@
     canvasY.addEventListener('mousemove', onCanvasMove(canvasY));
     canvasX.addEventListener('mouseleave', onCanvasLeave);
     canvasY.addEventListener('mouseleave', onCanvasLeave);
+
+    function onCanvasClick(canvas) {
+      return (ev) => {
+        if (tooltip.pinned) {
+          unpinTooltip();
+          return;
+        }
+        const i = indexForMouseX(canvas, ev.clientX);
+        pinTooltipAt(ev.pageX, ev.pageY, i);
+      };
+    }
+    canvasX.addEventListener('click', onCanvasClick(canvasX));
+    canvasY.addEventListener('click', onCanvasClick(canvasY));
+
+    document.addEventListener('click', (ev) => {
+      if (!tooltip.pinned) return;
+      const t = ev.target;
+      if (t === tooltipEl || tooltipEl.contains(t)) return;
+      if (t === canvasX || t === canvasY) return;
+      unpinTooltip();
+    }, true);  // capture phase so we run before bubbling listeners
   }
 
   bootstrap();
