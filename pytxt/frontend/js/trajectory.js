@@ -37,6 +37,29 @@
     return end === data.length ? data : data.slice(0, end);
   }
 
+  /**
+   * Group consecutive BPM names by ALS sector. Returns an array of
+   * { label, start, end } where label is e.g. "SR01" and start/end are
+   * inclusive indices into `names`. Names not matching /^SR\d{2}/ are
+   * grouped under label "?".
+   */
+  function sectorGroups(names) {
+    const groups = [];
+    let current = null;
+    for (let i = 0; i < names.length; i++) {
+      const m = /^SR\d{2}/.exec(names[i] || '');
+      const label = m ? m[0] : '?';
+      if (!current || current.label !== label) {
+        if (current) groups.push(current);
+        current = { label, start: i, end: i };
+      } else {
+        current.end = i;
+      }
+    }
+    if (current) groups.push(current);
+    return groups;
+  }
+
   function render(canvas, data, color) {
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
@@ -59,7 +82,11 @@
       if (Number.isFinite(v) && Math.abs(v) > maxAbs) maxAbs = Math.abs(v);
     }
     if (maxAbs === 0) maxAbs = 1;  // avoid div-by-zero
-    const yScale = (h / 2 - 8) / maxAbs;
+    // Reserve 24 px at the bottom for sector labels; polyline + Y-ticks
+    // share the upper area. cy stays at h/2 so the dashed zero line and
+    // both canvases' vertical alignment are unchanged.
+    const labelBandH = 24;
+    const yScale = (Math.min(cy - 8, h - cy - labelBandH - 4)) / maxAbs;
 
     function xFor(i) {
       return data.length === 1 ? w / 2 : (i * (w - 20) / (data.length - 1)) + 10;
@@ -90,6 +117,32 @@
       ctx.beginPath();
       ctx.arc(x, y, 2.5, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    // Sector ticks: faint vertical line + label below the plot area.
+    const groups = sectorGroups(state.names.slice(0, data.length));
+    if (groups.length > 0) {
+      ctx.strokeStyle = getComputedStyle(canvas).getPropertyValue('--canvas-grid').trim() || '#2a2a2a';
+      ctx.lineWidth = 1;
+      ctx.fillStyle = '#888';
+      ctx.font = '10px ' + (getComputedStyle(canvas).getPropertyValue('--monospace').trim() || 'ui-monospace, Menlo, monospace');
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      const labelY = h - 18;
+      const tickTop = h - labelBandH;
+      const tickBot = h - labelBandH + 6;
+      for (const g of groups) {
+        const xStart = xFor(g.start);
+        const xEnd = xFor(g.end);
+        // Tick at the start boundary
+        ctx.beginPath();
+        ctx.moveTo(xStart, tickTop);
+        ctx.lineTo(xStart, tickBot);
+        ctx.stroke();
+        // Label centered between start and end
+        const xMid = (xStart + xEnd) / 2;
+        ctx.fillText(g.label, xMid, labelY);
+      }
     }
 
     // Y-axis numeric ticks: +maxAbs / 0 / -maxAbs, two decimals, mm on top.
