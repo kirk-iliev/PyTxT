@@ -1,7 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(.venv/bin/pytest:*)"
+      "Bash(.venv/bin/pytest:*)",
+      "Bash(.venv/bin/python:*)",
+      "Bash(curl:*)",
+      "Bash(open:*)",
+      "Bash(pkill:*)",
+      "Bash(sleep:*)",
+      "Bash(npx:*)",
+      "Bash(cd tests/e2e && npx:*)",
+      "Bash(PYTXT_USE_SYNTHETIC_READER=1:*)"
     ]
   }
 }

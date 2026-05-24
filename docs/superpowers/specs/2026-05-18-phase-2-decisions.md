@@ -565,3 +565,58 @@ Tag: `[m2-3-render-polish]`.
 - The caproto-version dependence of `CaprotoTimeoutError` in the concurrent-CA test will likely break on a future upgrade. The inline upgrade-hint comment points at the remediation path.
 
 Tag: `[m3-failure-handling]`.
+
+---
+
+## 2026-05-24 — M4: Raw REST + UI polish + Playwright e2e
+
+**Context:** Phase 2's final milestone, executed via subagent-driven development across 8 implementation commits (`efedfde`…`1cc6b54`) plus this close-out. Plan: `docs/superpowers/plans/2026-05-24-m4-raw-rest-and-polish.md`. Total wall-time ≈ 1 working day with the subagent loop. Full suite is now 121/121 pytest + 5/5 Playwright (smoke 2 + ping 2 + trajectory 1).
+
+**Decision:** Eight gap-fills / deviations / surprises, sub-tagged below.
+
+### Sub-tag `[m4-raw-rest-no-409]` — drop the 409 path on `GET /result/bpm/raw`
+
+The original spec line at §11 M4 listed "400/404/409 paths." We dropped the 409. Reason: `state.last_acquire_raws` is updated atomically inside `handle_acquire` (two-pass `state.update(last_acquire=..., last_acquire_raws=...)`), so readers never observe half-written data even mid-acquire. Symmetric reads are also more agent-friendly than blocking. Consumers that care about freshness can read `LAST_ACQUIRE_TIMESTAMP` independently. Reversible if Phase 3 surfaces a concurrency hazard we haven't anticipated. Detailed-design spec at §11 M4 §A was updated 2026-05-24 with the same rationale.
+
+### Sub-tag `[m4-sector-ticks]` — label rows on BOTH canvases
+
+Spec §C said "both canvases share the same X axis. Both canvases get the sector labels so each plot is independently readable — keeping label-on-Y-only would create a vertical scale mismatch between the two stacked plots (their `cy = h / 2` zero-lines would no longer align)." Followed exactly. Cost: one extra label row of ~24 px per canvas; benefit: geometry stays consistent. Canvas height bump from 160 → 190 absorbed both the label-band reservation and the existing polyline area; visual review during M4 didn't need a further bump.
+
+### Sub-tag `[m4-canvas-height]` — 190 px shipped (no further bump)
+
+The plan's iteration knob said "if labels look cramped at 190, bump further (200, 210)." Final canvas height shipped at 190 px. Subagent visual checks were skipped during Tasks 2-6 because Task 7 (synthetic reader) hadn't landed; Playwright e2e in Task 8 then confirmed render + sector labels are legible end-to-end (`getImageData` finds non-zero pixel content across both canvases and tooltip text matches `/SR\d{2}/`).
+
+### Sub-tag `[m4-pin-tooltip]` — toggle semantics (spec wins over plan paraphrase)
+
+Spec §B says "click on canvasX or canvasY → toggle `tooltip.pinned`." That's strict toggle. The plan's Task 4 Step 4 visual-check rubric was sloppy and listed both "click another BPM → pin at new BPM" and "click while pinned → dismiss" — code-quality review (Task 5) caught the contradiction. Implementation follows the spec (strict toggle: unpin first, then re-click to pin at new index). Reasonable UX for the M4 surface; if Phase 3 finds users wanting one-click re-pin we can branch on `i !== tooltip.bpmIndex` later.
+
+### Sub-tag `[m4-synthetic-reader]` — composition-time fork to no-CA reader
+
+Spec §E said implementer chooses between (a) "spawn a synthetic IOC in a separate process for e2e" and (b) "in-Playwright stub." Picked option (c): a tiny `SyntheticBpmReader` in `pytxt/ca_client/synthetic_reader.py` selected by `PYTXT_USE_SYNTHETIC_READER=1`. Composition forks at reader-construction time, overrides `bpm_prefixes` to 12 deterministic `SR{01..12}C:BPM1` entries (one per sector — small enough for fast e2e, gives `SR\d{2}` regex hit in tooltip), and constructs the synthetic reader instead of the real `BpmReader`. Production path is byte-identical when the env var is unset. Smoke-tested: `/api/v1/cmd/acquire` returns `status: OK, ok_count: 12, injection_turn_median: 1370` end-to-end. Trades a small amount of production code (~30 lines plus reorder in composition) for full FastAPI + IOC + AppState + WS coverage in e2e without any CA dependency.
+
+### Sub-tag `[m4-settings-env-whitelist]` — unplanned gap-fill
+
+The implementer of Task 7 had to also touch `pytxt/config/settings.py` (not in the plan's file list). `Settings` has `model_config(extra="forbid")` plus a model_validator that rejects any unknown `PYTXT_*` env var. So launching with `PYTXT_USE_SYNTHETIC_READER=1` raised `ValidationError` before `composition.main()` ran. Smallest fix: 2-line whitelist in the validator. Functional pattern: any future env var consumed only by composition (and not surfaced as a `Settings` field) needs the same whitelist treatment. Worth knowing for Phase 3.
+
+### Sub-tag `[m4-playwright-webserver]` — auto-launch with `reuseExistingServer: true`
+
+Existing e2e specs (smoke, ping) previously required a manually-started pytxt. Adding M4's trajectory spec needed a synthetic-reader server, so we added a `webServer` block to `tests/e2e/playwright.config.js`: `command: ${repoRoot}/.venv/bin/python -m pytxt`, `env: { PYTXT_USE_SYNTHETIC_READER: '1' }`, `cwd: repoRoot`, `reuseExistingServer: true`. The reuse flag preserves the manual-start workflow for anyone who wants to point e2e at a real-data server. All 5 e2e specs (smoke 2 + ping 2 + trajectory 1) pass in under 6 s wall time. Port-8008 hygiene note: a stale background pytxt can mask synthetic-mode failures because `reuseExistingServer: true` will happily reuse the stale instance — `pkill -9 -f "python -m pytxt"` before Playwright runs solves it.
+
+### Sub-tag `[m4-minor-noted]` — minor observations from review, not acted on
+
+Things code-quality review flagged that are accepted as-is:
+- `SyntheticBpmReader.read_all` shares the same `sum_wf` array across all 12 prefixes (aliased). Harmless because waveforms are read-only by convention through `handle_acquire` → `extract_first_turn`; nothing mutates them in place. If Phase 3 adds a code path that mutates these arrays, switch to `.copy()` per iteration.
+- `composition.py` still calls `load_bpm_prefixes(settings.bpm_prefixes_path)` unconditionally and discards the result in synthetic mode. The startup log line then shows the synthetic count mixed with the real path string — slightly confusing for a debugger but not incorrect.
+- Frontend: `indexForMouseX` duplicates the margin constants from `xFor(i)`'s definition. If the margin ever changes both sites must update. Refactor candidate, not a defect.
+- Frontend: `state.names.slice(0, data.length)` clips silently when names arrives shorter than data. Acceptable degradation; trailing BPMs simply lack a sector label.
+
+**Spec relationship:** M4 closes spec §11 M4 and its DoD lines ("e2e passes; raw endpoint returns valid `BpmRawWaveforms` JSON for one BPM"). Spec §11 M4 §A was updated 2026-05-24 to record the 409→drop choice; otherwise spec stays authoritative.
+
+**Forward impact:**
+
+- **Phase 2 is closed.** All four milestones are validated; the read path is shippable end-to-end. Phase 2 DoD §12 (lines 1-11) is satisfied except for line 2 ("on appsdev2 against the real ring") which awaits Kirk's next live deploy session — not blocking the phase close because M2-3 already validated this exact path against the live ring.
+- **e2e is now a real regression guard.** Any future change to the trajectory page, the WS bridge, the IOC, the synthetic-reader contract, or the raw endpoint will be caught by `cd tests/e2e && npx playwright test`. Worth adding to CI when CI exists.
+- **The synthetic-reader pattern is reusable.** Future demos, dev environments without ALS network access, or smoke tests in non-CA contexts can all flip the env var. Production composition is untouched.
+- **Phase 3 (analysis layer) brainstorming is the next step.** Reference trajectory storage + comparison + response-matrix math + BBA tooling per spec §14.
+
+Tag: `[m4-raw-rest-and-polish]`.

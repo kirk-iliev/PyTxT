@@ -556,28 +556,28 @@
 <div class="hero">
   <div class="hero-current">
     <div class="label">Current phase</div>
-    <h2>Phase 2 · Read path (M1 ✓ · M2 ✓ · M3 ✓ · M4 next)</h2>
+    <h2>Phase 2 · Read path (M1 ✓ · M2 ✓ · M3 ✓ · M4 ✓ — closed)</h2>
     <p>
-      M1 + M2 + M3 all closed as of 2026-05-24. M3 (failure handling) added construct-time fault-injection
-      hooks to <code>fake_bpm_ioc</code> (<code>offline_prefixes</code> + <code>slow_prefixes</code>) and
-      6 new integration tests exercising the partial-fail, all-fail (both emergency-catch-all AND
-      <code>_classify</code> paths), and concurrent-CA-acquire scenarios. One small production-code change
-      (commit <code>55201f6</code>): the IOC's <code>cmd_acquire</code> putter now re-raises
-      <code>AcquisitionInFlightError</code> instead of swallowing it, so <code>caput</code> while in-flight
-      surfaces as a CA write error symmetric to REST's 409. Full suite now 113/113 green (up from 103).
-      Next: M4 — raw REST <code>/result/bpm/raw</code> endpoint, frontend hover tooltip + axis polish,
-      Playwright trajectory e2e spec.
+      <strong>Phase 2 complete as of 2026-05-24.</strong> All four milestones validated. M4 (final) added the real
+      <code>GET /api/v1/result/bpm/raw?bpm=&lt;prefix&gt;</code> endpoint (400/404 paths only — the spec's
+      original 409 was dropped because <code>last_acquire_raws</code> updates atomically), trajectory polish
+      (Y-axis numeric ticks, sector-boundary X-axis ticks under both canvases, hover tooltip with
+      click-to-pin and outside-click dismiss, compact HH:MM:SS timestamp), and the first browser-level e2e
+      regression guard: <code>tests/e2e/trajectory.spec.js</code> drives a synthetic-mode pytxt
+      (<code>PYTXT_USE_SYNTHETIC_READER=1</code>, 12 fake SR-prefixes, deterministic waveforms) through the
+      full acquire → render → hover flow. Full suite is now 121/121 pytest + 5/5 Playwright. Next: Phase 3
+      brainstorming (analysis layer — reference storage, comparison, response-matrix math).
     </p>
-    <div class="progress" title="M1 + M2 + M3 done; M4 next">
-      <div class="progress-fill" style="width: 65%"></div>
+    <div class="progress" title="Phase 2 complete">
+      <div class="progress-fill" style="width: 100%"></div>
     </div>
-    <div class="progress-text">M1 ✓ · M2 ✓ · M3 ✓ · M4 next</div>
+    <div class="progress-text">M1 ✓ · M2 ✓ · M3 ✓ · M4 ✓</div>
   </div>
 
   <div class="stats">
-    <div class="stat"><div class="num">1 / 6</div><div class="lbl">Phases complete</div></div>
-    <div class="stat"><div class="num">113 / 113</div><div class="lbl">Tests passing</div></div>
-    <div class="stat"><div class="num">4</div><div class="lbl">E2E specs</div></div>
+    <div class="stat"><div class="num">2 / 6</div><div class="lbl">Phases complete</div></div>
+    <div class="stat"><div class="num">121 / 121</div><div class="lbl">Tests passing</div></div>
+    <div class="stat"><div class="num">5</div><div class="lbl">E2E specs</div></div>
     <div class="stat"><div class="num">0</div><div class="lbl">Unpushed commits</div></div>
   </div>
 </div>
@@ -626,12 +626,12 @@
   </details>
 
   <!-- ====== PHASE 2 ====== -->
-  <details class="phase now" open>
+  <details class="phase done" open>
     <summary>
       <div class="num">Phase 2</div>
       <div class="title">Read path</div>
       <div class="blurb">107 BPM TBT reads → ring trajectory plot. <code>CMD:ACQUIRE</code>.</div>
-      <div class="badges"><span class="badge badge-now">→ M1 tagged · M2 in flight</span></div>
+      <div class="badges"><span class="badge badge-done">✓ Complete (M1·M2·M3·M4)</span></div>
     </summary>
     <div class="body">
       <h4>Scope decisions locked</h4>
@@ -664,7 +664,7 @@
         <li>CA client: <code>BpmReader</code> with persistent connections + parallel reads + start/stop lifecycle</li>
         <li>Handler: <code>handle_acquire</code> with in-flight guard, try/finally, partial/all-fail semantics</li>
         <li>IOC: 12 new PVs (CMD/STATE/RESULT) + publish helpers for all phase-2 AppState fields</li>
-        <li>REST: <code>POST /cmd/acquire</code>, extended <code>/state</code>; <code>/result/bpm/raw</code> stub for M4</li>
+        <li>REST: <code>POST /cmd/acquire</code>, extended <code>/state</code>, <code>GET /result/bpm/raw?bpm=&lt;prefix&gt;</code> (400/404)</li>
         <li>Frontend: <code>trajectory.html</code> with stacked X/Y canvases + nav</li>
         <li>Tests: fake-BPM-IOC fixture, unit + integration coverage, ACQUIRE parity row</li>
       </ul>
@@ -780,11 +780,11 @@
     <div class="ms-title">Failure handling</div>
     <div class="ms-meta">Construct-time fault injection on <code>fake_bpm_ioc</code> (<code>offline_prefixes</code> + <code>slow_prefixes</code>) + 6 integration tests covering partial-fail (offline / timeout / state-PV publication), all-fail (emergency catch-all AND <code>_classify</code> paths), and concurrent CA acquire raises. One small prod-code change: <code>cmd_acquire</code> putter re-raises <code>AcquisitionInFlightError</code>, symmetric to REST's 409. Closed 2026-05-24.</div>
   </div>
-  <div class="ms now">
+  <div class="ms done">
     <div class="ms-label">M4</div>
-    <span class="ms-status"><span class="badge badge-now">Now</span></span>
+    <span class="ms-status"><span class="badge badge-done">✓ Closed</span></span>
     <div class="ms-title">Raw REST + polish + e2e</div>
-    <div class="ms-meta"><code>GET /result/bpm/raw?bpm=X</code> implementation with 400/404/409 paths; frontend hover tooltip (BPM name + X/Y on hover); Playwright trajectory e2e spec. Final phase-2 milestone.</div>
+    <div class="ms-meta">Real <code>GET /result/bpm/raw?bpm=X</code> (400/404 — spec's original 409 dropped, atomic state updates make it unnecessary); Y-axis numeric ticks + sector-boundary X-axis ticks on both canvases + canvas height 160 → 190; hover tooltip with click-to-pin and outside-click dismiss; compact HH:MM:SS local timestamp; <code>SyntheticBpmReader</code> for e2e via <code>PYTXT_USE_SYNTHETIC_READER=1</code>; Playwright <code>trajectory.spec.js</code> drives full acquire → render → hover flow. Closed 2026-05-24.</div>
   </div>
 </div>
 
@@ -884,8 +884,8 @@
 
   <div class="pkg done">
     <div class="pkg-name">tests/</div>
-    <div class="pkg-role">Unit (13 files) + integration (15 files) + fixtures (fake BPM IOC w/ fault-injection) + e2e (2 specs)</div>
-    <div class="pkg-status"><span class="badge badge-done">113 passing</span></div>
+    <div class="pkg-role">Unit (14 files) + integration (16 files) + fixtures (fake BPM IOC w/ fault-injection) + e2e (3 specs)</div>
+    <div class="pkg-status"><span class="badge badge-done">121 + 5 e2e passing</span></div>
   </div>
 
 </div>
@@ -898,7 +898,12 @@
 <div class="next-box">
   <h3>Immediate — Kirk</h3>
   <ol>
-    <li><strong>Kick off M4 (raw REST endpoint + UI polish + Playwright e2e).</strong> The final phase-2 milestone. <code>GET /api/v1/result/bpm/raw?bpm=&lt;prefix&gt;</code> returning <code>BpmRawWaveforms</code> JSON with the per-BPM full 100 000-sample X/Y/sum waveforms; frontend hover tooltip showing BPM name and exact X/Y values; status header polish (timestamp formatting, ok/fail readout); Playwright e2e spec exercising the full click-ACQUIRE-render-plot cycle. Backend is fully proven; this is mostly REST + frontend.</li>
+    <li><strong>Phase 2 is closed; deploy + smoke-test against the live ALS ring at the next opportunity.</strong> M2-3 already validated the trajectory pipeline against the real ring on 2026-05-22; phase-2 DoD §12.2 expects a fresh ring smoke-test now that M4's UI polish has landed, but this is operational follow-through rather than a blocker for declaring phase 2 done.</li>
+    <li><strong>Kick off Phase 3 brainstorming (analysis layer).</strong> Reference-trajectory storage + comparison + response-matrix math + BBA tooling per spec §14. Next concrete step: invoke <code>superpowers:brainstorming</code> to scope the phase 3 spec.</li>
+  </ol>
+  <h3 style="margin-top:1rem">M4 — closed 2026-05-24</h3>
+  <ol>
+    <li>M4 ✅ <strong>raw REST + UI polish + Playwright e2e.</strong> Real <code>GET /api/v1/result/bpm/raw?bpm=&lt;prefix&gt;</code> returning <code>BpmRawWaveforms</code> JSON (400/404 only — spec's original 409 dropped because <code>last_acquire_raws</code> updates atomically). Frontend polish: Y-axis numeric ticks (±maxAbs mm), sector-boundary X-axis ticks (SR01..SR12) under both canvases, hover tooltip showing BPM name + X/Y values with click-to-pin and outside-click dismiss, compact HH:MM:SS timestamp. Composition-time fork to a <code>SyntheticBpmReader</code> via <code>PYTXT_USE_SYNTHETIC_READER=1</code> (12 deterministic SR-prefixes) feeds Playwright's auto-launched server. <code>tests/e2e/trajectory.spec.js</code> covers the full acquire → render → hover flow; all 5 e2e specs (smoke 2 + ping 2 + trajectory 1) pass in ~5 s. Settings whitelist gap-fill for the new env var (2 lines). 8 commits + this close-out. Decision log <code>[m4-raw-rest-and-polish]</code>.</li>
   </ol>
   <h3 style="margin-top:1rem">M2 — closed 2026-05-22</h3>
   <ol>
@@ -910,10 +915,6 @@
   <ol>
     <li>M3 ✅ <strong>failure handling — fixture fault injection + CA-putter symmetry + classify-path coverage.</strong> Construct-time hooks on <code>fake_bpm_ioc</code> (<code>offline_prefixes</code> + <code>slow_prefixes</code>); 6 new integration tests (partial-fail via offline, partial-fail via timeout, state-PV publication, all-fail via emergency catch-all, all-fail via <code>_classify</code>, concurrent CA acquire raises) + 2 unit tests pinning the modified <code>cmd_acquire</code> putter. One small prod-code change at <code>55201f6</code>: putter re-raises <code>AcquisitionInFlightError</code> instead of swallowing, so <code>caput</code> while in-flight surfaces as a CA write error (caproto 0.8.x observable: <code>CaprotoTimeoutError</code> waiting for write-ACK). Decision log <code>[m3-failure-handling]</code>.</li>
   </ol>
-  <h3 style="margin-top:1rem">M4 — now</h3>
-  <ol>
-    <li>M4: real <code>/result/bpm/raw</code> endpoint; hover tooltip + axis polish; Playwright trajectory spec.</li>
-  </ol>
 </div>
 
 <!-- ============================================== -->
@@ -922,6 +923,51 @@
 <h2 class="section">Recent activity <span class="hint">most recent commits</span></h2>
 
 <div class="activity">
+  <div class="commit">
+    <div class="hash">M4 ✓</div>
+    <div class="msg">2026-05-24 · <strong>Phase 2 closed.</strong> M4 closed — raw REST <code>/result/bpm/raw</code> (400/404), trajectory polish (Y ticks + sector ticks + hover tooltip with click-to-pin + compact timestamp), <code>SyntheticBpmReader</code> for e2e, Playwright trajectory spec. 121/121 pytest + 5/5 e2e green.</div>
+    <div class="tag">milestone</div>
+  </div>
+  <div class="commit">
+    <div class="hash">1cc6b54</div>
+    <div class="msg">M4 — Playwright trajectory spec covering acquire → render → hover; <code>webServer</code> auto-launches synthetic-mode pytxt with <code>reuseExistingServer: true</code>; 5/5 e2e green</div>
+    <div class="tag">test(e2e)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">aee3e3d</div>
+    <div class="msg">M4 — <code>SyntheticBpmReader</code> for e2e via <code>PYTXT_USE_SYNTHETIC_READER=1</code>; composition forks at reader-construction time; <code>Settings</code> whitelist gap-fill for the new env var</div>
+    <div class="tag">feat(composition)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">dc7341d</div>
+    <div class="msg">M4 — compact HH:MM:SS local-time timestamp in status header (ISO-8601 still stored in <code>state.timestamp</code> for external consumers)</div>
+    <div class="tag">feat(frontend)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">936c800</div>
+    <div class="msg">M4 — click-to-pin tooltip with <code>×</code> close button + capture-phase outside-click dismiss; toggle semantics per spec §B</div>
+    <div class="tag">feat(frontend)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">99aa68c</div>
+    <div class="msg">M4 — hover tooltip showing BPM name + X/Y values; snap-to-nearest math inverts <code>xFor(i)</code> with CSS-scale correction</div>
+    <div class="tag">feat(frontend)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">33d036d</div>
+    <div class="msg">M4 — sector-boundary X-axis ticks (SR01..SR12) under both canvases; canvas height 160 → 190; <code>labelBandH</code> reserved at bottom of plot area</div>
+    <div class="tag">feat(frontend)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">b7204c5</div>
+    <div class="msg">M4 — Y-axis numeric ticks (+maxAbs/0/−maxAbs, mm on top) on both trajectory canvases</div>
+    <div class="tag">feat(frontend)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">efedfde</div>
+    <div class="msg">M4 — implement <code>GET /api/v1/result/bpm/raw</code> with 400/404 paths (no 409, atomic state updates); 5 new integration tests</div>
+    <div class="tag">feat(api)</div>
+  </div>
   <div class="commit">
     <div class="hash">M3 ✓</div>
     <div class="msg">2026-05-24 · M3 closed — failure-handling fixture hooks + 6 integration tests (partial-fail / all-fail / concurrent CA) + 2 unit tests + cmd_acquire putter re-raises. 113/113 green.</div>
@@ -1183,13 +1229,13 @@
 
     { id: 'api-server', x: 450, y: 624, w: 360, h: 96, status: 'now',
       title: 'api/  ·  FastAPI + WS bridge',
-      sub: 'POST /cmd/ping ✓ · /cmd/acquire ✓ · /state ext ✓ · /result/bpm/raw ○ M4 · WS ✓',
-      tip: 'Same handlers as the IOC, exposed over HTTP. WS bridge subscribes browsers to PV changes via CA. /result/bpm/raw is a stub router; real implementation lands in M4. Otherwise all phase-2 endpoints are live.' },
+      sub: 'POST /cmd/ping ✓ · /cmd/acquire ✓ · /state ext ✓ · /result/bpm/raw ✓ · WS ✓',
+      tip: 'Same handlers as the IOC, exposed over HTTP. WS bridge subscribes browsers to PV changes via CA. /result/bpm/raw returns the per-BPM 100 000-sample raw TBT waveforms (400/404 paths only; no 409 because last_acquire_raws updates atomically). All phase-2 endpoints live.' },
 
     { id: 'frontend', x: 830, y: 624, w: 280, h: 96, status: 'now',
       title: 'frontend/',
-      sub: 'ping ✓ · trajectory ✓ · polish M4',
-      tip: 'Vanilla JS, no framework. trajectory.html: stacked X/Y canvases, status header, Acquire button, auto-refresh-on-PV-change. Hover tooltips + e2e spec land in M4.' },
+      sub: 'ping ✓ · trajectory ✓ · hover tooltip ✓ · sector ticks ✓',
+      tip: 'Vanilla JS, no framework. trajectory.html: stacked X/Y canvases (Y numeric ticks + sector-boundary X ticks on both panels), status header with compact timestamp, Acquire button, hover tooltip showing BPM name + X/Y values with click-to-pin and outside-click dismiss. Playwright trajectory.spec.js covers the full acquire → render → hover flow.' },
   ];
 
   const FLOWS = [
