@@ -746,6 +746,157 @@ point of the timeout-simulation scenario.
 - Playwright e2e: full click-ACQUIRE-render-plot cycle against single fake BPM.
 - **DoD:** e2e passes; raw endpoint returns valid `BpmRawWaveforms` JSON for one BPM.
 
+#### M4 detailed design (locked 2026-05-24)
+
+Phase 2's final milestone: fills in the raw-waveform REST stub, polishes the trajectory plot
+to operator-readable quality (sector ticks + hover tooltip with click-to-pin), and adds the
+first browser-level e2e regression guard. No backend logic beyond the REST stub fill-in;
+the bulk is frontend.
+
+**A. Backend — `GET /api/v1/result/bpm/raw?bpm=<prefix>`**
+(`pytxt/api/routes/result.py`)
+
+Fill in the existing stub. Returns `BpmRawWaveforms` JSON (schema at
+`pytxt/api/schemas/result.py:56-63`: `bpm_prefix`, `x_nm`, `y_nm`, `sum_au` as 100 000-sample
+int lists, `armed`, `read_timestamp`). Data source is `state.last_acquire_raws[prefix]`,
+which is a `dict[str, RawBPM]` populated by `handle_acquire` (M1 wiring).
+
+Status codes:
+
+- `400` — missing or empty `bpm` query parameter.
+- `404` — `prefix not in state.bpm_prefixes` (unknown BPM for this deploy) **OR**
+  `prefix not in state.last_acquire_raws` (no data yet: acquire never ran, or this BPM
+  was in `failed_bpm_names` of the last acquire so no raw waveform was stored).
+- `200` — happy path with full waveform payload.
+
+**Spec deviation from §11 M4 line 1:** the spec line says "400/404/409 paths." We
+deliberately drop the `409`. Raw waveform reads don't need to block during an in-flight
+acquire because the data updates atomically at the end of `handle_acquire` (the
+`state.update(last_acquire=..., last_acquire_raws=...)` two-pass guarantees no
+half-written state is visible to readers). Consumers who care about freshness can read
+`LAST_ACQUIRE_TIMESTAMP` independently. Decision-log entry `[m4-raw-rest-no-409]` will
+record this on closeout.
+
+**B. Frontend — hover tooltip with click-to-pin**
+(`pytxt/frontend/js/trajectory.js`, `pytxt/frontend/trajectory.html`, `pytxt/frontend/css/theme.css`)
+
+New module-local tooltip state in `trajectory.js`:
+
+```js
+const tooltip = {
+  visible: false,
+  pinned: false,
+  bpmIndex: -1,
+  canvas: null,     // which canvas the hover/pin originated from
+};
+```
+
+Three event paths:
+
+1. `mousemove` over canvasX or canvasY → if `!tooltip.pinned`, map mouse-x to nearest BPM
+   index by inverting the existing `xFor(i)` math (the data-trimmed length is known after
+   `trimTrailingNonFinite`), update tooltip text + position, show the tooltip div.
+2. `click` on canvasX or canvasY → toggle `tooltip.pinned`. When transitioning to pinned,
+   freeze the tooltip at its current location and append a `×` close button to it. When
+   transitioning to un-pinned, dismiss.
+3. `click` on the document (capture-phase listener) → if `tooltip.pinned` and the click
+   target is neither the tooltip div nor either canvas, dismiss the pin.
+
+Tooltip content format: `SR01C:BPM3` (first line, bold) and
+`X: +0.234 mm   Y: −0.142 mm` (second line, monospace), with the close `×` glyph in the
+top-right when pinned. Sourced from `state.names[i]`, `state.x[i]`, `state.y[i]`. Numeric
+formatting: two decimals, leading sign, fixed width so values don't jitter as the user
+sweeps.
+
+HTML: one hidden `<div id="trajectoryTooltip" hidden>` inserted at the top of `<main>`
+above the trajectory panel. CSS: absolute-positioned, dark background matching the panel
+theme, small Roboto Mono or system-monospace font, slight border, soft shadow, pointer-
+events visible only when shown.
+
+Implementation note: snap-to-nearest math is the inverse of `xFor(i)`. For a trimmed
+prefix length `n`, the mouse-x position `mx` (canvas-local) maps back to BPM index via
+`i = round((mx - 10) * (n - 1) / (w - 20))`, clamped to `[0, n-1]`. Out-of-bounds (or
+non-finite at that index) hides the tooltip without pinning.
+
+**C. Frontend — axis labels + sector-boundary ticks**
+(additions inside `render()` in `trajectory.js`)
+
+Vertical (Y-on-canvas, ±mm):
+
+- Three numeric ticks on the left edge: `+maxAbs`, `0`, `−maxAbs`, labeled with values
+  rounded to 2 decimals and trailing `mm` on the topmost.
+- Existing dashed zero line stays.
+
+Horizontal (X-on-canvas, BPM-index → sector):
+
+- At `render()` time, compute sector groups from `state.names`: for each entry, extract
+  the `SR\d{2}` prefix (regex), group consecutive same-sector entries into runs of
+  `{sector_label, start_index, end_index}`. Twelve groups expected from the production
+  107-entry list, one per ALS sector.
+- For each group, draw a faint vertical tick from the bottom edge of the plot area
+  upward ~6 px at `xFor(start_index)`. Below the plot area, draw the sector label
+  (`SR01`, `SR02`, …, `SR12`) centered between this group's start and end x-coordinates.
+- The two canvases share the same X axis. **Both canvases get the sector labels** so
+  each plot is independently readable — keeping label-on-Y-only would create a vertical
+  scale mismatch between the two stacked plots (their `cy = h / 2` zero-lines would no
+  longer align relative to their full height). Cost is one extra row of labels; benefit
+  is consistent geometry.
+
+Both canvases grow in height from 160 px to ~190 px to give room for sector labels
+below the plot area. **If labels look cramped at 190, bump further** — the
+implementation may need to iterate visually. The vertical numeric ticks fit inside the
+existing height.
+
+**D. Status header polish**
+(`pytxt/frontend/js/trajectory.js`)
+
+Already matches `Status: <STATUS> · turn <N> · <ok> OK · <fail> FAIL · <timestamp>` from
+M2-3 work. Only change: reformat the timestamp from ISO-8601 with microseconds + offset
+(`2026-05-22T21:48:55.518797+00:00`) to a compact local-time form (`21:48:55 UTC` or
+`21:48:55`). Use `new Date(iso).toLocaleTimeString()` or similar; no structural change.
+
+**E. Playwright e2e — `tests/e2e/trajectory.spec.js`**
+
+One spec, smoke-and-hover. Mirror the existing `tests/e2e/ping.spec.js` setup pattern:
+
+1. Navigate to `http://localhost:8008/trajectory.html`.
+2. Wait for `#connectionStatus` to read `connected`.
+3. Click `#acquireButton`.
+4. Wait for `#trajectoryStatus` text to contain `OK`.
+5. Assert canvasX and canvasY have non-zero pixel content via
+   `ctx.getImageData(0, 0, w, h).data.some(b => b !== 0)`.
+6. Simulate `page.mouse.move(...)` to the centre of canvasX.
+7. Assert `#trajectoryTooltip` is visible and `textContent` matches `/SR\d{2}/`.
+
+The fake-BPM IOC fixture used by integration tests doesn't run in the e2e environment
+directly. Two options for sourcing data: (a) run the full pytxt service against a
+test-mode `fake_bpm_ioc` started in a separate process; (b) provide a small in-test
+stub. Defer to the implementer to choose based on what `tests/e2e/ping.spec.js` already
+does — match that pattern.
+
+Click-to-pin behavior is **out of scope for e2e**. The hover assertion + manual visual
+check is sufficient for M4. If we ever add JS unit tests, pin/dismiss state machine
+becomes a natural target.
+
+**F. Out of scope for M4 (explicitly):**
+
+- Auto-refresh toggle (deferred to phase 3+ per §5.4).
+- Per-BPM raw waveform visualization (the multi-line "Raw BPM Signal" view from the
+  MATLAB manual — phase 3+).
+- Sector zoom / BBA tooling (phase 3+).
+- Reference-trajectory overlay (phase 3).
+- JS unit test infrastructure (would be a separate cross-cutting milestone if we
+  invested in it).
+
+**G. Decision-log obligations on closeout** (`[m4-raw-rest-and-polish]` plus
+sub-tags as needed):
+
+- The `409→drop` choice (tag `[m4-raw-rest-no-409]`).
+- The click-to-pin pattern beyond pure hover.
+- The sector-boundary tick choice over numeric BPM index.
+- Any caproto/Playwright surprises from implementation.
+- Canvas-height iteration if 190 px ended up needing further increase.
+
 **Total estimate:** ~9 working days. Each milestone is a coherent commit / PR / demo unit.
 
 ---
