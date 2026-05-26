@@ -547,7 +547,7 @@
 <div class="topbar">
   <h1>PyTxT</h1>
   <div class="tagline">Turn-by-turn beam analysis for the ALS injection chain — roadmap &amp; live status</div>
-  <div class="meta" id="last-updated">Last updated: 2026-05-24</div>
+  <div class="meta" id="last-updated">Last updated: 2026-05-26</div>
 </div>
 
 <!-- ============================================== -->
@@ -566,7 +566,7 @@
       regression guard: <code>tests/e2e/trajectory.spec.js</code> drives a synthetic-mode pytxt
       (<code>PYTXT_USE_SYNTHETIC_READER=1</code>, 12 fake SR-prefixes, deterministic waveforms) through the
       full acquire → render → hover flow. Full suite is now 121/121 pytest + 5/5 Playwright. Next: Phase 3
-      brainstorming (analysis layer — reference storage, comparison, response-matrix math).
+      (reference trajectory — <code>.mat</code> load/save, ΔX/ΔY difference panels).
     </p>
     <div class="progress" title="Phase 2 complete">
       <div class="progress-fill" style="width: 100%"></div>
@@ -904,7 +904,6 @@
 
   <h3 style="margin-top:1rem">Next milestone — Phase 3 (Reference trajectory)</h3>
   <ol>
-    <li><strong>Concrete first step:</strong> invoke <code>superpowers:brainstorming</code> to refine the Phase 3 spec, then <code>writing-plans</code>, then subagent-driven dispatch — same workflow validated through M2-M4.</li>
     <li><strong>Anticipated scope</strong> (per phase-2-design spec §14, "Forward compatibility — what phase 3 looks like on this foundation"): new <code>pytxt/domain/reference.py</code> for <code>.mat</code> load/save and <code>B - R0</code> difference math; new <code>AppState</code> fields <code>reference_trajectory</code> + <code>reference_loaded_at</code>; new PVs <code>STATE:REF_LOADED</code>, <code>STATE:REF_NAME</code>, <code>RESULT:BPM:X_DIFF_FIRST_TURN</code>, <code>RESULT:BPM:Y_DIFF_FIRST_TURN</code>, <code>CMD:LOAD_REF</code>, <code>CMD:SAVE_REF</code>; new REST routes <code>POST /api/v1/cmd/load_ref</code> + <code>save_ref</code> (multipart upload/download); new <code>handlers/reference.py</code>; frontend 4-panel layout (X, Y, ΔX, ΔY) when a reference is loaded; <code>test_parity.py</code> grows by 2 parametrize rows.</li>
     <li><strong>Structural promise:</strong> spec §14 commits to "zero structural changes from phase 2" — every addition lands in a package that already exists. Composition root grows by one or two lines.</li>
   </ol>
