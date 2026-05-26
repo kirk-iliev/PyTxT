@@ -898,22 +898,29 @@
 <div class="next-box">
   <h3>Immediate — Kirk</h3>
   <ol>
-    <li><strong>Phase 2 is closed; deploy + smoke-test against the live ALS ring at the next opportunity.</strong> M2-3 already validated the trajectory pipeline against the real ring on 2026-05-22; phase-2 DoD §12.2 expects a fresh ring smoke-test now that M4's UI polish has landed, but this is operational follow-through rather than a blocker for declaring phase 2 done.</li>
-    <li><strong>Kick off Phase 3 brainstorming (analysis layer).</strong> Reference-trajectory storage + comparison + response-matrix math + BBA tooling per spec §14. Next concrete step: invoke <code>superpowers:brainstorming</code> to scope the phase 3 spec.</li>
+    <li><strong>Push the 11 unpushed M4 commits to <code>origin/main</code>.</strong> Local <code>main</code> is ahead by the 8 M4 implementation commits + 2 roadmap/decision-log close-outs + 1 touchup. Nothing on origin will conflict.</li>
+    <li><strong>Live-ring revalidation on appsdev2.</strong> M2-3 already proved the trajectory pipeline against the real 107-BPM ring on 2026-05-22, but M4's operator-facing polish (sector ticks, hover tooltip with click-to-pin, compact timestamp) has only been seen via the 12-BPM synthetic reader. Phase-2 DoD §12.2 expects the fresh smoke-test now that polish has landed. Not blocking the phase close — operational follow-through.</li>
   </ol>
-  <h3 style="margin-top:1rem">M4 — closed 2026-05-24</h3>
+
+  <h3 style="margin-top:1rem">Next milestone — Phase 3 (Reference trajectory)</h3>
   <ol>
-    <li>M4 ✅ <strong>raw REST + UI polish + Playwright e2e.</strong> Real <code>GET /api/v1/result/bpm/raw?bpm=&lt;prefix&gt;</code> returning <code>BpmRawWaveforms</code> JSON (400/404 only — spec's original 409 dropped because <code>last_acquire_raws</code> updates atomically). Frontend polish: Y-axis numeric ticks (±maxAbs mm), sector-boundary X-axis ticks (SR01..SR12) under both canvases, hover tooltip showing BPM name + X/Y values with click-to-pin and outside-click dismiss, compact HH:MM:SS timestamp. Composition-time fork to a <code>SyntheticBpmReader</code> via <code>PYTXT_USE_SYNTHETIC_READER=1</code> (12 deterministic SR-prefixes) feeds Playwright's auto-launched server. <code>tests/e2e/trajectory.spec.js</code> covers the full acquire → render → hover flow; all 5 e2e specs (smoke 2 + ping 2 + trajectory 1) pass in ~5 s. Settings whitelist gap-fill for the new env var (2 lines). 8 commits + this close-out. Decision log <code>[m4-raw-rest-and-polish]</code>.</li>
+    <li><strong>Concrete first step:</strong> invoke <code>superpowers:brainstorming</code> to refine the Phase 3 spec, then <code>writing-plans</code>, then subagent-driven dispatch — same workflow validated through M2-M4.</li>
+    <li><strong>Anticipated scope</strong> (per phase-2-design spec §14, "Forward compatibility — what phase 3 looks like on this foundation"): new <code>pytxt/domain/reference.py</code> for <code>.mat</code> load/save and <code>B - R0</code> difference math; new <code>AppState</code> fields <code>reference_trajectory</code> + <code>reference_loaded_at</code>; new PVs <code>STATE:REF_LOADED</code>, <code>STATE:REF_NAME</code>, <code>RESULT:BPM:X_DIFF_FIRST_TURN</code>, <code>RESULT:BPM:Y_DIFF_FIRST_TURN</code>, <code>CMD:LOAD_REF</code>, <code>CMD:SAVE_REF</code>; new REST routes <code>POST /api/v1/cmd/load_ref</code> + <code>save_ref</code> (multipart upload/download); new <code>handlers/reference.py</code>; frontend 4-panel layout (X, Y, ΔX, ΔY) when a reference is loaded; <code>test_parity.py</code> grows by 2 parametrize rows.</li>
+    <li><strong>Structural promise:</strong> spec §14 commits to "zero structural changes from phase 2" — every addition lands in a package that already exists. Composition root grows by one or two lines.</li>
   </ol>
-  <h3 style="margin-top:1rem">M2 — closed 2026-05-22</h3>
+
+  <h3 style="margin-top:1rem">Open questions worth picking up at Phase 3 start</h3>
   <ol>
-    <li>M2-1 ✅ <strong>composition loader.</strong> Replaced M1's <code>_PHASE_2_M1_BPM_PREFIXES</code> hardcode with <code>load_bpm_prefixes(settings.bpm_prefixes_path)</code>. 6 new unit tests. Validated on appsdev2 2026-05-22.</li>
-    <li>M2-2 ✅ <strong>scale tests.</strong> Two new integration tests pinning <code>BpmReader.read_all</code> at N∈{10,50,107} and full <code>handle_acquire</code> at N=107, both well under the 3 s DoD budget. Decision log <code>[m2-2-scale-tests]</code>.</li>
-    <li>M2-3 ✅ <strong>browser visual validation.</strong> Live ring trajectory rendering against the real ALS storage ring. Scope ballooned from "deploy + screenshot" to two real backend fixes plus polish: <code>0d5ed25</code> EPICS_CA_ADDR_LIST localhost prepend (so WS bridge can find our own IOC), <code>5031240</code> <code>_coerce_value</code> rewrite for waveform PVs (numpy arrays / DbrStringArray / NaN→None), and <code>9a27edb</code> renderer polish (trim trailing NaN + per-BPM dot overlay). Decision logs <code>[ws-bridge-ca-addr-list]</code>, <code>[ws-coerce-waveform]</code>, <code>[m2-3-render-polish]</code>.</li>
+    <li><strong>WS message <code>type</code> discriminator</strong> (deferred from Phase 1 code review). The WS payload shape is currently implicit; Phase 3 adds enough new message types that an explicit discriminator becomes worth it. Phase-2-design spec §15.</li>
+    <li><strong>Per-BPM raw waveforms as PVs in addition to REST.</strong> Current decision: REST-only (raw is too large for PV semantics). Revisit if the archiver wants CA-native access to log first-turn data. Spec §15.</li>
+    <li><strong>Runtime reload of <code>bpm_prefixes</code></strong> (e.g. <code>CMD:RELOAD_BPM_LIST</code>). Defer unless BPM topology starts changing more often than expected. Spec §15.</li>
   </ol>
-  <h3 style="margin-top:1rem">M3 — closed 2026-05-24</h3>
+
+  <h3 style="margin-top:1rem">Longer view — Phases 4-6</h3>
   <ol>
-    <li>M3 ✅ <strong>failure handling — fixture fault injection + CA-putter symmetry + classify-path coverage.</strong> Construct-time hooks on <code>fake_bpm_ioc</code> (<code>offline_prefixes</code> + <code>slow_prefixes</code>); 6 new integration tests (partial-fail via offline, partial-fail via timeout, state-PV publication, all-fail via emergency catch-all, all-fail via <code>_classify</code>, concurrent CA acquire raises) + 2 unit tests pinning the modified <code>cmd_acquire</code> putter. One small prod-code change at <code>55201f6</code>: putter re-raises <code>AcquisitionInFlightError</code> instead of swallowing, so <code>caput</code> while in-flight surfaces as a CA write error (caproto 0.8.x observable: <code>CaprotoTimeoutError</code> waiting for write-ACK). Decision log <code>[m3-failure-handling]</code>.</li>
+    <li><strong>Phase 4 (Threading workflow):</strong> arming + triggering BPMs; resolves the two deferred MML black boxes (<code>srinjectoneshot</code>, <code>steppv</code>); pySC integration (lattice, response matrix, SVD pseudo-inverse); port <code>FirstTurnThreading.m</code>; CM step calc and apply.</li>
+    <li><strong>Phase 5 (Analysis polish):</strong> Gaussian fits on first-turn data; dispersion, kick angle, RMS metrics; full GUI feature parity with the 18-step MATLAB manual; tab-structured frontend.</li>
+    <li><strong>Phase 6 (Hardening + deploy):</strong> CI pipeline, log shipping, monitoring/alerting, Phoebus screen examples, production deploy automation to appsdev2.</li>
   </ol>
 </div>
 
