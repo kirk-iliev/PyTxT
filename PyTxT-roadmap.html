@@ -547,7 +547,7 @@
 <div class="topbar">
   <h1>PyTxT</h1>
   <div class="tagline">Turn-by-turn beam analysis for the ALS injection chain — roadmap &amp; live status</div>
-  <div class="meta" id="last-updated">Last updated: 2026-05-26</div>
+  <div class="meta" id="last-updated">Last updated: 2026-05-29</div>
 </div>
 
 <!-- ============================================== -->
@@ -556,29 +556,31 @@
 <div class="hero">
   <div class="hero-current">
     <div class="label">Current phase</div>
-    <h2>Phase 2 · Read path (M1 ✓ · M2 ✓ · M3 ✓ · M4 ✓ — closed)</h2>
+    <h2>Phase 3 · Reference trajectory (M1 ✓ · M2 · M3 · M4 — in progress)</h2>
     <p>
-      <strong>Phase 2 complete as of 2026-05-24.</strong> All four milestones validated. M4 (final) added the real
-      <code>GET /api/v1/result/bpm/raw?bpm=&lt;prefix&gt;</code> endpoint (400/404 paths only — the spec's
-      original 409 was dropped because <code>last_acquire_raws</code> updates atomically), trajectory polish
-      (Y-axis numeric ticks, sector-boundary X-axis ticks under both canvases, hover tooltip with
-      click-to-pin and outside-click dismiss, compact HH:MM:SS timestamp), and the first browser-level e2e
-      regression guard: <code>tests/e2e/trajectory.spec.js</code> drives a synthetic-mode pytxt
-      (<code>PYTXT_USE_SYNTHETIC_READER=1</code>, 12 fake SR-prefixes, deterministic waveforms) through the
-      full acquire → render → hover flow. Full suite is now 121/121 pytest + 5/5 Playwright. Next: Phase 3
-      (reference trajectory — <code>.mat</code> load/save, ΔX/ΔY difference panels).
+      <strong>Phase 2 (read path) closed 2026-05-24; Phase 3 underway.</strong> M1 (pure domain) landed
+      2026-05-29: a new I/O-free <code>pytxt/domain/reference.py</code> with the five public functions —
+      <code>canonicalize_bpm_name</code>, <code>load_reference_mat</code>, <code>save_reference_mat</code>
+      (MATLAB-compatible <code>R0</code>/<code>BPMs</code> + PyTxT-extended waveform schema, interop-safe both
+      ways), <code>align_to_current</code> (soft-merge by canonical BPM name), and
+      <code>compute_diff</code>/<code>summarize_diff</code> (NaN-aware <code>B − R0</code> math). New
+      <code>Reference</code>/<code>DiffSummary</code> dataclasses in <code>domain/types.py</code>; scipy added
+      as a runtime dep. Verified against the real 104-BPM MATLAB sample file. 40 new unit tests, all green;
+      no PV/REST/AppState/frontend surface yet (that's M2+). Next: M2 — wire the domain into AppState, publish
+      <code>STATE:REF_*</code> + <code>RESULT:BPM:*_DIFF_*</code> PVs, and the file-free
+      <code>PROMOTE_REF</code>/<code>CLEAR_REF</code> command pair.
     </p>
-    <div class="progress" title="Phase 2 complete">
-      <div class="progress-fill" style="width: 100%"></div>
+    <div class="progress" title="Phase 3: 1 of 4 milestones complete">
+      <div class="progress-fill" style="width: 25%"></div>
     </div>
-    <div class="progress-text">M1 ✓ · M2 ✓ · M3 ✓ · M4 ✓</div>
+    <div class="progress-text">M1 ✓ · M2 · M3 · M4</div>
   </div>
 
   <div class="stats">
     <div class="stat"><div class="num">2 / 6</div><div class="lbl">Phases complete</div></div>
-    <div class="stat"><div class="num">121 / 121</div><div class="lbl">Tests passing</div></div>
+    <div class="stat"><div class="num">160 / 161</div><div class="lbl">Tests passing <span class="hint">1 known-flaky CA test</span></div></div>
     <div class="stat"><div class="num">5</div><div class="lbl">E2E specs</div></div>
-    <div class="stat"><div class="num">0</div><div class="lbl">Unpushed commits</div></div>
+    <div class="stat"><div class="num">9</div><div class="lbl">Unpushed commits</div></div>
   </div>
 </div>
 
@@ -672,26 +674,23 @@
   </details>
 
   <!-- ====== PHASE 3 ====== -->
-  <details class="phase planned">
+  <details class="phase now" open>
     <summary>
       <div class="num">Phase 3</div>
       <div class="title">Reference trajectory</div>
       <div class="blurb">Load/save <code>.mat</code>; overlay reference; difference panels.</div>
-      <div class="badges"><span class="badge badge-plan">⏳ Planned</span></div>
+      <div class="badges"><span class="badge badge-now">🔨 In progress · M1 ✓</span></div>
     </summary>
     <div class="body">
-      <h4>Anticipated scope</h4>
+      <h4>Milestones (per design spec §11)</h4>
       <ul>
-        <li>Load/save <code>.mat</code> reference trajectories (REST file upload/download)</li>
-        <li><code>STATE:REF_LOADED</code>, <code>STATE:REF_NAME</code> PVs</li>
-        <li><code>RESULT:BPM:X_DIFF_FIRST_TURN</code> / <code>:Y_DIFF_FIRST_TURN</code></li>
-        <li><code>CMD:LOAD_REF</code>, <code>CMD:SAVE_REF</code></li>
-        <li>Frontend: 4-panel layout when reference is loaded (X, Y, ΔX, ΔY)</li>
-        <li>New domain module: <code>pytxt/domain/reference.py</code></li>
-        <li>Parity test grows by 2 parametrize rows</li>
+        <li><strong>M1 — Pure domain ✓</strong> (2026-05-29): I/O-free <code>pytxt/domain/reference.py</code> (<code>.mat</code> load/save + <code>B − R0</code> math), <code>Reference</code>/<code>DiffSummary</code> types, scipy dep. 40 unit tests green.</li>
+        <li><strong>M2 — In-memory ops + diff publication:</strong> AppState fields, <code>STATE:REF_*</code> + <code>RESULT:BPM:*_DIFF_*</code> PVs, <code>PROMOTE_REF</code>/<code>CLEAR_REF</code> command pair, <code>handle_acquire</code> publishes the diff.</li>
+        <li><strong>M3 — File library + LOAD/SAVE:</strong> <code>reference_dir</code>, path-safety, <code>handlers/reference.py</code>, <code>CMD:LOAD_REF</code>/<code>CMD:SAVE_REF</code> + REST mirrors, <code>GET /references</code>.</li>
+        <li><strong>M4 — Upload/download + frontend + e2e:</strong> multipart <code>POST /references</code>, 4-panel layout (X, Y, ΔX, ΔY) when a ref is loaded, reference sidebar, Playwright spec.</li>
       </ul>
       <h4>Note</h4>
-      <ul><li>Zero structural changes from phase 2 expected.</li></ul>
+      <ul><li>Zero structural changes from phase 2 — every addition lands in a package that already exists.</li></ul>
     </div>
   </details>
 
@@ -759,6 +758,35 @@
 <!-- ============================================== -->
 <!-- CURRENT-PHASE MILESTONE TRACKER                 -->
 <!-- ============================================== -->
+<h2 class="section">Phase 3 milestones <span class="hint">M1 done · M2 next</span></h2>
+
+<div class="milestones">
+  <div class="ms done">
+    <div class="ms-label">M1</div>
+    <span class="ms-status"><span class="badge badge-done">✓ Done</span></span>
+    <div class="ms-title">Pure domain</div>
+    <div class="ms-meta">6 tasks · 40 unit tests · <code>pytxt/domain/reference.py</code> (<code>canonicalize_bpm_name</code>, <code>load_reference_mat</code>, <code>save_reference_mat</code>, <code>align_to_current</code>, <code>compute_diff</code>/<code>summarize_diff</code>) + <code>Reference</code>/<code>DiffSummary</code> types + scipy dep. Round-trips and parses the real 104-BPM MATLAB file. No PV/REST/AppState/frontend surface yet. Done 2026-05-29.</div>
+  </div>
+  <div class="ms now">
+    <div class="ms-label">M2</div>
+    <span class="ms-status"><span class="badge badge-now">Next</span></span>
+    <div class="ms-title">In-memory ops + diff publication</div>
+    <div class="ms-meta">AppState fields, <code>STATE:REF_*</code> + <code>RESULT:BPM:*_DIFF_*</code> PVs, file-free <code>PROMOTE_REF</code>/<code>CLEAR_REF</code> command pair (CA + REST), <code>handle_acquire</code> computes &amp; publishes the diff. Parity test grows by 2 rows.</div>
+  </div>
+  <div class="ms todo">
+    <div class="ms-label">M3</div>
+    <span class="ms-status"><span class="badge badge-plan">⏳ Planned</span></span>
+    <div class="ms-title">File library + LOAD/SAVE</div>
+    <div class="ms-meta"><code>settings.reference_dir</code>, path-safety helper, <code>pytxt/handlers/reference.py</code>, <code>CMD:LOAD_REF</code>/<code>CMD:SAVE_REF</code> + REST mirrors, <code>GET /references</code>, error paths (404/409/422). Parity test grows by 2 more rows.</div>
+  </div>
+  <div class="ms todo">
+    <div class="ms-label">M4</div>
+    <span class="ms-status"><span class="badge badge-plan">⏳ Planned</span></span>
+    <div class="ms-title">Upload/download + 4-panel frontend + e2e</div>
+    <div class="ms-meta">Multipart <code>POST /references</code> + <code>GET /references/{name}</code> + <code>GET /result/ref/raw</code>; frontend reference sidebar + layout switch to 4 panels (X, Y, ΔX, ΔY) on <code>REF_LOADED</code>; Playwright e2e (acquire → promote → diff → save → clear → load).</div>
+  </div>
+</div>
+
 <h2 class="section">Phase 2 milestones <span class="hint">all closed</span></h2>
 
 <div class="milestones">
@@ -898,14 +926,14 @@
 <div class="next-box">
   <h3>Immediate — Kirk</h3>
   <ol>
-    <li><strong>Push the 11 unpushed M4 commits to <code>origin/main</code>.</strong> Local <code>main</code> is ahead by the 8 M4 implementation commits + 2 roadmap/decision-log close-outs + 1 touchup. Nothing on origin will conflict.</li>
-    <li><strong>Live-ring revalidation on appsdev2.</strong> M2-3 already proved the trajectory pipeline against the real 107-BPM ring on 2026-05-22, but M4's operator-facing polish (sector ticks, hover tooltip with click-to-pin, compact timestamp) has only been seen via the 12-BPM synthetic reader. Phase-2 DoD §12.2 expects the fresh smoke-test now that polish has landed. Not blocking the phase close — operational follow-through.</li>
+    <li><strong>Push the 9 unpushed commits to <code>origin/main</code>.</strong> Local <code>main</code> is ahead by the Phase 3 design spec + decision log, the M1 plan, and the 6 M1 implementation/closeout commits. Nothing on origin will conflict.</li>
+    <li><strong>Live-ring revalidation on appsdev2.</strong> M2-3 already proved the trajectory pipeline against the real 107-BPM ring on 2026-05-22, but Phase-2 M4's operator-facing polish (sector ticks, hover tooltip with click-to-pin, compact timestamp) has only been seen via the 12-BPM synthetic reader. Phase-2 DoD §12.2 expects the fresh smoke-test now that polish has landed. Operational follow-through.</li>
   </ol>
 
-  <h3 style="margin-top:1rem">Next milestone — Phase 3 (Reference trajectory)</h3>
+  <h3 style="margin-top:1rem">Next milestone — Phase 3 M2 (In-memory ops + diff publication)</h3>
   <ol>
-    <li><strong>Anticipated scope</strong> (per phase-2-design spec §14, "Forward compatibility — what phase 3 looks like on this foundation"): new <code>pytxt/domain/reference.py</code> for <code>.mat</code> load/save and <code>B - R0</code> difference math; new <code>AppState</code> fields <code>reference_trajectory</code> + <code>reference_loaded_at</code>; new PVs <code>STATE:REF_LOADED</code>, <code>STATE:REF_NAME</code>, <code>RESULT:BPM:X_DIFF_FIRST_TURN</code>, <code>RESULT:BPM:Y_DIFF_FIRST_TURN</code>, <code>CMD:LOAD_REF</code>, <code>CMD:SAVE_REF</code>; new REST routes <code>POST /api/v1/cmd/load_ref</code> + <code>save_ref</code> (multipart upload/download); new <code>handlers/reference.py</code>; frontend 4-panel layout (X, Y, ΔX, ΔY) when a reference is loaded; <code>test_parity.py</code> grows by 2 parametrize rows.</li>
-    <li><strong>Structural promise:</strong> spec §14 commits to "zero structural changes from phase 2" — every addition lands in a package that already exists. Composition root grows by one or two lines.</li>
+    <li><strong>Scope</strong> (per design spec §11 M2): new <code>AppState</code> fields <code>reference_trajectory</code> + <code>reference_loaded_at</code>; new PVs <code>STATE:REF_LOADED</code>, <code>STATE:REF_SOURCE</code>, <code>RESULT:BPM:X_DIFF_FIRST_TURN</code>, <code>RESULT:BPM:Y_DIFF_FIRST_TURN</code>; the file-free <code>CMD:PROMOTE_REF</code> / <code>CMD:CLEAR_REF</code> command pair with REST mirrors; <code>handle_acquire</code> extended to compute &amp; publish the diff against the loaded reference. Parity test grows by 2 rows (PROMOTE, CLEAR). The M1 domain core (<code>align_to_current</code>, <code>compute_diff</code>, <code>summarize_diff</code>) is ready to wire in.</li>
+    <li><strong>Structural promise:</strong> spec §14 commits to "zero structural changes from phase 2" — every addition lands in a package that already exists. Composition root grows by one or two lines. A per-phase M2 plan should be written first (same brainstorm → plan flow as M1).</li>
   </ol>
 
   <h3 style="margin-top:1rem">Open questions worth picking up at Phase 3 start</h3>
@@ -929,6 +957,51 @@
 <h2 class="section">Recent activity <span class="hint">most recent commits</span></h2>
 
 <div class="activity">
+  <div class="commit">
+    <div class="hash">M1 ✓</div>
+    <div class="msg">2026-05-29 · <strong>Phase 3 M1 (pure domain) done.</strong> New I/O-free <code>pytxt/domain/reference.py</code> — <code>.mat</code> load/save (MATLAB-compat + PyTxT-extended schema), <code>align_to_current</code> soft-merge, NaN-aware <code>compute_diff</code>/<code>summarize_diff</code>; <code>Reference</code>/<code>DiffSummary</code> types; scipy dep. 40 new unit tests green (160/161 full suite; 1 known-flaky CA test). No PV/REST/AppState/frontend surface yet.</div>
+    <div class="tag">milestone</div>
+  </div>
+  <div class="commit">
+    <div class="hash">91e7d81</div>
+    <div class="msg">M1 closeout — decision log: dataclass placement (<code>types.py</code> not <code>reference.py</code>), <code>BPMs</code> stub-field choices on save, 161-test reality + the known-flaky CA integration test flagged for M3</div>
+    <div class="tag">docs(decisions)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">23bb045</div>
+    <div class="msg">M1 Task 5 — <code>compute_diff</code> (NaN-propagating <code>B − R0</code>) and <code>summarize_diff</code> (NaN-aware RMS / max-abs / n_valid)</div>
+    <div class="tag">feat(domain)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">ab38640</div>
+    <div class="msg">M1 Task 4 — <code>align_to_current</code>: soft-merge a reference's BPM set onto the current prefixes by canonical name; counts aligned/unaligned</div>
+    <div class="tag">feat(domain)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">be965a0</div>
+    <div class="msg">M1 Task 3 — <code>save_reference_mat</code>: MATLAB-compatible <code>R0</code>/<code>BPMs</code> + PyTxT-extended waveform schema; honest save→load round-trip (NaN survives, failed BPMs zero-fill)</div>
+    <div class="tag">feat(domain)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">c25f070</div>
+    <div class="msg">M1 Task 2 — <code>load_reference_mat</code>: parses the real 104-BPM MATLAB sample + the PyTxT-extended schema; required-var validation with precise errors</div>
+    <div class="tag">feat(domain)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">65c8767</div>
+    <div class="msg">M1 Task 1 — scipy runtime dep, <code>Reference</code>/<code>DiffSummary</code> dataclasses in <code>domain/types.py</code>, <code>canonicalize_bpm_name</code> (strip <code>:SA:[XY]</code>)</div>
+    <div class="tag">feat(domain)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">d93d862</div>
+    <div class="msg">Phase 3 M1 implementation plan — reference-domain (.mat I/O, align, diff), 6 tasks task-by-task</div>
+    <div class="tag">docs(plan)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">0438b78</div>
+    <div class="msg">Phase 3 reference-trajectory design spec — load/save <code>.mat</code>, ΔX/ΔY, file library; 4-milestone build sequence</div>
+    <div class="tag">docs(spec)</div>
+  </div>
   <div class="commit">
     <div class="hash">M4 ✓</div>
     <div class="msg">2026-05-24 · <strong>Phase 2 closed.</strong> M4 closed — raw REST <code>/result/bpm/raw</code> (400/404), trajectory polish (Y ticks + sector ticks + hover tooltip with click-to-pin + compact timestamp), <code>SyntheticBpmReader</code> for e2e, Playwright trajectory spec. 121/121 pytest + 5/5 e2e green.</div>
