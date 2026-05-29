@@ -200,6 +200,37 @@ def save_reference_mat(
     })
 
 
-# align_to_current         — Task 4
+def align_to_current(
+    ref: Reference,
+    current_prefixes: list[str],
+) -> tuple[FirstTurnResult, int, int]:
+    """Soft-merge by canonical BPM name. See spec §6.1."""
+    ref_idx = {name: i for i, name in enumerate(ref.bpm_names)}
+    n = len(current_prefixes)
+    x = np.full(n, np.nan, dtype=np.float64)
+    y = np.full(n, np.nan, dtype=np.float64)
+    sum_val = np.full(n, np.nan, dtype=np.float64)
+    inj = np.full(n, -1, dtype=np.int32)
+    n_aligned = 0
+    for i, prefix in enumerate(current_prefixes):
+        canonical = canonicalize_bpm_name(prefix)
+        ref_i = ref_idx.get(canonical)
+        if ref_i is None:
+            continue
+        x[i] = ref.first_turn.x_first_turn[ref_i]
+        y[i] = ref.first_turn.y_first_turn[ref_i]
+        sum_val[i] = ref.first_turn.sum_first_turn[ref_i]
+        inj[i] = int(ref.first_turn.injection_turn[ref_i])
+        n_aligned += 1
+    aligned = FirstTurnResult(
+        x_first_turn=x,
+        y_first_turn=y,
+        sum_first_turn=sum_val,
+        injection_turn=inj,
+        failed_bpm_names=[],
+    )
+    return aligned, n_aligned, n - n_aligned
+
+
 # compute_diff             — Task 5
 # summarize_diff           — Task 5
