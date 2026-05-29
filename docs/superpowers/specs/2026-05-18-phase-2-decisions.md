@@ -620,3 +620,24 @@ Things code-quality review flagged that are accepted as-is:
 - **Phase 3 (analysis layer) brainstorming is the next step.** Reference trajectory storage + comparison + response-matrix math + BBA tooling per spec §14.
 
 Tag: `[m4-raw-rest-and-polish]`.
+
+---
+
+## 2026-05-28 — First live-ring deploy + partial §12.2 validation on appsdev2
+
+**Context:** First time pointing the post-M4 build at the real ALS storage ring on appsdev2 (DoD §12.2 — "live ring acquire <3s on appsdev2"). Server launched in `.venv` on appsdev2; validated from a laptop over an SSH local-forward tunnel (`ssh -L 8008:localhost:8008 …`), since `api_host` binds `127.0.0.1`. Host EPICS env was already correct in the appsdev2 profile (`EPICS_CA_ADDR_LIST` = 7 control-room broadcast subnets, `EPICS_CA_AUTO_ADDR_LIST=NO`).
+
+**Decision / findings (observed — this session wrote no code):**
+
+- **Real reader confirmed.** `/api/v1/state` listed all **107 real BPM prefixes** (`SR02S:IDBPM2`, `SR04C:BPM6`, …). The authoritative real-vs-synthetic tell is the prefix list: synthetic mode (`composition.py:75`) *replaces* prefixes with exactly 12 fake `SR{01..12}C:BPM1`. 107 diverse names ⇒ real `BpmReader`; `PYTXT_USE_SYNTHETIC_READER` was never in effect.
+- **Acquire timing PASSES §12.2.** `POST /api/v1/cmd/acquire` → `status: OK, ok_count: 107, fail_count: 0`, full-ring read in **~1.29 s wall** (curl `time`), well under the 3 s target.
+- **`injection_turn_median: 1370` is REAL, not an artifact.** Initially (wrongly) suspected synthetic because 1370 == `SyntheticBpmReader._INJECTION_INDEX`. Causality is reversed: the synthetic constant was chosen to *mimic* the real machine's injection sample, so real data landing on ~1370 is expected. Do not treat 1370 as a synthetic flag — check the prefix list instead.
+- **caproto vs `caget` on large arrays.** `EPICS_CA_MAX_ARRAY_BYTES` is a `libca` (C client / `caget`) limit, **not** honored by caproto. PyTxT's caproto reader pulls full `(100000,)` waveforms regardless; a `caget` of a full TBT channel may truncate/error and that is a `caget` artifact, not a PyTxT problem.
+
+**OPEN THREAD (pick up here next session):** `GET /api/v1/result/bpm/raw?bpm=SR03C:BPM1` returned a **bare `404 {"detail":"Not Found"}`** — FastAPI's *default* 404, NOT this route's own messages (`result.py:31` `"Unknown BPM prefix: …"` / `result.py:34` `"No raw waveform data … yet"`). A bare "Not Found" means the request never reached the handler ⇒ **leading hypothesis: the pytxt running on appsdev2 is an older build that predates the M4 raw endpoint** (landed in `efedfde`). `/api/v1/state` working does not rule this out — `/state` has existed since M2. **Next step (queued, not yet run before session ended):** `curl -s localhost:8008/openapi.json | python3 -c "import sys,json; print('\n'.join(sorted(json.load(sys.stdin)['paths'])))"` — if `/api/v1/result/bpm/raw` is absent, redeploy/restart appsdev2 from current `main`, then re-verify the raw endpoint (expect oscillating `x_nm`, not flat) and the M4 UI polish.
+
+**Spec relationship:** Partially satisfies §12.2 — **acquire path + timing + real-data shape are validated live**; the **raw REST endpoint (§12.7) and the visual UI polish (sector ticks, hover tooltip, Y-axis ticks) remain UN-verified against the real ring** pending resolution of the stale-build question. The synthetic 12-BPM Playwright e2e proves rendering logic; real 107-BPM operator UX is still unseen.
+
+**Forward impact:** Phase 2 close is unaffected (it never blocked on §12.2). Before declaring §12.2 fully done: (1) confirm appsdev2 runs current `main`, (2) re-hit `/result/bpm/raw` for a real BPM, (3) open `http://localhost:8008/` over the tunnel and eyeball the 107-BPM render. No code defect identified this session; the only suspected issue is a deployment-freshness gap on appsdev2.
+
+Tag: `[live-validation-2026-05-28]`.

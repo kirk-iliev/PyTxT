@@ -1,0 +1,2174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PyTxT — Codebase Tour</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --bg-card: #ffffff;
+    --bg-soft: #fafafa;
+    --bg-sidebar: #f0f1f4;
+    --fg: #1a1a1a;
+    --fg-muted: #5a5a62;
+    --fg-faint: #8a8a92;
+    --accent: #0b5fff;
+    --accent-soft: #e8efff;
+    --accent-strong: #0040c2;
+    --code-bg: #f1f1f4;
+    --border: #e2e2e6;
+    --border-strong: #cdcdd3;
+    --mono: "SF Mono", Menlo, Monaco, Consolas, monospace;
+
+    /* Layer palette (each architectural layer gets a color) */
+    --L-domain-bg:   #f5edff;  --L-domain-fg:   #6b21a8;  --L-domain-border:   #d8b4fe;
+    --L-ca-bg:       #ecfdf5;  --L-ca-fg:       #047857;  --L-ca-border:       #6ee7b7;
+    --L-state-bg:    #fffbeb;  --L-state-fg:    #b45309;  --L-state-border:    #fcd34d;
+    --L-ioc-bg:      #eef2ff;  --L-ioc-fg:      #3730a3;  --L-ioc-border:      #a5b4fc;
+    --L-api-bg:      #eff6ff;  --L-api-fg:      #1d4ed8;  --L-api-border:      #93c5fd;
+    --L-schema-bg:   #f0f9ff;  --L-schema-fg:   #0369a1;  --L-schema-border:   #7dd3fc;
+    --L-handler-bg:  #fff1f2;  --L-handler-fg:  #be123c;  --L-handler-border:  #fda4af;
+    --L-ws-bg:       #ecfeff;  --L-ws-fg:       #0e7490;  --L-ws-border:       #67e8f9;
+    --L-frontend-bg: #f0fdf4;  --L-frontend-fg: #15803d;  --L-frontend-border: #86efac;
+    --L-comp-bg:     #f1f5f9;  --L-comp-fg:     #334155;  --L-comp-border:     #cbd5e1;
+    --L-test-bg:     #f5f5f5;  --L-test-fg:     #525252;  --L-test-border:     #d4d4d4;
+    --L-misc-bg:     #fafaf9;  --L-misc-fg:     #57534e;  --L-misc-border:     #d6d3d1;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+
+  /* ========== Layout ========== */
+  .layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    min-height: 100vh;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { position: static; height: auto; max-height: none; border-right: 0; border-bottom: 1px solid var(--border); }
+  }
+
+  /* ========== Sidebar ========== */
+  .sidebar {
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 1.1rem 0.9rem 2rem;
+  }
+  .sidebar h2 {
+    margin: 0 0 0.4rem;
+    font-size: 0.95rem;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .sidebar .brand {
+    font-size: 1.05rem;
+    color: var(--fg);
+    text-transform: none;
+    letter-spacing: 0;
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.7rem;
+  }
+  .sidebar .brand small { color: var(--fg-faint); font-weight: 400; }
+  .sidebar input.filter {
+    width: 100%;
+    padding: 0.45rem 0.6rem;
+    font-size: 0.9rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: #fff;
+    margin-bottom: 0.8rem;
+  }
+  .sidebar input.filter:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .sidebar details {
+    margin-bottom: 0.35rem;
+    border-radius: 6px;
+  }
+  .sidebar summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 0.35rem 0.5rem;
+    border-radius: 5px;
+    font-weight: 600;
+    color: var(--fg);
+    font-size: 0.92rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .sidebar summary::-webkit-details-marker { display: none; }
+  .sidebar summary::before {
+    content: "▶";
+    font-size: 0.65rem;
+    color: var(--fg-faint);
+    transition: transform 0.15s;
+    display: inline-block;
+  }
+  .sidebar details[open] > summary::before { transform: rotate(90deg); }
+  .sidebar summary:hover { background: rgba(0,0,0,0.04); }
+  .sidebar ul { list-style: none; margin: 0.1rem 0 0.4rem 1.2rem; padding: 0; }
+  .sidebar li { margin: 0.1rem 0; }
+  .sidebar a {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: var(--fg-muted);
+    padding: 0.28rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.88rem;
+    font-family: var(--mono);
+  }
+  .sidebar a:hover { background: var(--accent-soft); color: var(--accent); }
+  .sidebar a.active { background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
+  .sidebar .layer-dot {
+    width: 0.55rem; height: 0.55rem; border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid rgba(0,0,0,0.1);
+  }
+  .reading-order {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.6rem 0.7rem;
+    margin-bottom: 0.9rem;
+    font-size: 0.82rem;
+    color: var(--fg-muted);
+  }
+  .reading-order strong { color: var(--fg); display: block; margin-bottom: 0.3rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .reading-order ol { margin: 0; padding-left: 1.2rem; }
+  .reading-order a { color: var(--accent); text-decoration: none; }
+  .reading-order a:hover { text-decoration: underline; }
+
+  /* ========== Main content ========== */
+  .main {
+    padding: 1.5rem 2rem 6rem;
+    max-width: 1100px;
+  }
+
+  .topbar {
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .topbar h1 {
+    margin: 0;
+    font-size: 1.9rem;
+    letter-spacing: -0.01em;
+  }
+  .topbar .tag {
+    color: var(--fg-muted);
+    margin-top: 0.2rem;
+  }
+
+  .hero {
+    background: linear-gradient(135deg, var(--accent-soft) 0%, #f5f8ff 100%);
+    border: 1px solid var(--L-api-border);
+    border-radius: 10px;
+    padding: 1.2rem 1.4rem;
+    margin-bottom: 1.6rem;
+  }
+  .hero h2 { margin: 0 0 0.4rem; font-size: 1.05rem; color: var(--accent-strong); text-transform: uppercase; letter-spacing: 0.05em; }
+  .hero p { margin: 0 0 0.5rem; }
+  .hero .principles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.7rem;
+    margin-top: 0.9rem;
+  }
+  .hero .principles div {
+    background: rgba(255,255,255,0.7);
+    border-radius: 6px;
+    padding: 0.55rem 0.7rem;
+    font-size: 0.88rem;
+    border-left: 3px solid var(--accent);
+  }
+  .hero .principles strong { display: block; color: var(--accent-strong); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.15rem; }
+
+  /* ========== Architecture diagram ========== */
+  .arch-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem;
+    margin-bottom: 2rem;
+  }
+  .arch-section h2 {
+    margin: 0 0 0.7rem;
+    font-size: 1.1rem;
+  }
+  .arch-section p.lede { color: var(--fg-muted); margin: 0 0 1rem; font-size: 0.92rem; }
+  svg.arch {
+    width: 100%; height: auto;
+    max-width: 100%;
+    display: block;
+  }
+  svg.arch .box rect {
+    transition: filter 0.15s;
+    cursor: pointer;
+  }
+  svg.arch .box:hover rect {
+    filter: brightness(1.04) drop-shadow(0 2px 6px rgba(0,0,0,0.12));
+  }
+  svg.arch text {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    pointer-events: none;
+    user-select: none;
+  }
+  svg.arch text.title { font-weight: 600; font-size: 12.5px; }
+  svg.arch text.sub { font-size: 10.5px; opacity: 0.85; }
+  svg.arch path.flow {
+    fill: none;
+    stroke: #94a3b8;
+    stroke-width: 1.6;
+  }
+  svg.arch text.flow-label {
+    font-size: 10px;
+    fill: #64748b;
+    font-style: italic;
+  }
+  svg.arch .group rect {
+    fill: #f8fafc;
+    stroke: #e2e8f0;
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+  }
+  svg.arch .group text {
+    font-size: 10px;
+    fill: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 1rem;
+    margin-top: 0.9rem;
+    font-size: 0.82rem;
+    color: var(--fg-muted);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .legend i {
+    width: 0.7rem; height: 0.7rem;
+    border-radius: 3px;
+    display: inline-block;
+    border: 1px solid rgba(0,0,0,0.1);
+  }
+
+  /* ========== Package sections ========== */
+  .pkg {
+    margin-bottom: 2.5rem;
+  }
+  .pkg-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.7rem;
+    margin-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.4rem;
+  }
+  .pkg-header h2 {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 1.25rem;
+  }
+  .pkg-header .role {
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+  }
+  .pkg-blurb {
+    color: var(--fg-muted);
+    margin: 0.2rem 0 1rem;
+    font-size: 0.95rem;
+  }
+
+  /* ========== File card ========== */
+  .file {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left-width: 4px;
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    margin-bottom: 0.9rem;
+    scroll-margin-top: 1rem;
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+  .file.highlight {
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .file-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin-bottom: 0.5rem;
+  }
+  .file-path {
+    font-family: var(--mono);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--fg);
+  }
+  .file-tag {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    font-weight: 600;
+  }
+  .file-tagline {
+    color: var(--fg-muted);
+    font-size: 0.92rem;
+    font-style: italic;
+    flex-basis: 100%;
+    margin-top: -0.15rem;
+  }
+  .file h4 {
+    margin: 0.8rem 0 0.25rem;
+    font-size: 0.78rem;
+    color: var(--fg-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .file p { margin: 0.2rem 0 0.5rem; }
+  .file ul.pieces { margin: 0.1rem 0 0.4rem; padding-left: 1.1rem; }
+  .file ul.pieces li { margin-bottom: 0.2rem; font-size: 0.93rem; }
+  .file ul.pieces code { font-family: var(--mono); background: var(--code-bg); padding: 0.05rem 0.32rem; border-radius: 3px; font-size: 0.86em; }
+  .talks {
+    display: flex; flex-wrap: wrap; gap: 0.35rem;
+    margin-top: 0.3rem;
+  }
+  .talks a {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    background: var(--code-bg);
+    color: var(--fg-muted);
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    text-decoration: none;
+    border: 1px solid var(--border);
+    transition: all 0.12s;
+  }
+  .talks a:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--L-api-border); }
+  .talks a.upstream::before { content: "← "; opacity: 0.6; }
+  .talks a.downstream::before { content: "→ "; opacity: 0.6; }
+  .talks a.external::before { content: "↔ "; opacity: 0.6; }
+
+  details.snippet {
+    margin-top: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-soft);
+  }
+  details.snippet > summary {
+    cursor: pointer;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+    font-weight: 500;
+    list-style: none;
+    user-select: none;
+  }
+  details.snippet > summary::-webkit-details-marker { display: none; }
+  details.snippet > summary::before { content: "▸ "; font-size: 0.75em; }
+  details.snippet[open] > summary::before { content: "▾ "; }
+  details.snippet pre {
+    margin: 0;
+    padding: 0.7rem 1rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    background: #fdfdfd;
+    border-top: 1px solid var(--border);
+    overflow-x: auto;
+    line-height: 1.5;
+  }
+  details.snippet .annot {
+    display: block;
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+    padding: 0.35rem 1rem;
+    font-size: 0.78rem;
+    border-top: 1px solid var(--L-api-border);
+    border-bottom: 1px solid var(--L-api-border);
+  }
+
+  /* ========== PV catalog ========== */
+  .ioc-deep {
+    background: var(--bg-card);
+    border: 1px solid var(--L-ioc-border);
+    border-left: 4px solid var(--L-ioc-border);
+    border-radius: 8px;
+    padding: 1.2rem 1.4rem;
+    margin-bottom: 2.5rem;
+  }
+  .ioc-deep > h2 {
+    margin: 0 0 0.3rem;
+    font-size: 1.25rem;
+    color: var(--L-ioc-fg);
+  }
+  .ioc-deep > p.lede {
+    color: var(--fg-muted);
+    margin: 0 0 1rem;
+  }
+  .pv-group {
+    margin: 1.3rem 0 0.8rem;
+  }
+  .pv-group h3 {
+    margin: 0.2rem 0 0.5rem;
+    font-family: var(--mono);
+    font-size: 1.02rem;
+    color: var(--L-ioc-fg);
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+  .pv-group h3 small {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--fg-muted);
+    font-weight: 400;
+    font-size: 0.82rem;
+  }
+  .pv-group .grp-intro {
+    color: var(--fg-muted);
+    font-size: 0.9rem;
+    margin: 0 0 0.6rem;
+  }
+  table.pvs {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.86rem;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  table.pvs th, table.pvs td {
+    text-align: left;
+    padding: 0.45rem 0.7rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.pvs thead th {
+    background: #fff;
+    color: var(--fg-muted);
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+  table.pvs tbody tr:last-child td { border-bottom: 0; }
+  table.pvs tbody tr:hover { background: var(--accent-soft); }
+  table.pvs td.pv-name {
+    font-family: var(--mono);
+    font-size: 0.84rem;
+    color: var(--L-ioc-fg);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  table.pvs td.pv-type {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--fg-muted);
+    white-space: nowrap;
+  }
+  table.pvs td.pv-desc { color: var(--fg); }
+  table.pvs td.pv-desc code {
+    font-family: var(--mono);
+    background: rgba(0,0,0,0.04);
+    padding: 0.05rem 0.3rem;
+    border-radius: 3px;
+    font-size: 0.92em;
+  }
+  .access-badge {
+    display: inline-block;
+    font-size: 0.66rem;
+    padding: 0.08rem 0.4rem;
+    border-radius: 999px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+  }
+  .access-r  { background: var(--L-state-bg); color: var(--L-state-fg); }
+  .access-w  { background: var(--L-handler-bg); color: var(--L-handler-fg); }
+
+  .pv-usage {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1.2rem;
+  }
+  @media (max-width: 800px) { .pv-usage { grid-template-columns: 1fr; } }
+  .pv-usage > div {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.7rem 0.9rem;
+  }
+  .pv-usage h4 {
+    margin: 0 0 0.4rem;
+    font-size: 0.78rem;
+    color: var(--fg-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .pv-usage pre {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    background: #fff;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow-x: auto;
+    line-height: 1.5;
+  }
+  .pv-usage p { margin: 0.3rem 0 0; font-size: 0.85rem; color: var(--fg-muted); }
+
+  .pv-life {
+    margin-top: 1.3rem;
+    background: linear-gradient(135deg, #f5f3ff 0%, #fafafa 100%);
+    border: 1px solid var(--L-ioc-border);
+    border-radius: 6px;
+    padding: 0.9rem 1.1rem;
+  }
+  .pv-life h3 {
+    margin: 0 0 0.4rem;
+    font-size: 0.9rem;
+    color: var(--L-ioc-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .pv-life ol { margin: 0; padding-left: 1.4rem; font-size: 0.9rem; color: var(--fg); }
+  .pv-life ol li { margin-bottom: 0.35rem; }
+  .pv-life ol li code { font-family: var(--mono); background: rgba(0,0,0,0.05); padding: 0.05rem 0.35rem; border-radius: 3px; font-size: 0.92em; }
+
+  /* ========== Toolbar above package sections ========== */
+  .toolbar {
+    display: flex; gap: 0.5rem; margin-bottom: 1.2rem;
+    flex-wrap: wrap;
+  }
+  .toolbar button {
+    font: inherit;
+    font-size: 0.83rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+    color: var(--fg-muted);
+    transition: all 0.12s;
+  }
+  .toolbar button:hover { background: var(--accent-soft); color: var(--accent-strong); border-color: var(--L-api-border); }
+
+  /* Layer-tinted borders on file cards */
+  .L-domain    { border-left-color: var(--L-domain-border); }
+  .L-ca        { border-left-color: var(--L-ca-border); }
+  .L-state     { border-left-color: var(--L-state-border); }
+  .L-ioc       { border-left-color: var(--L-ioc-border); }
+  .L-api       { border-left-color: var(--L-api-border); }
+  .L-schema    { border-left-color: var(--L-schema-border); }
+  .L-handler   { border-left-color: var(--L-handler-border); }
+  .L-ws        { border-left-color: var(--L-ws-border); }
+  .L-frontend  { border-left-color: var(--L-frontend-border); }
+  .L-comp      { border-left-color: var(--L-comp-border); }
+  .L-test      { border-left-color: var(--L-test-border); }
+  .L-misc      { border-left-color: var(--L-misc-border); }
+
+  /* Layer tag colors */
+  .tag-domain   { background: var(--L-domain-bg);   color: var(--L-domain-fg);   }
+  .tag-ca       { background: var(--L-ca-bg);       color: var(--L-ca-fg);       }
+  .tag-state    { background: var(--L-state-bg);    color: var(--L-state-fg);    }
+  .tag-ioc      { background: var(--L-ioc-bg);      color: var(--L-ioc-fg);      }
+  .tag-api      { background: var(--L-api-bg);      color: var(--L-api-fg);      }
+  .tag-schema   { background: var(--L-schema-bg);   color: var(--L-schema-fg);   }
+  .tag-handler  { background: var(--L-handler-bg);  color: var(--L-handler-fg);  }
+  .tag-ws       { background: var(--L-ws-bg);       color: var(--L-ws-fg);       }
+  .tag-frontend { background: var(--L-frontend-bg); color: var(--L-frontend-fg); }
+  .tag-comp     { background: var(--L-comp-bg);     color: var(--L-comp-fg);     }
+  .tag-test     { background: var(--L-test-bg);     color: var(--L-test-fg);     }
+  .tag-misc     { background: var(--L-misc-bg);     color: var(--L-misc-fg);     }
+
+  /* Dot colors by layer (sidebar) */
+  .dot-domain   { background: var(--L-domain-fg); }
+  .dot-ca       { background: var(--L-ca-fg); }
+  .dot-state    { background: var(--L-state-fg); }
+  .dot-ioc      { background: var(--L-ioc-fg); }
+  .dot-api      { background: var(--L-api-fg); }
+  .dot-schema   { background: var(--L-schema-fg); }
+  .dot-handler  { background: var(--L-handler-fg); }
+  .dot-ws       { background: var(--L-ws-fg); }
+  .dot-frontend { background: var(--L-frontend-fg); }
+  .dot-comp     { background: var(--L-comp-fg); }
+  .dot-test     { background: var(--L-test-fg); }
+  .dot-misc     { background: var(--L-misc-fg); }
+
+  footer.foot {
+    margin-top: 3rem;
+    color: var(--fg-faint);
+    font-size: 0.82rem;
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+  }
+  footer.foot code { font-family: var(--mono); background: var(--code-bg); padding: 0.05rem 0.32rem; border-radius: 3px; font-size: 0.95em; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ============================================================== -->
+  <!-- SIDEBAR                                                         -->
+  <!-- ============================================================== -->
+  <aside class="sidebar">
+    <h2 class="brand">PyTxT <small>· tour</small></h2>
+    <input type="text" class="filter" id="filter" placeholder="Filter files…" aria-label="Filter files">
+
+    <div class="reading-order">
+      <strong>Suggested reading order</strong>
+      <ol>
+        <li><a href="#composition">composition.py</a></li>
+        <li><a href="#app_state">state/app_state.py</a></li>
+        <li><a href="#bpm_reader">ca_client/bpm_reader.py</a></li>
+        <li><a href="#injection_turn">domain/injection_turn.py</a></li>
+        <li><a href="#acquire">handlers/acquire.py</a></li>
+        <li><a href="#ioc_pvs">ioc/pvs.py</a></li>
+        <li><a href="#ws_bridge">api/ws_bridge.py</a></li>
+        <li><a href="#fe_trajectory_js">frontend/js/trajectory.js</a></li>
+      </ol>
+    </div>
+
+    <details open>
+      <summary>pytxt/ <small>· entry</small></summary>
+      <ul>
+        <li><a href="#composition"><i class="layer-dot dot-comp"></i>composition.py</a></li>
+        <li><a href="#main_py"><i class="layer-dot dot-comp"></i>__main__.py</a></li>
+      </ul>
+    </details>
+
+    <details open>
+      <summary>config/</summary>
+      <ul>
+        <li><a href="#settings"><i class="layer-dot dot-misc"></i>settings.py</a></li>
+        <li><a href="#bpm_prefixes"><i class="layer-dot dot-misc"></i>bpm_prefixes.py</a></li>
+        <li><a href="#bpm_prefixes_txt"><i class="layer-dot dot-misc"></i>bpm_prefixes.txt</a></li>
+      </ul>
+    </details>
+
+    <details open>
+      <summary>state/</summary>
+      <ul>
+        <li><a href="#app_state"><i class="layer-dot dot-state"></i>app_state.py</a></li>
+      </ul>
+    </details>
+
+    <details open>
+      <summary>ca_client/</summary>
+      <ul>
+        <li><a href="#bpm_reader"><i class="layer-dot dot-ca"></i>bpm_reader.py</a></li>
+      </ul>
+    </details>
+
+    <details open>
+      <summary>domain/ <small>· pure</small></summary>
+      <ul>
+        <li><a href="#dom_types"><i class="layer-dot dot-domain"></i>types.py</a></li>
+        <li><a href="#injection_turn"><i class="layer-dot dot-domain"></i>injection_turn.py</a></li>
+        <li><a href="#first_turn"><i class="layer-dot dot-domain"></i>first_turn_extract.py</a></li>
+      </ul>
+    </details>
+
+    <details open>
+      <summary>handlers/</summary>
+      <ul>
+        <li><a href="#ping"><i class="layer-dot dot-handler"></i>ping.py</a></li>
+        <li><a href="#acquire"><i class="layer-dot dot-handler"></i>acquire.py</a></li>
+      </ul>
+    </details>
+
+    <details open>
+      <summary>ioc/</summary>
+      <ul>
+        <li><a href="#ioc_pvs"><i class="layer-dot dot-ioc"></i>pvs.py</a></li>
+        <li><a href="#ioc_server"><i class="layer-dot dot-ioc"></i>server.py</a></li>
+        <li><a href="#ioc-deep"><i class="layer-dot dot-ioc"></i><strong>PV catalog</strong></a></li>
+      </ul>
+    </details>
+
+    <details open>
+      <summary>api/</summary>
+      <ul>
+        <li><a href="#api_server"><i class="layer-dot dot-api"></i>server.py</a></li>
+        <li><a href="#ws_bridge"><i class="layer-dot dot-ws"></i>ws_bridge.py</a></li>
+      </ul>
+    </details>
+
+    <details>
+      <summary>api/routes/</summary>
+      <ul>
+        <li><a href="#route_health"><i class="layer-dot dot-api"></i>health.py</a></li>
+        <li><a href="#route_state"><i class="layer-dot dot-api"></i>state.py</a></li>
+        <li><a href="#route_cmd"><i class="layer-dot dot-api"></i>cmd.py</a></li>
+        <li><a href="#route_result"><i class="layer-dot dot-api"></i>result.py</a></li>
+      </ul>
+    </details>
+
+    <details>
+      <summary>api/schemas/</summary>
+      <ul>
+        <li><a href="#schema_state"><i class="layer-dot dot-schema"></i>state.py</a></li>
+        <li><a href="#schema_result"><i class="layer-dot dot-schema"></i>result.py</a></li>
+        <li><a href="#schema_cmd"><i class="layer-dot dot-schema"></i>cmd.py</a></li>
+        <li><a href="#schema_ws"><i class="layer-dot dot-schema"></i>ws.py</a></li>
+      </ul>
+    </details>
+
+    <details>
+      <summary>frontend/</summary>
+      <ul>
+        <li><a href="#fe_index"><i class="layer-dot dot-frontend"></i>index.html</a></li>
+        <li><a href="#fe_trajectory"><i class="layer-dot dot-frontend"></i>trajectory.html</a></li>
+        <li><a href="#fe_theme"><i class="layer-dot dot-frontend"></i>css/theme.css</a></li>
+        <li><a href="#fe_connection"><i class="layer-dot dot-frontend"></i>js/connection.js</a></li>
+        <li><a href="#fe_app_js"><i class="layer-dot dot-frontend"></i>js/app.js</a></li>
+        <li><a href="#fe_trajectory_js"><i class="layer-dot dot-frontend"></i>js/trajectory.js</a></li>
+      </ul>
+    </details>
+
+    <details>
+      <summary>tests/</summary>
+      <ul>
+        <li><a href="#tests_conftest"><i class="layer-dot dot-test"></i>conftest.py</a></li>
+        <li><a href="#tests_fixtures"><i class="layer-dot dot-test"></i>fixtures/fake_bpm_ioc.py</a></li>
+        <li><a href="#tests_unit"><i class="layer-dot dot-test"></i>unit/ (overview)</a></li>
+        <li><a href="#tests_integration"><i class="layer-dot dot-test"></i>integration/ (overview)</a></li>
+        <li><a href="#tests_parity"><i class="layer-dot dot-test"></i>integration/test_parity.py</a></li>
+        <li><a href="#tests_e2e"><i class="layer-dot dot-test"></i>e2e/ (overview)</a></li>
+      </ul>
+    </details>
+
+    <details>
+      <summary>scripts/ &amp; docker/</summary>
+      <ul>
+        <li><a href="#probe_bpm"><i class="layer-dot dot-misc"></i>scripts/probe_bpm.py</a></li>
+        <li><a href="#dockerfile"><i class="layer-dot dot-misc"></i>docker/Dockerfile</a></li>
+        <li><a href="#compose"><i class="layer-dot dot-misc"></i>docker/docker-compose.yml</a></li>
+        <li><a href="#compose_host"><i class="layer-dot dot-misc"></i>docker/docker-compose.host.yml</a></li>
+      </ul>
+    </details>
+
+    <details>
+      <summary>project files</summary>
+      <ul>
+        <li><a href="#makefile"><i class="layer-dot dot-misc"></i>Makefile</a></li>
+        <li><a href="#pyproject"><i class="layer-dot dot-misc"></i>pyproject.toml</a></li>
+        <li><a href="#env_example"><i class="layer-dot dot-misc"></i>.env.example</a></li>
+      </ul>
+    </details>
+  </aside>
+
+  <!-- ============================================================== -->
+  <!-- MAIN                                                            -->
+  <!-- ============================================================== -->
+  <main class="main">
+
+    <div class="topbar">
+      <h1>PyTxT — Codebase Tour</h1>
+      <div class="tag">A guided walkthrough of every package and every file. Built for readers who want to understand the shape of the codebase without diving into the source.</div>
+    </div>
+
+    <!-- ============= HERO ============= -->
+    <section class="hero">
+      <h2>What is PyTxT?</h2>
+      <p>PyTxT is a service that runs at the <strong>Advanced Light Source (ALS)</strong> particle accelerator. When operators inject a fresh bunch of electrons into the storage ring, ~120 sensors called <strong>BPMs</strong> (Beam Position Monitors) record the beam's position turn-by-turn — tens of thousands of samples each. PyTxT pulls those raw waveforms, finds the "injection turn" in each one, and publishes the per-BPM positions so that operators (and automation agents) can see the beam's trajectory and correct it.</p>
+      <p>It's a port of an older MATLAB GUI (<code>TxT_GUI.mlapp</code>) into a Python service with a browser UI. The design is deliberately <em>agent-callable first</em>: every meaningful action has both a REST endpoint and an EPICS PV, so an automation agent can drive it without going through the browser.</p>
+      <div class="principles">
+        <div><strong>① Agent-first</strong>Every command lives at both a REST route and a CA-write PV. Browser uses the same surface.</div>
+        <div><strong>② PVs are state</strong>App state is published as EPICS PVs via an embedded soft IOC. Browser is just another CA client.</div>
+        <div><strong>③ REST fills gaps</strong>Bulk transfers, file uploads, and the WS→CA bridge go through REST/WS — not PVs.</div>
+        <div><strong>④ Pure domain</strong>Analysis code (<code>domain/</code>) has zero I/O. Testable with numpy in milliseconds.</div>
+      </div>
+    </section>
+
+    <!-- ============= ARCH DIAGRAM ============= -->
+    <section class="arch-section">
+      <h2>Architecture at a glance</h2>
+      <p class="lede">Data enters from the left (real BPMs on the storage-ring network), flows through the Python service in the center, and exits on the right to two kinds of consumer: the browser UI and any external EPICS client (Phoebus, archiver, automation agents). Click any box to jump to that part of the tour.</p>
+
+      <svg class="arch" viewBox="0 0 1180 540" aria-label="PyTxT data-flow diagram">
+        <!-- Background group boxes -->
+        <g class="group">
+          <rect x="20"   y="40"  width="170" height="350" rx="8"/>
+          <text x="30" y="60">EXTERNAL · ALS NETWORK</text>
+        </g>
+        <g class="group">
+          <rect x="220"  y="40"  width="720" height="460" rx="8"/>
+          <text x="230" y="60">PyTxT PROCESS (single asyncio event loop)</text>
+        </g>
+        <g class="group">
+          <rect x="970"  y="40"  width="190" height="460" rx="8"/>
+          <text x="980" y="60">CONSUMERS</text>
+        </g>
+
+        <!-- ============ External: BPMs ============ -->
+        <g class="box" data-jump="#bpm_reader">
+          <rect x="35" y="105" width="140" height="60" rx="8"
+                fill="var(--L-ca-bg)" stroke="var(--L-ca-border)" stroke-width="1.5"/>
+          <text class="title" x="105" y="130" text-anchor="middle" fill="var(--L-ca-fg)">~120 ALS BPMs</text>
+          <text class="sub"   x="105" y="148" text-anchor="middle" fill="var(--L-ca-fg)">{prefix}:wfr:TBT:*</text>
+        </g>
+
+        <!-- ============ ca_client ============ -->
+        <g class="box" data-jump="#bpm_reader">
+          <rect x="245" y="105" width="170" height="60" rx="8"
+                fill="var(--L-ca-bg)" stroke="var(--L-ca-border)" stroke-width="1.5"/>
+          <text class="title" x="330" y="130" text-anchor="middle" fill="var(--L-ca-fg)">ca_client/</text>
+          <text class="sub"   x="330" y="148" text-anchor="middle" fill="var(--L-ca-fg)">BpmReader (caproto)</text>
+        </g>
+
+        <!-- ============ handlers ============ -->
+        <g class="box" data-jump="#acquire">
+          <rect x="465" y="105" width="170" height="60" rx="8"
+                fill="var(--L-handler-bg)" stroke="var(--L-handler-border)" stroke-width="1.5"/>
+          <text class="title" x="550" y="130" text-anchor="middle" fill="var(--L-handler-fg)">handlers/</text>
+          <text class="sub"   x="550" y="148" text-anchor="middle" fill="var(--L-handler-fg)">acquire · ping</text>
+        </g>
+
+        <!-- ============ domain ============ -->
+        <g class="box" data-jump="#first_turn">
+          <rect x="465" y="195" width="170" height="60" rx="8"
+                fill="var(--L-domain-bg)" stroke="var(--L-domain-border)" stroke-width="1.5"/>
+          <text class="title" x="550" y="220" text-anchor="middle" fill="var(--L-domain-fg)">domain/ (pure)</text>
+          <text class="sub"   x="550" y="238" text-anchor="middle" fill="var(--L-domain-fg)">first-turn extract</text>
+        </g>
+
+        <!-- ============ state ============ -->
+        <g class="box" data-jump="#app_state">
+          <rect x="685" y="150" width="170" height="65" rx="8"
+                fill="var(--L-state-bg)" stroke="var(--L-state-border)" stroke-width="1.5"/>
+          <text class="title" x="770" y="178" text-anchor="middle" fill="var(--L-state-fg)">state/AppState</text>
+          <text class="sub"   x="770" y="196" text-anchor="middle" fill="var(--L-state-fg)">single source of truth</text>
+        </g>
+
+        <!-- ============ ioc ============ -->
+        <g class="box" data-jump="#ioc-deep">
+          <rect x="685" y="265" width="170" height="65" rx="8"
+                fill="var(--L-ioc-bg)" stroke="var(--L-ioc-border)" stroke-width="1.5"/>
+          <text class="title" x="770" y="293" text-anchor="middle" fill="var(--L-ioc-fg)">ioc/ — soft IOC</text>
+          <text class="sub"   x="770" y="311" text-anchor="middle" fill="var(--L-ioc-fg)">caproto · publishes PVs</text>
+        </g>
+
+        <!-- ============ api routes ============ -->
+        <g class="box" data-jump="#api_server">
+          <rect x="245" y="265" width="170" height="60" rx="8"
+                fill="var(--L-api-bg)" stroke="var(--L-api-border)" stroke-width="1.5"/>
+          <text class="title" x="330" y="290" text-anchor="middle" fill="var(--L-api-fg)">api/ + routes/</text>
+          <text class="sub"   x="330" y="308" text-anchor="middle" fill="var(--L-api-fg)">FastAPI REST</text>
+        </g>
+
+        <!-- ============ ws bridge ============ -->
+        <g class="box" data-jump="#ws_bridge">
+          <rect x="245" y="355" width="170" height="60" rx="8"
+                fill="var(--L-ws-bg)" stroke="var(--L-ws-border)" stroke-width="1.5"/>
+          <text class="title" x="330" y="380" text-anchor="middle" fill="var(--L-ws-fg)">api/ws_bridge.py</text>
+          <text class="sub"   x="330" y="398" text-anchor="middle" fill="var(--L-ws-fg)">WS ↔ caproto client</text>
+        </g>
+
+        <!-- ============ composition ============ -->
+        <g class="box" data-jump="#composition">
+          <rect x="465" y="355" width="170" height="60" rx="8"
+                fill="var(--L-comp-bg)" stroke="var(--L-comp-border)" stroke-width="1.5"/>
+          <text class="title" x="550" y="380" text-anchor="middle" fill="var(--L-comp-fg)">composition.py</text>
+          <text class="sub"   x="550" y="398" text-anchor="middle" fill="var(--L-comp-fg)">wires everything · starts loop</text>
+        </g>
+
+        <!-- ============ frontend ============ -->
+        <g class="box" data-jump="#fe_trajectory_js">
+          <rect x="985" y="105" width="160" height="65" rx="8"
+                fill="var(--L-frontend-bg)" stroke="var(--L-frontend-border)" stroke-width="1.5"/>
+          <text class="title" x="1065" y="133" text-anchor="middle" fill="var(--L-frontend-fg)">Browser UI</text>
+          <text class="sub"   x="1065" y="151" text-anchor="middle" fill="var(--L-frontend-fg)">frontend/ (vanilla JS)</text>
+        </g>
+
+        <g class="box">
+          <rect x="985" y="265" width="160" height="65" rx="8"
+                fill="var(--L-ioc-bg)" stroke="var(--L-ioc-border)" stroke-width="1.5"/>
+          <text class="title" x="1065" y="293" text-anchor="middle" fill="var(--L-ioc-fg)">External CA</text>
+          <text class="sub"   x="1065" y="311" text-anchor="middle" fill="var(--L-ioc-fg)">Phoebus · Osprey · archiver</text>
+        </g>
+
+        <g class="box" data-jump="#tests_parity">
+          <rect x="985" y="395" width="160" height="65" rx="8"
+                fill="var(--L-test-bg)" stroke="var(--L-test-border)" stroke-width="1.5"/>
+          <text class="title" x="1065" y="423" text-anchor="middle" fill="var(--L-test-fg)">Tests &amp; agents</text>
+          <text class="sub"   x="1065" y="441" text-anchor="middle" fill="var(--L-test-fg)">REST + CA + WS surfaces</text>
+        </g>
+
+        <!-- ============ flow arrows ============ -->
+        <!-- BPMs → BpmReader -->
+        <path class="flow" d="M 175 135 L 245 135" marker-end="url(#arrow)"/>
+        <text class="flow-label" x="210" y="128" text-anchor="middle">read TBT</text>
+
+        <!-- BpmReader → handlers -->
+        <path class="flow" d="M 415 135 L 465 135" marker-end="url(#arrow)"/>
+
+        <!-- handlers → domain -->
+        <path class="flow" d="M 550 165 L 550 195" marker-end="url(#arrow)"/>
+
+        <!-- handlers → state -->
+        <path class="flow" d="M 635 145 C 670 145, 670 175, 685 175" marker-end="url(#arrow)"/>
+
+        <!-- domain → state -->
+        <path class="flow" d="M 635 225 C 670 225, 670 195, 685 195" marker-end="url(#arrow)"/>
+
+        <!-- state → ioc (subscribe/notify) -->
+        <path class="flow" d="M 770 215 L 770 265" marker-end="url(#arrow)"/>
+        <text class="flow-label" x="780" y="245">subscribe()</text>
+
+        <!-- state → api routes (read) -->
+        <path class="flow" d="M 685 195 C 600 200, 480 240, 415 285" marker-end="url(#arrow)"/>
+
+        <!-- routes → handlers (POST /cmd/*) -->
+        <path class="flow" d="M 415 285 C 440 285, 450 165, 465 145" marker-end="url(#arrow)"/>
+        <text class="flow-label" x="448" y="220" text-anchor="middle">POST /cmd/*</text>
+
+        <!-- ioc → external CA (publish) -->
+        <path class="flow" d="M 855 297 L 985 297" marker-end="url(#arrow)"/>
+        <text class="flow-label" x="920" y="290" text-anchor="middle">CA pubsub</text>
+
+        <!-- ws_bridge → external CA (subscribes as a client) -->
+        <path class="flow" d="M 415 385 C 700 385, 700 330, 985 330" marker-end="url(#arrow)"/>
+        <text class="flow-label" x="700" y="370" text-anchor="middle">caproto client</text>
+
+        <!-- ws_bridge → browser (forwards updates) -->
+        <path class="flow" d="M 415 365 C 700 220, 800 140, 985 138" marker-end="url(#arrow)"/>
+        <text class="flow-label" x="780" y="200" text-anchor="middle">WS frames</text>
+
+        <!-- routes → browser (REST) -->
+        <path class="flow" d="M 415 275 C 700 200, 800 155, 985 155" marker-end="url(#arrow)"/>
+
+        <!-- arrowhead def -->
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+          </marker>
+        </defs>
+      </svg>
+
+      <div class="legend">
+        <span><i style="background:var(--L-ca-bg);border-color:var(--L-ca-border);"></i> CA client &amp; hardware</span>
+        <span><i style="background:var(--L-handler-bg);border-color:var(--L-handler-border);"></i> Handlers</span>
+        <span><i style="background:var(--L-domain-bg);border-color:var(--L-domain-border);"></i> Domain (pure)</span>
+        <span><i style="background:var(--L-state-bg);border-color:var(--L-state-border);"></i> State</span>
+        <span><i style="background:var(--L-ioc-bg);border-color:var(--L-ioc-border);"></i> Soft IOC</span>
+        <span><i style="background:var(--L-api-bg);border-color:var(--L-api-border);"></i> REST API</span>
+        <span><i style="background:var(--L-ws-bg);border-color:var(--L-ws-border);"></i> WebSocket bridge</span>
+        <span><i style="background:var(--L-frontend-bg);border-color:var(--L-frontend-border);"></i> Frontend</span>
+        <span><i style="background:var(--L-comp-bg);border-color:var(--L-comp-border);"></i> Composition</span>
+        <span><i style="background:var(--L-test-bg);border-color:var(--L-test-border);"></i> Tests &amp; misc</span>
+      </div>
+    </section>
+
+    <div class="toolbar">
+      <button id="expandAllSnippets">Expand all code snippets</button>
+      <button id="collapseAllSnippets">Collapse all snippets</button>
+      <button id="expandAllSidebar">Expand all sidebar groups</button>
+      <button id="collapseAllSidebar">Collapse all sidebar groups</button>
+    </div>
+
+    <!-- ====================================================== -->
+    <!-- PACKAGE: pytxt/ entry                                   -->
+    <!-- ====================================================== -->
+    <section class="pkg" id="pkg-pytxt">
+      <div class="pkg-header"><h2>pytxt/</h2><span class="role">Top of the application package — entry points and wiring.</span></div>
+      <p class="pkg-blurb">Where the program starts and where every subsystem is constructed. Two files only at this level; everything else lives in subpackages below.</p>
+
+      <div class="file L-comp" id="composition">
+        <div class="file-head">
+          <span class="file-path">pytxt/composition.py</span>
+          <span class="file-tag tag-comp">composition root</span>
+          <span class="file-tagline">Reads config, builds every subsystem, hands them to one asyncio loop.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>This is the "main" of the program. It reads settings, loads the list of BPMs from disk, creates the in-memory state, builds the CA client (BpmReader), the soft IOC, and the FastAPI app — then starts them all on a single asyncio event loop together with a 1 Hz heartbeat task.</p>
+        <h4>Why it exists</h4>
+        <p>To keep object construction in one place. Every subsystem accepts its collaborators as arguments — no module reaches out to fetch a global — so swapping one out for testing is straightforward.</p>
+        <h4>Key pieces</h4>
+        <ul class="pieces">
+          <li><code>main()</code> — async entry point; assembles everything and <code>asyncio.gather()</code>s the IOC, the uvicorn API server, the heartbeat loop, and a delayed reader-startup.</li>
+          <li><code>_resolve_version()</code> — reads the installed package version (or falls back to <code>0.0.0+dev</code>).</li>
+          <li>Reader startup is delayed by 1 s so the IOC has time to come up first — caproto's name resolution sees a stable network state that way.</li>
+        </ul>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="upstream" href="#settings">config/settings.py</a>
+          <a class="upstream" href="#bpm_prefixes">config/bpm_prefixes.py</a>
+          <a class="downstream" href="#app_state">state/app_state.py</a>
+          <a class="downstream" href="#bpm_reader">ca_client/bpm_reader.py</a>
+          <a class="downstream" href="#ioc_server">ioc/server.py</a>
+          <a class="downstream" href="#api_server">api/server.py</a>
+        </div>
+        <details class="snippet">
+          <summary>For the curious — the gather call that runs everything</summary>
+          <span class="annot">Four long-lived tasks on one event loop. Whichever exits first ends the program.</span>
+<pre>await asyncio.gather(
+    ioc.run(),                    # the soft IOC: publishes PVs forever
+    api_server.serve(),           # uvicorn: serves REST + WebSocket
+    heartbeat_loop(),             # ticks HEALTH:HEARTBEAT every 1 s
+    start_reader_after_warmup(),  # CA client connects 1 s later
+)</pre>
+        </details>
+      </div>
+
+      <div class="file L-comp" id="main_py">
+        <div class="file-head">
+          <span class="file-path">pytxt/__main__.py</span>
+          <span class="file-tag tag-comp">entry point</span>
+          <span class="file-tagline">Two lines of glue so <code>python -m pytxt</code> works.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>A trivial wrapper that lets you start the service with <code>python -m pytxt</code> or via the installed <code>pytxt</code> console script.</p>
+        <h4>Key pieces</h4>
+        <ul class="pieces">
+          <li><code>run()</code> — synchronous wrapper around <code>asyncio.run(composition.main())</code>. Used as the entry point in <a href="#pyproject"><code>pyproject.toml</code></a>.</li>
+        </ul>
+        <h4>Talks to</h4>
+        <div class="talks"><a class="downstream" href="#composition">pytxt/composition.py</a></div>
+      </div>
+    </section>
+
+    <!-- ====================================================== -->
+    <!-- PACKAGE: config/                                        -->
+    <!-- ====================================================== -->
+    <section class="pkg" id="pkg-config">
+      <div class="pkg-header"><h2>pytxt/config/</h2><span class="role">Where settings come from.</span></div>
+      <p class="pkg-blurb">Environment-variable-driven settings plus the static list of BPMs the app should poll. Defaults are dev-safe: out of the box the service runs in a sandboxed PV namespace so it cannot collide with real ALS hardware.</p>
+
+      <div class="file L-misc" id="settings">
+        <div class="file-head">
+          <span class="file-path">pytxt/config/settings.py</span>
+          <span class="file-tag tag-misc">config</span>
+          <span class="file-tagline">All knobs the operator can turn, with safe defaults.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>A Pydantic settings class. Every field becomes an env var (prefixed <code>PYTXT_</code>). Defaults boot in dev mode — PV prefix <code>OSPREY:TEST:TXT:</code>, ports 59064/59065 — so running it on a laptop is harmless.</p>
+        <h4>Why it exists</h4>
+        <p>Configuration in one typed place. The <em>two</em> safety rules are enforced here, not in comments: (1) the PV prefix must end with <code>:</code>, and (2) unknown <code>PYTXT_*</code> env vars are rejected at startup so a typo doesn't silently use the default.</p>
+        <h4>Key pieces</h4>
+        <ul class="pieces">
+          <li><code>Settings</code> — the dataclass; fields cover the PV namespace, IOC ports, API host/port, log level, heartbeat cadence, and BPM read timeout.</li>
+          <li><code>_reject_unknown_pytxt_env_vars()</code> — typo guard. <code>PYTXT_BMP_PORT</code> (instead of <code>BPM</code>) raises at startup, not later.</li>
+          <li><code>_prefix_must_end_with_colon()</code> — prevents the most common config bug.</li>
+        </ul>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="upstream" href="#env_example">.env / .env.example</a>
+          <a class="downstream" href="#composition">composition.py</a>
+        </div>
+      </div>
+
+      <div class="file L-misc" id="bpm_prefixes">
+        <div class="file-head">
+          <span class="file-path">pytxt/config/bpm_prefixes.py</span>
+          <span class="file-tag tag-misc">config</span>
+          <span class="file-tagline">Reads the BPM list from disk, skipping comments and blank lines.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Opens <code>bpm_prefixes.txt</code>, strips <code>#</code> comment lines and blanks, returns the rest as a list of strings.</p>
+        <h4>Key pieces</h4>
+        <ul class="pieces">
+          <li><code>load_bpm_prefixes(path)</code> — raises <code>FileNotFoundError</code> if the file is missing and <code>ValueError</code> if the file is empty after filtering. Loud failure beats silently polling zero BPMs.</li>
+        </ul>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="upstream" href="#bpm_prefixes_txt">bpm_prefixes.txt</a>
+          <a class="downstream" href="#composition">composition.py</a>
+        </div>
+      </div>
+
+      <div class="file L-misc" id="bpm_prefixes_txt">
+        <div class="file-head">
+          <span class="file-path">pytxt/config/bpm_prefixes.txt</span>
+          <span class="file-tag tag-misc">data</span>
+          <span class="file-tagline">Plain-text list of ~120 ALS storage-ring BPM PV prefixes.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>One BPM prefix per line, e.g. <code>SR01C:BPM1</code>. Comments at the top of the file record exactly how the list was extracted from MATLAB so it can be regenerated if the ring layout changes.</p>
+        <h4>Why it exists</h4>
+        <p>No upstream system stores this catalog as static data — MATLAB derives it live every time. Committing a one-time snapshot avoids the Python service having to talk to MATLAB at startup.</p>
+      </div>
+    </section>
+
+    <!-- ====================================================== -->
+    <!-- PACKAGE: state/                                         -->
+    <!-- ====================================================== -->
+    <section class="pkg" id="pkg-state">
+      <div class="pkg-header"><h2>pytxt/state/</h2><span class="role">The single in-memory source of truth.</span></div>
+      <p class="pkg-blurb">One typed dataclass holds everything the app knows about itself right now. Other subsystems subscribe to changes on individual fields, so an update to <code>last_acquire</code> automatically fans out to whoever cares (the IOC, in particular, mirrors it onto PVs).</p>
+
+      <div class="file L-state" id="app_state">
+        <div class="file-head">
+          <span class="file-path">pytxt/state/app_state.py</span>
+          <span class="file-tag tag-state">state</span>
+          <span class="file-tagline">Dataclass + async pub/sub on a per-field basis.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>An <code>AppState</code> instance is created at startup and passed into every subsystem. You read fields directly (<code>state.heartbeat</code>) and you write them via <code>await state.update(field=value, ...)</code>. The update call notifies any listener that was registered for that field.</p>
+        <h4>Why it exists</h4>
+        <p>So the IOC, the REST routes, the WS bridge, and the handlers don't have to pass shared state around as method arguments. It's also the place where "what changed" produces a notification — which is how PV writes get triggered.</p>
+        <h4>Key pieces</h4>
+        <ul class="pieces">
+          <li><code>update(**changes)</code> — two-pass: apply <em>all</em> field changes first, then fire listeners. Guarantees that a listener reading other fields always sees the post-update state.</li>
+          <li><code>subscribe(field_name, callback)</code> — register an async callback to fire on change.</li>
+          <li><code>uptime_s</code> property — derived from <code>started_at</code>, computed live.</li>
+          <li>Stores Phase-1 fields (heartbeat, ping_count, …) and Phase-2 fields (<code>acquire_in_flight</code>, <code>last_acquire</code>, <code>last_acquire_raws</code>).</li>
+          <li>Bad field names raise <code>AttributeError</code> at the mutation site — typos can't quietly create new attributes.</li>
+        </ul>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="upstream" href="#schema_result">api/schemas/result.py</a>
+          <a class="downstream" href="#ioc_server">ioc/server.py</a>
+          <a class="downstream" href="#ping">handlers/ping.py</a>
+          <a class="downstream" href="#acquire">handlers/acquire.py</a>
+          <a class="downstream" href="#route_state">api/routes/state.py</a>
+        </div>
+        <details class="snippet">
+          <summary>For the curious — the two-pass update</summary>
+          <span class="annot">Why two passes? A listener for field A might read field B. If we notified mid-iteration, the listener could see a half-applied snapshot.</span>
+<pre># Pass 1: apply all changes
+for k, v in changes.items():
+    ...
+    setattr(self, k, v)
+    actually_changed.append((k, v))
+
+# Pass 2: notify (state is now fully consistent)
+for k, v in actually_changed:
+    for cb in self._listeners.get(k, []):
+        await cb(v)</pre>
+        </details>
+      </div>
+    </section>
+
+    <!-- ====================================================== -->
+    <!-- PACKAGE: ca_client/                                     -->
+    <!-- ====================================================== -->
+    <section class="pkg" id="pkg-ca">
+      <div class="pkg-header"><h2>pytxt/ca_client/</h2><span class="role">Talks to the real BPMs over EPICS Channel Access.</span></div>
+      <p class="pkg-blurb">A thin persistent client built on caproto. Opens connections at startup, holds them for the life of the process, and on each ACQUIRE fetches every BPM's four channels in parallel.</p>
+
+      <div class="file L-ca" id="bpm_reader">
+        <div class="file-head">
+          <span class="file-path">pytxt/ca_client/bpm_reader.py</span>
+          <span class="file-tag tag-ca">CA client</span>
+          <span class="file-tagline">Reads ~120 BPMs × 4 channels in parallel; ~500 reads per ACQUIRE.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>For each configured BPM, the reader holds four PV objects: <code>c0</code> (X waveform), <code>c1</code> (Y waveform), <code>c3</code> (sum signal — used for injection-turn detection), and <code>armed</code> (a status flag). When <code>read_all()</code> is called, all those reads run concurrently via <code>asyncio.gather</code>.</p>
+        <h4>Why it exists</h4>
+        <p>Opening fresh CA channels on every acquire would take ~5–10 seconds and add a lot of broadcast traffic. A persistent client makes ACQUIRE finish in &lt;3 s for the full ring of ~107 BPMs.</p>
+        <h4>Key pieces</h4>
+        <ul class="pieces">
+          <li><code>BpmReader.start()</code> — opens the caproto Context and resolves all PV names. Sets <code>_started = True</code> only on success. Failures bubble up loudly rather than silently returning all-None reads.</li>
+          <li><code>BpmReader.read_all()</code> — returns a <code>dict</code> mapping each BPM prefix to a <code>RawBPM</code> (or <code>None</code> if that BPM failed/timed out). Result preserves the configured BPM order.</li>
+          <li>Shape check: a waveform that isn't exactly <code>(100000,)</code> is treated as a read failure (logged, returns None).</li>
+          <li><code>BpmReader.stop()</code> — idempotent; closes the caproto Context cleanly.</li>
+        </ul>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="external">caproto.asyncio.client</a>
+          <a class="external">~120 BPM IOCs</a>
+          <a class="downstream" href="#acquire">handlers/acquire.py</a>
+          <a class="upstream" href="#dom_types">domain/types.py (RawBPM)</a>
+        </div>
+        <details class="snippet">
+          <summary>For the curious — the parallel-read inner loop</summary>
+          <span class="annot">One coroutine per BPM. <code>asyncio.gather</code> turns them into one fan-out.</span>
+<pre>c0_r, c1_r, c3_r, armed_r = await asyncio.gather(
+    asyncio.wait_for(channels["c0"].read(),    timeout=self._timeout),
+    asyncio.wait_for(channels["c1"].read(),    timeout=self._timeout),
+    asyncio.wait_for(channels["c3"].read(),    timeout=self._timeout),
+    asyncio.wait_for(channels["armed"].read(), timeout=self._timeout),
+)</pre>
+        </details>
+      </div>
+    </section>
+
+    <!-- ====================================================== -->
+    <!-- PACKAGE: domain/                                        -->
+    <!-- ====================================================== -->
+    <section class="pkg" id="pkg-domain">
+      <div class="pkg-header"><h2>pytxt/domain/</h2><span class="role">Pure analysis. No I/O, no frameworks, just numpy.</span></div>
+      <p class="pkg-blurb">Everything in this package can be unit-tested in milliseconds with hand-built numpy arrays. There are no <code>asyncio</code> imports, no caproto, no FastAPI — those would tie the analysis to a particular delivery mechanism.</p>
+
+      <div class="file L-domain" id="dom_types">
+        <div class="file-head">
+          <span class="file-path">pytxt/domain/types.py</span>
+          <span class="file-tag tag-domain">domain</span>
+          <span class="file-tagline">The two dataclasses that move between layers.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Two frozen dataclasses: <code>RawBPM</code> (one BPM's just-read waveforms) and <code>FirstTurnResult</code> (the analyzed per-BPM positions at the injection turn).</p>
+        <h4>Key pieces</h4>
+        <ul class="pieces">
+          <li><code>RawBPM</code> — fields are the three int32 waveforms (X/Y/sum, shape <code>(100000,)</code>, units nm), an <code>armed</code> flag, and a read timestamp.</li>
+          <li><code>FirstTurnResult</code> — three float64 arrays of per-BPM positions (NaN where the BPM failed), an int32 array of detected injection-turn indices (−1 where failed), and a list of failed BPM names.</li>
+        </ul>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="upstream" href="#bpm_reader">ca_client/bpm_reader.py</a>
+          <a class="downstream" href="#first_turn">domain/first_turn_extract.py</a>
+          <a class="downstream" href="#acquire">handlers/acquire.py</a>
+          <a class="downstream" href="#ioc_server">ioc/server.py</a>
+        </div>
+      </div>
+
+      <div class="file L-domain" id="injection_turn">
+        <div class="file-head">
+          <span class="file-path">pytxt/domain/injection_turn.py</span>
+          <span class="file-tag tag-domain">domain</span>
+          <span class="file-tagline">Finds the sample index where the beam first arrives at this BPM.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Given one BPM's sum-signal waveform (100,000 samples — basically the total intensity), this function locates the moment the beam first hit by looking for the largest jump from one sample to the next.</p>
+        <h4>Why it exists</h4>
+        <p>BPMs around the ring see the bunch arrive at slightly different times (it's traveling), so injection-turn detection has to be per-BPM, not global. Direct port of the MATLAB algorithm from <code>SCexp_ALS_readoutBPMs.m</code>.</p>
+        <h4>Key pieces</h4>
+        <ul class="pieces">
+          <li><code>detect_injection_turn(sum_waveform)</code> — <code>argmax(diff)) + 1</code>. The "+1" converts a diff index into a turn index.</li>
+          <li>Falls back to <code>1370</code> if the detected index is outside <code>[100, 4500]</code> — preserves the MATLAB behavior for noisy/inactive BPMs.</li>
+          <li>Doesn't re-validate input shape — upstream (<a href="#bpm_reader"><code>BpmReader</code></a>) guarantees <code>(100000,)</code> or returns None.</li>
+        </ul>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="external">numpy</a>
+          <a class="downstream" href="#first_turn">domain/first_turn_extract.py</a>
+        </div>
+      </div>
+
+      <div class="file L-domain" id="first_turn">
+        <div class="file-head">
+          <span class="file-path">pytxt/domain/first_turn_extract.py</span>
+          <span class="file-tag tag-domain">domain</span>
+          <span class="file-tagline">Turns a dict of raw waveforms into aligned per-BPM result arrays.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>For every BPM in the dict, find its injection turn (via <code>detect_injection_turn</code>), then sample the X/Y/sum waveforms at that index. Converts X and Y from nanometers to millimeters (divide by 1e6) — matches the MATLAB reference.</p>
+        <h4>Key pieces</h4>
+        <ul class="pieces">
+          <li><code>extract_first_turn(raws)</code> — returns a <code>FirstTurnResult</code>; failed BPMs (<code>raws[prefix] is None</code>) get NaN positions and a turn index of −1, plus their name in <code>failed_bpm_names</code>.</li>
+          <li>Dict-insertion order defines BPM index; it's the caller's job (<a href="#bpm_reader"><code>BpmReader</code></a>) to preserve the configured order.</li>
+        </ul>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="upstream" href="#injection_turn">domain/injection_turn.py</a>
+          <a class="upstream" href="#dom_types">domain/types.py</a>
+          <a class="downstream" href="#acquire">handlers/acquire.py</a>
+          <a class="downstream" href="#ioc_server">ioc/server.py</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================== -->
+    <!-- PACKAGE: handlers/                                      -->
+    <!-- ====================================================== -->
+    <section class="pkg" id="pkg-handlers">
+      <div class="pkg-header"><h2>pytxt/handlers/</h2><span class="role">Canonical command logic — one function per CMD.</span></div>
+      <p class="pkg-blurb">For every command PyTxT supports, exactly one function lives here. Both the REST route and the IOC's CMD-PV write call it. This is the structural guarantee that REST and CA paths can't drift apart.</p>
+
+      <div class="file L-handler" id="ping">
+        <div class="file-head">
+          <span class="file-path">pytxt/handlers/ping.py</span>
+          <span class="file-tag tag-handler">handler</span>
+          <span class="file-tagline">"I'm here" — increments a counter and records a timestamp.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Updates two fields on <code>AppState</code>: <code>ping_count += 1</code> and <code>last_ping_at = now</code>. That's it.</p>
+        <h4>Why it exists</h4>
+        <p>It's the trivial smoke-test command that proved end-to-end parity worked in Phase 1: REST <code>POST /api/v1/cmd/ping</code> and a CA write to <code>CMD:PING</code> must increment the counter identically.</p>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="upstream" href="#route_cmd">api/routes/cmd.py</a>
+          <a class="upstream" href="#ioc_pvs">ioc/pvs.py (CMD:PING putter)</a>
+          <a class="downstream" href="#app_state">state/app_state.py</a>
+        </div>
+      </div>
+
+      <div class="file L-handler" id="acquire">
+        <div class="file-head">
+          <span class="file-path">pytxt/handlers/acquire.py</span>
+          <span class="file-tag tag-handler">handler</span>
+          <span class="file-tagline">Orchestrates one full BPM acquisition end to end.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Sets <code>acquire_in_flight = True</code>, reads every BPM in parallel via the CA client, runs the domain layer to extract per-BPM first-turn positions, writes the results onto <code>AppState</code> (which makes the IOC publish them and the WS bridge fan them out), then clears the in-flight flag.</p>
+        <h4>Why it exists</h4>
+        <p>Same function whether called from REST or from a CA-write to <code>CMD:ACQUIRE</code>. Concurrent attempts raise <code>AcquisitionInFlightError</code>, which the REST route turns into HTTP 409 and the CA path swallows (the in-flight PV already tells the caller).</p>
+        <h4>Key pieces</h4>
+        <ul class="pieces">
+          <li><code>handle_acquire(state, reader)</code> — the orchestration coroutine.</li>
+          <li><code>_classify(ok, fail)</code> — 0 ok → FAILED; any fail → PARTIAL; all ok → OK.</li>
+          <li><code>_median_injection_turn()</code> — robust summary across all successful BPMs.</li>
+          <li><code>try/except/finally</code> guarantees <code>acquire_in_flight</code> is always cleared, even when the reader raises.</li>
+          <li>On unexpected failure, publishes a FAILED <code>LastAcquireResult</code> with the error name in <code>fail_reason</code> so operators can see <em>why</em>, not just that something broke.</li>
+        </ul>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="upstream" href="#route_cmd">api/routes/cmd.py</a>
+          <a class="upstream" href="#ioc_pvs">ioc/pvs.py (CMD:ACQUIRE putter)</a>
+          <a class="downstream" href="#bpm_reader">ca_client/bpm_reader.py</a>
+          <a class="downstream" href="#first_turn">domain/first_turn_extract.py</a>
+          <a class="downstream" href="#app_state">state/app_state.py</a>
+          <a class="downstream" href="#schema_result">api/schemas/result.py</a>
+        </div>
+        <details class="snippet">
+          <summary>For the curious — the finally that always runs</summary>
+          <span class="annot">No matter what raises inside <code>try</code>, the flag goes back to False. Without this, a single failed acquire would lock the service.</span>
+<pre>try:
+    await state.update(acquire_in_flight=True, ...)
+    raws = await reader.read_all()
+    first_turn = extract_first_turn(raws)
+    ...
+finally:
+    await state.update(acquire_in_flight=False)</pre>
+        </details>
+      </div>
+    </section>
+
+    <!-- ====================================================== -->
+    <!-- PACKAGE: ioc/                                           -->
+    <!-- ====================================================== -->
+    <section class="pkg" id="pkg-ioc">
+      <div class="pkg-header"><h2>pytxt/ioc/</h2><span class="role">The embedded soft IOC. Publishes app state as EPICS PVs.</span></div>
+      <p class="pkg-blurb">An EPICS "IOC" (Input/Output Controller) is just a server that publishes named values. Caproto lets us run one in-process. Every meaningful piece of <code>AppState</code> is mirrored onto a PV here, which makes the browser, Phoebus, archivers, and automation agents able to subscribe to PyTxT in the exact same way they subscribe to any other ALS hardware.</p>
+
+      <div class="file L-ioc" id="ioc_pvs">
+        <div class="file-head">
+          <span class="file-path">pytxt/ioc/pvs.py</span>
+          <span class="file-tag tag-ioc">IOC</span>
+          <span class="file-tagline">Declares every PV the IOC publishes (HEALTH, STATE, RESULT, CMD).</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>One caproto <code>PVGroup</code> class. Each <code>pvproperty</code> declaration is a single named value: name, type, max length (for arrays), and a human-readable description that goes into the PV's <code>.DESC</code> field — discoverable to anyone introspecting the IOC.</p>
+        <h4>Why it exists</h4>
+        <p>So agents can list and read every PyTxT signal without secret knowledge. The PV names follow a deliberate three-prefix convention: <code>HEALTH:*</code> for liveness, <code>STATE:*</code> for app state, <code>RESULT:*</code> for analysis output, <code>CMD:*</code> for write-only command triggers.</p>
+        <h4>Key pieces</h4>
+        <ul class="pieces">
+          <li><code>HEALTH:HEARTBEAT</code>, <code>HEALTH:UPTIME_S</code> — liveness.</li>
+          <li><code>STATE:VERSION</code>, <code>STATE:LAST_PING_AT</code>, <code>STATE:PING_COUNT</code>, <code>STATE:ACQUIRE_IN_FLIGHT</code>, <code>STATE:LAST_ACQUIRE_*</code> — current app state.</li>
+          <li><code>RESULT:BPM:X_FIRST_TURN</code>, <code>RESULT:BPM:Y_FIRST_TURN</code>, <code>RESULT:BPM:SUM_FIRST_TURN</code>, <code>RESULT:BPM:INJECTION_TURN</code>, <code>RESULT:BPM:NAMES</code> — fixed-length 128 arrays (NaN for unused slots).</li>
+          <li><code>CMD:PING</code>, <code>CMD:ACQUIRE</code> — <em>writable</em>. Writing any value dispatches to the matching handler. The value is ignored — these are pure triggers.</li>
+          <li><code>@cmd_ping.putter</code> / <code>@cmd_acquire.putter</code> decorators — wire the CA writes to the shared <code>handle_ping</code> / <code>handle_acquire</code> functions.</li>
+        </ul>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="upstream" href="#ping">handlers/ping.py</a>
+          <a class="upstream" href="#acquire">handlers/acquire.py</a>
+          <a class="downstream" href="#ioc_server">ioc/server.py</a>
+          <a class="external">caproto.server</a>
+        </div>
+      </div>
+
+      <div class="file L-ioc" id="ioc_server">
+        <div class="file-head">
+          <span class="file-path">pytxt/ioc/server.py</span>
+          <span class="file-tag tag-ioc">IOC</span>
+          <span class="file-tagline">Lifecycle wrapper: binds AppState changes to PV writes; runs forever.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Owns the <code>PyTxTPVGroup</code>. On startup it subscribes to <code>AppState</code> changes — when a tracked field changes, this file pushes the new value onto the matching PV. That's the one-way <em>AppState → PV</em> data flow.</p>
+        <h4>Why it exists</h4>
+        <p>To decouple "what the app knows" (AppState) from "what's published over the network" (the PV namespace). Subsystems that mutate state never have to remember to also touch PVs.</p>
+        <h4>Key pieces</h4>
+        <ul class="pieces">
+          <li><code>PyTxTIOC.__init__</code> — builds the PVGroup and calls <code>_bind_state_changes()</code>.</li>
+          <li><code>_bind_state_changes()</code> — wires per-field listeners. Simple 1:1 fields use a small loop; <code>last_acquire</code> is special (it fans out to 6 scalar PVs plus 4 waveform PVs).</li>
+          <li><code>_publish_last_acquire()</code> — re-runs <code>extract_first_turn</code> with prefix-aligned input so the published waveform indices line up with <code>RESULT:BPM:NAMES</code>.</li>
+          <li><code>run()</code> — boots caproto's <code>Context</code>. Has careful env-var juggling: <code>EPICS_CA_SERVER_PORT</code> must be set <em>during</em> Context construction (so the server binds the right port) but restored afterward (so the in-process BpmReader CA client can search the ring on the standard port).</li>
+          <li><code>_force_close_context_sockets()</code> — workaround for a caproto shutdown hang on multi-interface Linux hosts (appsdev2). Closes raw sockets so any blocked UDP <code>recv</code> unblocks and the task can actually cancel.</li>
+          <li><code>wait_until_running()</code> — convenience for tests; returns once the startup hook has pushed initial PV values.</li>
+        </ul>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="upstream" href="#app_state">state/app_state.py</a>
+          <a class="upstream" href="#schema_result">api/schemas/result.py</a>
+          <a class="downstream" href="#ioc_pvs">ioc/pvs.py</a>
+          <a class="downstream" href="#first_turn">domain/first_turn_extract.py</a>
+          <a class="external">caproto.asyncio.server</a>
+        </div>
+        <details class="snippet">
+          <summary>For the curious — how AppState changes turn into PV writes</summary>
+          <span class="annot">Each AppState field gets an async listener that pushes the new value onto its PV (with one retry on transient caproto errors).</span>
+<pre>for field_name, pv_attr in _FIELD_TO_PV_ATTR.items():
+    pv = getattr(self.pvgroup, pv_attr)
+
+    async def _writer(value, _pv=pv, _name=field_name):
+        value = _coerce_for_write(value)
+        for attempt in (1, 2):
+            try:
+                await _pv.write(value)
+                return
+            except Exception:
+                if attempt == 1:
+                    await asyncio.sleep(0.05); continue
+                logger.exception("IOC write for %r failed after retry", _name)
+
+    self.state.subscribe(field_name, _writer)</pre>
+        </details>
+      </div>
+    </section>
+
+    <!-- ====================================================== -->
+    <!-- SOFT IOC DEEP DIVE — full PV catalog                    -->
+    <!-- ====================================================== -->
+    <section class="ioc-deep" id="ioc-deep">
+      <h2>Soft IOC — published PV catalog</h2>
+      <p class="lede">
+        The IOC is a caproto-based EPICS server running inside the same Python process as everything else. It listens on the configured port (dev: <code>59064</code>, prod: <code>5064</code> standard EPICS) and publishes 19 named values that together expose the entire observable state of PyTxT. Anyone on the network who speaks Channel Access — Phoebus, the archiver, an automation agent, or the browser via the WS bridge — can subscribe to any of these without special knowledge of PyTxT.
+      </p>
+      <p class="lede">
+        Names are prefixed by the configured namespace: <code>OSPREY:TEST:TXT:</code> in dev, <code>TxT:</code> in prod. So <code>HEALTH:HEARTBEAT</code> becomes <code>TxT:HEALTH:HEARTBEAT</code> on the deployed appsdev2 instance. Tables below show the bare name; prepend the prefix to use it.
+      </p>
+
+      <!-- ============ HEALTH:* ============ -->
+      <div class="pv-group">
+        <h3>HEALTH:*  <small>liveness — answers "is PyTxT alive right now?"</small></h3>
+        <p class="grp-intro">Two PVs that any monitoring system can poll. <code>HEARTBEAT</code> increments every 1 s; if it stops, the process is wedged or gone. <code>UPTIME_S</code> tells you how long the current run has been up.</p>
+        <table class="pvs">
+          <thead><tr><th>PV name</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="pv-name">HEALTH:HEARTBEAT <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">int</td>
+              <td class="pv-desc">Liveness counter. Increments by 1 every <code>PYTXT_HEARTBEAT_INTERVAL_S</code> seconds (default 1.0). A stalled or dead process shows a frozen value. Subscribers can detect liveness with no polling.</td>
+            </tr>
+            <tr>
+              <td class="pv-name">HEALTH:UPTIME_S <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">float</td>
+              <td class="pv-desc">Seconds since the process started. Pushed once per heartbeat tick (same cadence as <code>HEARTBEAT</code>). Reset to ~0 by any restart, so a sudden drop signals a recent restart.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ============ STATE:* ============ -->
+      <div class="pv-group">
+        <h3>STATE:*  <small>current application state — version, ping activity, acquisition lifecycle</small></h3>
+        <p class="grp-intro">These mirror fields of <code>AppState</code>. <code>STATE:VERSION</code>, <code>LAST_PING_AT</code>, <code>PING_COUNT</code> are Phase-1 holdovers from the ping smoke test. <code>STATE:ACQUIRE_*</code> and the seven <code>LAST_ACQUIRE_*</code> PVs together describe the most recent acquisition's outcome.</p>
+        <table class="pvs">
+          <thead><tr><th>PV name</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="pv-name">STATE:VERSION <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">string</td>
+              <td class="pv-desc">Semantic version of the running app (e.g. <code>0.1.0</code> or <code>0.0.0+dev</code>). Set once at startup; doesn't change while the process runs.</td>
+            </tr>
+            <tr>
+              <td class="pv-name">STATE:LAST_PING_AT <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">string</td>
+              <td class="pv-desc">ISO-8601 UTC timestamp of the most recent ping. Empty before the first ping.</td>
+            </tr>
+            <tr>
+              <td class="pv-name">STATE:PING_COUNT <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">int</td>
+              <td class="pv-desc">Total pings received since startup. Pure counter — resets only at restart.</td>
+            </tr>
+            <tr>
+              <td class="pv-name">STATE:ACQUIRE_IN_FLIGHT <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">int (0/1)</td>
+              <td class="pv-desc"><code>1</code> while an acquisition is in progress; <code>0</code> otherwise. The handler also uses this to reject concurrent <code>CMD:ACQUIRE</code> writes. Subscribe to this to know when to expect new <code>RESULT:*</code> values.</td>
+            </tr>
+            <tr>
+              <td class="pv-name">STATE:LAST_ACQUIRE_STATUS <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">int (enum)</td>
+              <td class="pv-desc">Lifecycle status of the most recent ACQUIRE. <code>0=NEVER</code> (no acquire yet), <code>1=ACQUIRING</code> (in progress), <code>2=OK</code> (all BPMs returned valid data), <code>3=PARTIAL</code> (some BPMs failed), <code>4=FAILED</code> (no BPMs returned data, or the orchestrator itself raised).</td>
+            </tr>
+            <tr>
+              <td class="pv-name">STATE:LAST_ACQUIRE_OK_COUNT <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">int</td>
+              <td class="pv-desc">Number of BPMs that returned valid waveforms on the most recent ACQUIRE.</td>
+            </tr>
+            <tr>
+              <td class="pv-name">STATE:LAST_ACQUIRE_FAIL_COUNT <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">int</td>
+              <td class="pv-desc">Number of BPMs that timed out or returned invalid data. <code>OK_COUNT + FAIL_COUNT</code> equals the configured BPM count.</td>
+            </tr>
+            <tr>
+              <td class="pv-name">STATE:LAST_ACQUIRE_TIMESTAMP <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">string</td>
+              <td class="pv-desc">ISO-8601 UTC timestamp of when the most recent acquisition completed (success, partial, or failed). Empty before the first acquire.</td>
+            </tr>
+            <tr>
+              <td class="pv-name">STATE:LAST_ACQUIRE_FAIL_REASON <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">string</td>
+              <td class="pv-desc">Short error message when <code>STATUS=FAILED</code> (e.g. <code>RuntimeError: BpmReader.read_all() called before start()</code>). Empty otherwise. Lets agents diagnose without scraping logs.</td>
+            </tr>
+            <tr>
+              <td class="pv-name">STATE:LAST_ACQUIRE_FAILED_BPM_NAMES <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">string[128]</td>
+              <td class="pv-desc">Names of the BPMs that failed on the most recent ACQUIRE, padded to length 128 with empty strings. The first <code>FAIL_COUNT</code> entries are the real names; the rest are <code>""</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ============ RESULT:BPM:* ============ -->
+      <div class="pv-group">
+        <h3>RESULT:BPM:*  <small>analyzed per-BPM positions from the most recent ACQUIRE</small></h3>
+        <p class="grp-intro">Five fixed-length waveforms of size 128 (covers ~120 ALS BPMs with headroom). Indices across all five align — index <em>i</em> in every waveform refers to the BPM whose name is at index <em>i</em> of <code>NAMES</code>. NaN (for floats) or −1 (for ints) marks unused slots and failed BPMs.</p>
+        <table class="pvs">
+          <thead><tr><th>PV name</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="pv-name">RESULT:BPM:NAMES <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">string[128]</td>
+              <td class="pv-desc">Canonical BPM prefix for each index, e.g. <code>SR01C:BPM1</code> at index 0, <code>SR01C:BPM3</code> at index 1, … Static after startup — set once from the BPM-prefixes file. The "index → BPM" lookup table for every other RESULT waveform.</td>
+            </tr>
+            <tr>
+              <td class="pv-name">RESULT:BPM:X_FIRST_TURN <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">float[128]</td>
+              <td class="pv-desc">Per-BPM X position (in mm) at the detected injection turn. <code>NaN</code> at indices of failed BPMs and at unused slots beyond the configured BPM count.</td>
+            </tr>
+            <tr>
+              <td class="pv-name">RESULT:BPM:Y_FIRST_TURN <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">float[128]</td>
+              <td class="pv-desc">Per-BPM Y position (in mm) at the detected injection turn. Same indexing and NaN convention as X.</td>
+            </tr>
+            <tr>
+              <td class="pv-name">RESULT:BPM:SUM_FIRST_TURN <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">float[128]</td>
+              <td class="pv-desc">Per-BPM sum-signal value (arbitrary units, raw int from the BPM IOC cast to float) at the detected injection turn. Useful for charge/intensity diagnostics. NaN for failed BPMs.</td>
+            </tr>
+            <tr>
+              <td class="pv-name">RESULT:BPM:INJECTION_TURN <span class="access-badge access-r">R</span></td>
+              <td class="pv-type">int[128]</td>
+              <td class="pv-desc">Per-BPM detected injection-turn sample index in the 100,000-sample TBT waveform. <code>−1</code> for failed BPMs and unused slots. Usually clusters tightly across the ring; the median is also published as <code>STATE:LAST_ACQUIRE_*</code> for monitoring.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ============ CMD:* ============ -->
+      <div class="pv-group">
+        <h3>CMD:*  <small>write-only triggers — the only PVs you can write to</small></h3>
+        <p class="grp-intro">Every other PV is read-only. These two accept writes; the written value is ignored (they're pure triggers). Each one dispatches to the matching handler in <code>handlers/</code> — exactly the same function that the equivalent <code>POST /api/v1/cmd/*</code> REST route calls. That structural sharing is what guarantees agentic parity between CA and REST.</p>
+        <table class="pvs">
+          <thead><tr><th>PV name</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="pv-name">CMD:PING <span class="access-badge access-w">W</span></td>
+              <td class="pv-type">int</td>
+              <td class="pv-desc">Write any value to register a ping. The value is ignored. Effect: <code>STATE:PING_COUNT</code> increments by 1 and <code>STATE:LAST_PING_AT</code> updates to the current UTC timestamp. Identical effect to <code>POST /api/v1/cmd/ping</code>.</td>
+            </tr>
+            <tr>
+              <td class="pv-name">CMD:ACQUIRE <span class="access-badge access-w">W</span></td>
+              <td class="pv-type">int</td>
+              <td class="pv-desc">Write any value to trigger a full BPM acquisition. The value is ignored. Effect: reads every configured BPM in parallel, analyzes the waveforms, publishes new <code>STATE:LAST_ACQUIRE_*</code> and <code>RESULT:BPM:*</code> values. If an acquisition is already in flight, the CA write silently succeeds — the caller can see <code>STATE:ACQUIRE_IN_FLIGHT=1</code> and know to wait. Identical effect to <code>POST /api/v1/cmd/acquire</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ============ Lifecycle / boot order ============ -->
+      <div class="pv-life">
+        <h3>Boot order — what's defined vs. populated when</h3>
+        <ol>
+          <li>caproto's <code>Context</code> is constructed with the full <code>pvdb</code> from <code>pvs.py</code> — every PV exists from second zero with default values (<code>0</code>, <code>""</code>, or zero-filled arrays).</li>
+          <li>The startup hook pushes Phase-1 initial values: <code>STATE:VERSION</code>, <code>HEALTH:HEARTBEAT=0</code>, <code>UPTIME_S=0</code>, etc.</li>
+          <li>The startup hook pushes Phase-2 initial values: <code>RESULT:BPM:NAMES</code> is populated from the BPM-prefixes file (this is the only RESULT PV that's meaningful before the first ACQUIRE), and <code>STATE:LAST_ACQUIRE_STATUS</code> is set to <code>NEVER=0</code>.</li>
+          <li>A 1 Hz heartbeat task starts pushing <code>HEALTH:HEARTBEAT</code> and <code>HEALTH:UPTIME_S</code>.</li>
+          <li>~1 s later, <code>BpmReader.start()</code> opens its CA client and resolves all ~120 BPM PV names. The IOC is now ready to handle <code>CMD:ACQUIRE</code>.</li>
+          <li>Every subsequent change to a tracked <code>AppState</code> field automatically pushes onto its matching PV via the listeners registered in <code>ioc/server.py</code>.</li>
+        </ol>
+      </div>
+
+      <!-- ============ How to use ============ -->
+      <div class="pv-usage">
+        <div>
+          <h4>Subscribe from Python (caproto)</h4>
+<pre>from caproto.asyncio.client import Context
+
+ctx = Context()
+(pv,) = await ctx.get_pvs("TxT:STATE:LAST_ACQUIRE_STATUS")
+async for response in pv.subscribe():
+    print("status:", response.data[0])</pre>
+          <p>This is exactly what the WS bridge does internally — one task per PV.</p>
+        </div>
+        <div>
+          <h4>Trigger a command from Python</h4>
+<pre>from caproto.asyncio.client import Context
+
+ctx = Context()
+(pv,) = await ctx.get_pvs("TxT:CMD:ACQUIRE")
+await pv.write(0)   # value ignored; the write itself is the trigger</pre>
+          <p>Identical effect to <code>curl -XPOST /api/v1/cmd/acquire</code>.</p>
+        </div>
+        <div>
+          <h4>Read from the shell (epics-base)</h4>
+<pre>caget TxT:HEALTH:HEARTBEAT
+caget TxT:RESULT:BPM:X_FIRST_TURN
+camonitor TxT:STATE:LAST_ACQUIRE_STATUS
+caput TxT:CMD:PING 0</pre>
+          <p>Standard EPICS tooling works against the IOC with no extra wrapper.</p>
+        </div>
+        <div>
+          <h4>Subscribe from the browser</h4>
+<pre>connection.subscribe(
+  'TxT:RESULT:BPM:X_FIRST_TURN',
+  (msg) =&gt; renderX(msg.value)
+);</pre>
+          <p>The browser doesn't speak Channel Access directly — see <a href="#ws_bridge">api/ws_bridge.py</a> for how WebSocket frames are translated into CA subscriptions.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================== -->
+    <!-- PACKAGE: api/                                           -->
+    <!-- ====================================================== -->
+    <section class="pkg" id="pkg-api">
+      <div class="pkg-header"><h2>pytxt/api/</h2><span class="role">FastAPI server + the WebSocket-to-CA bridge.</span></div>
+      <p class="pkg-blurb">REST endpoints for commands, state, health, and config. Plus one WebSocket endpoint that lets the browser subscribe to PVs the same way Phoebus does.</p>
+
+      <div class="file L-api" id="api_server">
+        <div class="file-head">
+          <span class="file-path">pytxt/api/server.py</span>
+          <span class="file-tag tag-api">API</span>
+          <span class="file-tagline">FastAPI app factory. Mounts every route group and the frontend static files.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p><code>create_app(state, settings, bpm_reader)</code> builds a FastAPI app, attaches the shared state/reader to <code>app.state</code> (so route handlers can get to them), includes every router from <code>api/routes/</code>, mounts the WS bridge, and serves the <code>frontend/</code> directory as static files at the root path.</p>
+        <h4>Why it exists</h4>
+        <p>One place that knows what the API surface is. Routes are registered as routers in their own modules so each can be edited (or tested) in isolation.</p>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="upstream" href="#composition">composition.py</a>
+          <a class="downstream" href="#route_health">routes/health.py</a>
+          <a class="downstream" href="#route_state">routes/state.py</a>
+          <a class="downstream" href="#route_cmd">routes/cmd.py</a>
+          <a class="downstream" href="#route_result">routes/result.py</a>
+          <a class="downstream" href="#ws_bridge">api/ws_bridge.py</a>
+        </div>
+      </div>
+
+      <div class="file L-ws" id="ws_bridge">
+        <div class="file-head">
+          <span class="file-path">pytxt/api/ws_bridge.py</span>
+          <span class="file-tag tag-ws">WS bridge</span>
+          <span class="file-tagline">Each browser tab gets a WebSocket; the bridge re-subscribes to PVs as a caproto client and forwards updates as JSON.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>The browser opens a WebSocket to <code>/api/v1/pvs</code>, sends messages like <code>{"action": "subscribe", "pvs": ["TxT:HEALTH:HEARTBEAT"]}</code>, and gets back JSON value updates as the PVs change.</p>
+        <h4>Why it exists</h4>
+        <p>Browsers can't speak EPICS Channel Access (UDP broadcast + binary protocol). But routing browser updates <em>through</em> CA — rather than directly through AppState — preserves the "browser is just another CA client" rule. The browser sees identical type coercions and update semantics as Phoebus.</p>
+        <h4>Key pieces</h4>
+        <ul class="pieces">
+          <li><code>pvs_ws()</code> — per-connection handler. State machine: accept → receive subscribe messages → fan out updates until disconnect → tear down all subscriptions.</li>
+          <li><code>_forward_pv(pv_name)</code> — one task per PV subscription. Reads the current value, sends it, then enters the caproto subscription loop and forwards each update.</li>
+          <li><code>_coerce_value()</code> — single-element arrays unwrap to scalars; bytes decode to UTF-8 strings; numpy scalars unwrap to Python primitives. The result is JSON-safe.</li>
+          <li>Bad PV names time out after 2 s and the browser gets a <code>WSError</code> message — no silent hangs.</li>
+          <li>On disconnect: every per-PV task is cancelled and awaited; no leaked subscriptions.</li>
+        </ul>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="upstream" href="#schema_ws">api/schemas/ws.py</a>
+          <a class="external">caproto.asyncio.client</a>
+          <a class="downstream" href="#fe_connection">frontend/js/connection.js</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================== -->
+    <!-- PACKAGE: api/routes/                                    -->
+    <!-- ====================================================== -->
+    <section class="pkg" id="pkg-routes">
+      <div class="pkg-header"><h2>pytxt/api/routes/</h2><span class="role">One module per route group; each exports an APIRouter.</span></div>
+      <p class="pkg-blurb">Splitting routes by responsibility keeps files short. Every command route imports the same handler the IOC uses — that's the structural parity guarantee.</p>
+
+      <div class="file L-api" id="route_health">
+        <div class="file-head">
+          <span class="file-path">pytxt/api/routes/health.py</span>
+          <span class="file-tag tag-api">REST</span>
+          <span class="file-tagline"><code>GET /health</code> — always 200, even when degraded.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>A transport-level liveness probe meant for load balancers and container healthchecks. Returns <code>{"status": "ok", "uptime_s": …}</code>. <em>App</em>-level health lives in the <code>HEALTH:*</code> PVs and the <code>StateSnapshot</code>.</p>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="upstream" href="#app_state">state/app_state.py</a>
+          <a class="external">k8s · docker healthcheck</a>
+        </div>
+      </div>
+
+      <div class="file L-api" id="route_state">
+        <div class="file-head">
+          <span class="file-path">pytxt/api/routes/state.py</span>
+          <span class="file-tag tag-api">REST</span>
+          <span class="file-tagline"><code>GET /api/v1/state</code> + <code>GET /api/v1/config</code></span>
+        </div>
+        <h4>Plain English</h4>
+        <p><code>/state</code> projects every published field of <code>AppState</code> into a JSON snapshot — agents that don't want to do CA can just poll this. <code>/config</code> hands the browser the deployed PV prefix so the same JS works in dev (<code>OSPREY:TEST:TXT:</code>) and prod (<code>TxT:</code>).</p>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="upstream" href="#app_state">state/app_state.py</a>
+          <a class="upstream" href="#schema_state">api/schemas/state.py</a>
+          <a class="downstream" href="#fe_app_js">frontend/js/app.js</a>
+        </div>
+      </div>
+
+      <div class="file L-api" id="route_cmd">
+        <div class="file-head">
+          <span class="file-path">pytxt/api/routes/cmd.py</span>
+          <span class="file-tag tag-api">REST</span>
+          <span class="file-tagline"><code>POST /api/v1/cmd/ping</code> · <code>POST /api/v1/cmd/acquire</code></span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Thin REST wrappers around <a href="#ping"><code>handle_ping</code></a> and <a href="#acquire"><code>handle_acquire</code></a>. The body is <code>{}</code> — these are pure triggers.</p>
+        <h4>Why it exists</h4>
+        <p>Imports the same handler functions the IOC's CMD-PV putters call. The shared import is the parity guarantee: there's no way for the REST and CA paths to diverge without editing the handler itself, which would break both at once.</p>
+        <h4>Key pieces</h4>
+        <ul class="pieces">
+          <li><code>AcquisitionInFlightError</code> → HTTP 409 (caller already knows there's one running).</li>
+          <li><code>bpm_reader is None</code> → HTTP 503 (for tests that don't wire up a reader).</li>
+        </ul>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="downstream" href="#ping">handlers/ping.py</a>
+          <a class="downstream" href="#acquire">handlers/acquire.py</a>
+          <a class="upstream" href="#schema_cmd">api/schemas/cmd.py</a>
+          <a class="upstream" href="#schema_result">api/schemas/result.py</a>
+        </div>
+      </div>
+
+      <div class="file L-api" id="route_result">
+        <div class="file-head">
+          <span class="file-path">pytxt/api/routes/result.py</span>
+          <span class="file-tag tag-api">REST</span>
+          <span class="file-tagline">Stub today; bulk waveform downloads land in M4.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Empty router currently. Eventually serves <code>GET /api/v1/result/bpm/raw?bpm=&lt;prefix&gt;</code> for whoever wants to download a single BPM's 100,000-sample waveforms — too big to put on PVs, so this is REST's job.</p>
+      </div>
+    </section>
+
+    <!-- ====================================================== -->
+    <!-- PACKAGE: api/schemas/                                   -->
+    <!-- ====================================================== -->
+    <section class="pkg" id="pkg-schemas">
+      <div class="pkg-header"><h2>pytxt/api/schemas/</h2><span class="role">Pydantic models — the typed shape of every REST and WS message.</span></div>
+      <p class="pkg-blurb">Schemas are the load-bearing documentation. Every field has a <code>description=…</code>, every enum has explicit values, every snake_case name is unambiguous. FastAPI uses these to auto-generate the OpenAPI spec, so agents that read the spec can discover everything.</p>
+
+      <div class="file L-schema" id="schema_state">
+        <div class="file-head">
+          <span class="file-path">pytxt/api/schemas/state.py</span>
+          <span class="file-tag tag-schema">schema</span>
+          <span class="file-tagline">Shape of <code>GET /api/v1/state</code>.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>One <code>StateSnapshot</code> class whose fields are a one-to-one projection of <code>AppState</code>'s public fields — the same data you'd see via the <code>HEALTH:*</code>, <code>STATE:*</code>, and <code>RESULT:*</code> PVs.</p>
+      </div>
+
+      <div class="file L-schema" id="schema_result">
+        <div class="file-head">
+          <span class="file-path">pytxt/api/schemas/result.py</span>
+          <span class="file-tag tag-schema">schema</span>
+          <span class="file-tagline">Phase-2 acquire result types, plus the canonical status enum.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Defines the lifecycle enum (<code>NEVER · ACQUIRING · OK · PARTIAL · FAILED</code>) once. The enum has both string (REST/JSON) and int (EPICS-friendly) forms; the two mappings here are the single source of truth — <a href="#ioc_server"><code>ioc/server.py</code></a> reads <code>STATUS_STR_TO_INT</code> when publishing.</p>
+        <h4>Key pieces</h4>
+        <ul class="pieces">
+          <li><code>AcquireStatus</code> — the enum.</li>
+          <li><code>LastAcquireResult</code> — what's stored in <code>AppState.last_acquire</code> and mirrored to PVs.</li>
+          <li><code>AcquireResponse</code> — REST response body for <code>POST /api/v1/cmd/acquire</code>.</li>
+          <li><code>BpmRawWaveforms</code> — the future M4 endpoint's shape.</li>
+        </ul>
+      </div>
+
+      <div class="file L-schema" id="schema_cmd">
+        <div class="file-head">
+          <span class="file-path">pytxt/api/schemas/cmd.py</span>
+          <span class="file-tag tag-schema">schema</span>
+          <span class="file-tagline">Tiny — just the ping response model.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>One model: <code>PingResponse(acknowledged_at: str)</code>. The acquire response lives in <code>result.py</code> because it shares the status enum.</p>
+      </div>
+
+      <div class="file L-schema" id="schema_ws">
+        <div class="file-head">
+          <span class="file-path">pytxt/api/schemas/ws.py</span>
+          <span class="file-tag tag-schema">schema</span>
+          <span class="file-tagline">WebSocket message shapes (client→server and server→client).</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Three models: <code>WSSubscribe</code> (browser asks to subscribe or unsubscribe to a list of PVs), <code>WSValueUpdate</code> (server pushes a PV's new value), <code>WSError</code> (server reports a PV the bridge couldn't subscribe to).</p>
+        <h4>Talks to</h4>
+        <div class="talks"><a class="downstream" href="#ws_bridge">api/ws_bridge.py</a></div>
+      </div>
+    </section>
+
+    <!-- ====================================================== -->
+    <!-- PACKAGE: frontend/                                      -->
+    <!-- ====================================================== -->
+    <section class="pkg" id="pkg-frontend">
+      <div class="pkg-header"><h2>pytxt/frontend/</h2><span class="role">Vanilla HTML/CSS/JS. No framework, no build step.</span></div>
+      <p class="pkg-blurb">Two pages: a "Ping" smoke-test page (Phase 1) and a "Trajectory" page that draws the per-BPM X/Y positions on canvas (Phase 2). Both talk to the server via the same <code>connection.js</code> helper.</p>
+
+      <div class="file L-frontend" id="fe_index">
+        <div class="file-head">
+          <span class="file-path">pytxt/frontend/index.html</span>
+          <span class="file-tag tag-frontend">HTML</span>
+          <span class="file-tagline">The Ping page — minimal proof that PV ↔ WebSocket plumbing works.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Shows version, heartbeat, uptime, last ping, ping count. One "Ping" button. Live updates over WebSocket; the button POSTs to <code>/api/v1/cmd/ping</code>.</p>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="downstream" href="#fe_app_js">js/app.js</a>
+          <a class="downstream" href="#fe_connection">js/connection.js</a>
+          <a class="downstream" href="#fe_theme">css/theme.css</a>
+        </div>
+      </div>
+
+      <div class="file L-frontend" id="fe_trajectory">
+        <div class="file-head">
+          <span class="file-path">pytxt/frontend/trajectory.html</span>
+          <span class="file-tag tag-frontend">HTML</span>
+          <span class="file-tagline">The Phase-2 read-path UI: two canvases, one Acquire button.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Stacked X and Y polyline canvases over BPM index. An "Acquire" button POSTs to <code>/api/v1/cmd/acquire</code>. After the read completes, the canvases redraw automatically because the underlying RESULT PVs change and the WS bridge pushes the new values.</p>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="downstream" href="#fe_trajectory_js">js/trajectory.js</a>
+          <a class="downstream" href="#fe_connection">js/connection.js</a>
+        </div>
+      </div>
+
+      <div class="file L-frontend" id="fe_theme">
+        <div class="file-head">
+          <span class="file-path">pytxt/frontend/css/theme.css</span>
+          <span class="file-tag tag-frontend">CSS</span>
+          <span class="file-tagline">Dark theme using CSS custom properties; sized for a wallpaper-mounted display.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Defines <code>--bg</code>, <code>--fg</code>, <code>--accent</code>, etc. as variables, then styles the header, state panel, log panel, ping button, connection-status indicator, and trajectory canvases.</p>
+      </div>
+
+      <div class="file L-frontend" id="fe_connection">
+        <div class="file-head">
+          <span class="file-path">pytxt/frontend/js/connection.js</span>
+          <span class="file-tag tag-frontend">JS</span>
+          <span class="file-tagline">Shared WebSocket + REST helper. Auto-reconnect with backoff.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Both pages include this script. It exposes <code>window.connection.subscribe(pv, cb)</code>, <code>connection.unsubscribe()</code>, <code>connection.command(name, body)</code>, and a <code>onStatusChange()</code> hook that powers the green/grey/red dot in the header. If the WebSocket drops, it reconnects with exponential backoff (1s → 2s → 4s → max 30s) and re-subscribes to every previously-subscribed PV.</p>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="upstream" href="#fe_app_js">js/app.js</a>
+          <a class="upstream" href="#fe_trajectory_js">js/trajectory.js</a>
+          <a class="downstream" href="#ws_bridge">api/ws_bridge.py (over WS)</a>
+          <a class="downstream" href="#route_cmd">api/routes/cmd.py (over REST)</a>
+        </div>
+      </div>
+
+      <div class="file L-frontend" id="fe_app_js">
+        <div class="file-head">
+          <span class="file-path">pytxt/frontend/js/app.js</span>
+          <span class="file-tag tag-frontend">JS</span>
+          <span class="file-tagline">Ping page logic: subscribe to Phase-1 PVs, wire the Ping button, append to an event log.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>On load, fetches <code>/api/v1/config</code> to discover the PV prefix, subscribes to the five Phase-1 PVs, and updates the matching DOM elements as values arrive. The Ping button calls <code>connection.command('ping', {})</code> and logs the round-trip result.</p>
+      </div>
+
+      <div class="file L-frontend" id="fe_trajectory_js">
+        <div class="file-head">
+          <span class="file-path">pytxt/frontend/js/trajectory.js</span>
+          <span class="file-tag tag-frontend">JS</span>
+          <span class="file-tagline">Subscribes to RESULT PVs and renders X/Y polylines on canvas.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Subscribes to <code>RESULT:BPM:X_FIRST_TURN</code>, <code>Y_FIRST_TURN</code>, <code>INJECTION_TURN</code>, <code>NAMES</code>, and the four <code>STATE:LAST_ACQUIRE_*</code> PVs. The <code>render()</code> function auto-ranges each canvas symmetrically around zero, draws a dashed zero line, and plots the polyline — NaN entries become gaps in the line. Works the same for one BPM (Phase 2 M1) or ~120 (M2+).</p>
+        <h4>Talks to</h4>
+        <div class="talks">
+          <a class="upstream" href="#fe_connection">js/connection.js</a>
+          <a class="upstream" href="#ioc_pvs">RESULT:BPM:* PVs (via WS)</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================== -->
+    <!-- TESTS                                                   -->
+    <!-- ====================================================== -->
+    <section class="pkg" id="pkg-tests">
+      <div class="pkg-header"><h2>tests/</h2><span class="role">Three tiers: unit · integration · e2e. ~80+ tests today.</span></div>
+      <p class="pkg-blurb">Unit tests cover pure logic with no I/O. Integration tests spin up a real caproto IOC on an ephemeral port and exercise the full Python stack. E2E tests drive the actual browser via Playwright.</p>
+
+      <div class="file L-test" id="tests_conftest">
+        <div class="file-head">
+          <span class="file-path">tests/conftest.py</span>
+          <span class="file-tag tag-test">test infra</span>
+          <span class="file-tagline">Pins caproto to localhost + a per-session ephemeral port — never collides with real IOCs.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Picks a random free TCP port at session start, then sets every relevant <code>EPICS_*</code> env var to point at <code>127.0.0.1</code> on that port. The autouse fixture ensures every integration test inherits the same isolation — nothing can leak onto the ALS network even if a test is run on a control-room host.</p>
+      </div>
+
+      <div class="file L-test" id="tests_fixtures">
+        <div class="file-head">
+          <span class="file-path">tests/fixtures/fake_bpm_ioc.py</span>
+          <span class="file-tag tag-test">test infra</span>
+          <span class="file-tagline">Spins up N fake BPM IOCs in-process for integration tests.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>A pytest fixture that lets a test say "give me 107 fake BPMs" (or "give me these specific prefixes") and get a running caproto IOC that synthesizes deterministic TBT waveforms. The sum signal has a clean step at sample 1370 so the injection-turn detector produces predictable results; X/Y have a small per-BPM offset so the trajectory plot has structure to look at.</p>
+        <h4>Key pieces</h4>
+        <ul class="pieces">
+          <li><code>_synthesize_waveforms(bpm_index)</code> — returns deterministic <code>(x, y, sum)</code> arrays seeded from the BPM index.</li>
+          <li><code>fake_bpm_ioc</code> fixture — parametrize via <code>@pytest.mark.parametrize('fake_bpm_ioc', [N], indirect=True)</code>.</li>
+          <li>Teardown force-closes raw sockets before cancelling, same shutdown trick as <code>ioc/server.py</code>.</li>
+        </ul>
+      </div>
+
+      <div class="file L-test" id="tests_unit">
+        <div class="file-head">
+          <span class="file-path">tests/unit/</span>
+          <span class="file-tag tag-test">tests</span>
+          <span class="file-tagline">10 files, ~700 lines. Pure-logic tests with no network or IOC.</span>
+        </div>
+        <h4>What's in there</h4>
+        <ul class="pieces">
+          <li><code>test_settings.py</code> — defaults; rejection of unknown <code>PYTXT_*</code> env vars; prefix-must-end-with-colon check.</li>
+          <li><code>test_bpm_prefixes_loader.py</code> — comment/blank stripping, missing-file errors, empty-file errors.</li>
+          <li><code>test_app_state.py</code> — subscribe/notify, two-pass update ordering, AttributeError on typos.</li>
+          <li><code>test_domain_types.py</code> · <code>test_injection_turn.py</code> · <code>test_first_turn_extract.py</code> — domain logic with hand-built numpy arrays.</li>
+          <li><code>test_handlers_ping.py</code> · <code>test_handlers_acquire.py</code> — handler behavior with a mocked AppState/reader.</li>
+          <li><code>test_schemas.py</code> · <code>test_schemas_result.py</code> — schema serialization round-trips.</li>
+        </ul>
+      </div>
+
+      <div class="file L-test" id="tests_integration">
+        <div class="file-head">
+          <span class="file-path">tests/integration/</span>
+          <span class="file-tag tag-test">tests</span>
+          <span class="file-tagline">12 files, ~900 lines. Real caproto IOC, real HTTP client.</span>
+        </div>
+        <h4>What's in there</h4>
+        <ul class="pieces">
+          <li><code>test_ioc_lifecycle.py</code> — IOC starts, publishes initial PV values, shuts down cleanly.</li>
+          <li><code>test_ping_via_ca.py</code> · <code>test_ping_via_rest.py</code> — same command issued via both transports.</li>
+          <li><code>test_acquire_via_rest.py</code> — full ACQUIRE round-trip against the fake BPM IOC.</li>
+          <li><code>test_bpm_reader.py</code> · <code>test_bpm_reader_scale.py</code> · <code>test_acquire_scale.py</code> — read 107 fake BPMs end-to-end in under 3 s.</li>
+          <li><code>test_health_endpoint.py</code> · <code>test_state_endpoint.py</code> — REST liveness + state snapshot.</li>
+          <li><code>test_ws_bridge.py</code> — subscribe, receive updates, unsubscribe, disconnect cleanup.</li>
+          <li><code>test_fake_bpm_ioc.py</code> — sanity-check the test fixture itself.</li>
+          <li><a href="#tests_parity"><code>test_parity.py</code></a> — the critical agentic-parity invariant (see below).</li>
+        </ul>
+      </div>
+
+      <div class="file L-test" id="tests_parity">
+        <div class="file-head">
+          <span class="file-path">tests/integration/test_parity.py</span>
+          <span class="file-tag tag-test">load-bearing</span>
+          <span class="file-tagline">The agentic-parity invariant. If this test ever goes red, the project is broken.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>For every command PyTxT exposes, this test issues it once via CA write and once via REST POST, then compares the resulting <code>AppState</code> projection field-by-field. Anything that differs is a violation of the agent-first design principle.</p>
+        <h4>Why it exists</h4>
+        <p>Because the structural guarantee — "REST and CA call the same handler function" — can be quietly broken if someone adds a new code path. This test catches that automatically.</p>
+      </div>
+
+      <div class="file L-test" id="tests_e2e">
+        <div class="file-head">
+          <span class="file-path">tests/e2e/</span>
+          <span class="file-tag tag-test">tests</span>
+          <span class="file-tagline">Playwright — drives a real Chromium against a running PyTxT.</span>
+        </div>
+        <h4>What's in there</h4>
+        <ul class="pieces">
+          <li><code>playwright.config.js</code> — base URL <code>http://127.0.0.1:8008</code>, one worker, screenshots/traces on failure.</li>
+          <li><code>smoke.spec.js</code> — the page loads, the heartbeat element shows a number within 3 s, the connection dot turns green.</li>
+          <li><code>ping.spec.js</code> — clicking Ping increments the count via the full REST → handler → AppState → IOC PV → WS → DOM round-trip.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================================================== -->
+    <!-- SCRIPTS / DOCKER / PROJECT                              -->
+    <!-- ====================================================== -->
+    <section class="pkg" id="pkg-misc">
+      <div class="pkg-header"><h2>scripts/ · docker/ · project files</h2><span class="role">Operations and deployment.</span></div>
+
+      <div class="file L-misc" id="probe_bpm">
+        <div class="file-head">
+          <span class="file-path">scripts/probe_bpm.py</span>
+          <span class="file-tag tag-misc">script</span>
+          <span class="file-tagline">Throwaway reachability probe for one BPM. Pure read; no arming, no writes.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Run on a control-room host with <code>python scripts/probe_bpm.py SR01C:BPM1</code>. Connects to that BPM's four TBT PVs, prints shape, dtype, timestamp, severity, basic stats. Used early in Phase 2 to confirm the modern colon-form PV pattern is live on the ring.</p>
+      </div>
+
+      <div class="file L-misc" id="dockerfile">
+        <div class="file-head">
+          <span class="file-path">docker/Dockerfile</span>
+          <span class="file-tag tag-misc">deploy</span>
+          <span class="file-tagline">Single-stage Python 3.12-slim image. Curl-based healthcheck against <code>/health</code>.</span>
+        </div>
+        <h4>Notes</h4>
+        <ul class="pieces">
+          <li><code>EXPOSE 8008 · 5064/tcp · 5064/udp · 5065/tcp · 5065/udp</code> — metadata for the API + standard EPICS ports.</li>
+          <li>Layer-caches dependencies: <code>pyproject.toml</code> first, then app code.</li>
+          <li>Entrypoint is <code>python -m pytxt</code> — same as local dev.</li>
+        </ul>
+      </div>
+
+      <div class="file L-misc" id="compose">
+        <div class="file-head">
+          <span class="file-path">docker/docker-compose.yml</span>
+          <span class="file-tag tag-misc">deploy</span>
+          <span class="file-tagline">Bridge networking. Good for macOS/Windows dev. EPICS broadcast does NOT traverse a Docker bridge.</span>
+        </div>
+      </div>
+
+      <div class="file L-misc" id="compose_host">
+        <div class="file-head">
+          <span class="file-path">docker/docker-compose.host.yml</span>
+          <span class="file-tag tag-misc">deploy</span>
+          <span class="file-tagline">Production overlay. <code>network_mode: host</code> so EPICS UDP broadcast reaches external CA clients.</span>
+        </div>
+        <h4>How to use</h4>
+        <p>Combine with the base file: <code>docker compose -f docker-compose.yml -f docker-compose.host.yml up -d</code></p>
+      </div>
+
+      <div class="file L-misc" id="makefile">
+        <div class="file-head">
+          <span class="file-path">Makefile</span>
+          <span class="file-tag tag-misc">tooling</span>
+          <span class="file-tagline">The dev shortcuts you'll actually use day-to-day.</span>
+        </div>
+        <h4>Targets</h4>
+        <ul class="pieces">
+          <li><code>make install</code> — editable install + Playwright Chromium download.</li>
+          <li><code>make dev</code> — runs <code>python -m pytxt</code> in the foreground.</li>
+          <li><code>make test</code> / <code>test-unit</code> / <code>test-integration</code> / <code>test-e2e</code> — the four test tiers.</li>
+          <li><code>make dev-up</code> / <code>dev-down</code> — background start/stop.</li>
+          <li><code>make lint</code> — ruff over <code>pytxt</code> and <code>tests</code>.</li>
+          <li><code>make clean</code> — wipe caches and build artifacts.</li>
+        </ul>
+      </div>
+
+      <div class="file L-misc" id="pyproject">
+        <div class="file-head">
+          <span class="file-path">pyproject.toml</span>
+          <span class="file-tag tag-misc">project</span>
+          <span class="file-tagline">Dependencies, optional dev extras, console script, pytest + ruff config.</span>
+        </div>
+        <h4>Highlights</h4>
+        <ul class="pieces">
+          <li>Runtime deps: <code>fastapi</code>, <code>uvicorn[standard]</code>, <code>caproto</code>, <code>pydantic</code>, <code>pydantic-settings</code>, <code>numpy</code>.</li>
+          <li>Dev extras: <code>httpx</code>, <code>pytest</code>, <code>pytest-asyncio</code>, <code>ruff</code>, <code>websockets</code>.</li>
+          <li>Console script: <code>pytxt = pytxt.__main__:run</code>.</li>
+          <li><code>pytest-asyncio</code> mode is <code>auto</code> so coroutine tests don't need a decorator.</li>
+        </ul>
+      </div>
+
+      <div class="file L-misc" id="env_example">
+        <div class="file-head">
+          <span class="file-path">.env.example</span>
+          <span class="file-tag tag-misc">config</span>
+          <span class="file-tagline">Copy to <code>.env</code> to override dev defaults.</span>
+        </div>
+        <h4>Plain English</h4>
+        <p>Every line is commented out by default — running with no <code>.env</code> uses the safe dev namespace (<code>OSPREY:TEST:TXT:</code>, ports 59064/59065). For production: uncomment and set <code>PYTXT_PV_PREFIX=TxT:</code>, <code>PYTXT_IOC_PORT=5064</code>, <code>PYTXT_IOC_REPEATER_PORT=5065</code>.</p>
+      </div>
+    </section>
+
+    <footer class="foot">
+      Generated tour of the PyTxT codebase. The codebase moves; if a file or function name here no longer matches the code, trust the code and update this page. Companion documents: <code>PyTxT-roadmap.html</code> (status dashboard), <code>docs/PyTxT-overview.md</code> (architecture deep-dive), <code>CLAUDE.md</code> (project principles).
+    </footer>
+  </main>
+</div>
+
+<script>
+  // ====== Sidebar filter ======
+  const filterInput = document.getElementById('filter');
+  filterInput.addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase().trim();
+    document.querySelectorAll('.sidebar details').forEach(det => {
+      let anyVisible = false;
+      det.querySelectorAll('li').forEach(li => {
+        const txt = li.textContent.toLowerCase();
+        const match = !q || txt.includes(q);
+        li.style.display = match ? '' : 'none';
+        if (match) anyVisible = true;
+      });
+      det.style.display = anyVisible ? '' : 'none';
+      if (q && anyVisible) det.setAttribute('open', '');
+    });
+  });
+
+  // ====== Highlight active link on hash change + smooth scroll glow ======
+  function setActive() {
+    const hash = window.location.hash;
+    document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
+    if (hash) {
+      const link = document.querySelector(`.sidebar a[href="${hash}"]`);
+      if (link) {
+        link.classList.add('active');
+        // Open the containing details
+        let p = link.closest('details');
+        while (p) { p.setAttribute('open', ''); p = p.parentElement.closest('details'); }
+      }
+      const card = document.querySelector(hash);
+      if (card && card.classList.contains('file')) {
+        card.classList.add('highlight');
+        setTimeout(() => card.classList.remove('highlight'), 1400);
+      }
+    }
+  }
+  window.addEventListener('hashchange', setActive);
+  document.addEventListener('DOMContentLoaded', setActive);
+
+  // ====== Architecture SVG: click box → jump ======
+  document.querySelectorAll('svg.arch .box[data-jump]').forEach(g => {
+    g.addEventListener('click', () => {
+      const target = g.getAttribute('data-jump');
+      if (target) window.location.hash = target;
+    });
+  });
+
+  // ====== Toolbar buttons ======
+  document.getElementById('expandAllSnippets').addEventListener('click', () => {
+    document.querySelectorAll('details.snippet').forEach(d => d.setAttribute('open', ''));
+  });
+  document.getElementById('collapseAllSnippets').addEventListener('click', () => {
+    document.querySelectorAll('details.snippet').forEach(d => d.removeAttribute('open'));
+  });
+  document.getElementById('expandAllSidebar').addEventListener('click', () => {
+    document.querySelectorAll('.sidebar details').forEach(d => d.setAttribute('open', ''));
+  });
+  document.getElementById('collapseAllSidebar').addEventListener('click', () => {
+    document.querySelectorAll('.sidebar details').forEach(d => d.removeAttribute('open'));
+  });
+</script>
+</body>
+</html>

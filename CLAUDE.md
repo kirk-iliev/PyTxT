@@ -85,12 +85,18 @@ docker-compose. Deploy target: appsdev2, port 8008.
 
 ## Where things live
 
+- `docs/PyTxT-overview.md` — **canonical end-to-end overview**: what
+  PyTxT is, origin, machine context, architecture, live PV + REST
+  surfaces, status, roadmap. Refresh when the public surface or
+  architectural picture changes.
 - `legacy/TxT_GUI/` — original MATLAB GUI (.mlapp, unpacked .m sources)
 - `legacy/automated_startup/` — `SCexp_ALS_*.m` operational glue
   (reference for porting hardware interactions); plus lattice files
 - `PyTxT-project-plan.html` — locked scope, phased delivery (owner: PI).
   Read for "what we're building" and "in scope vs. out of scope"
-- `orientation.md` — first-time orientation snapshot
+- `PyTxT-roadmap.html` — live status dashboard; refresh after every
+  milestone / phase completion or major architectural change
+- `orientation.md` — short stub pointing at the overview
 - `TxT_GUI_manual.pdf` — the 18-step user workflow that defines feature
   parity
 - `docs/superpowers/specs/` — per-phase design specs (created via the
