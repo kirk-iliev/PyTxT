@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 
@@ -34,3 +35,34 @@ class FirstTurnResult:
     sum_first_turn: np.ndarray
     injection_turn: np.ndarray       # (n_bpms,) int32, -1 for failed
     failed_bpm_names: list[str]
+
+
+@dataclass(frozen=True)
+class Reference:
+    """In-memory representation of a loaded reference trajectory.
+
+    `first_turn` is always populated (it's the diff math input).
+    `raws` is populated only when the .mat included the PyTxT-extended
+    waveform variables. MATLAB-GUI-saved references omit these; for
+    those refs `raws` is None and the lazy /result/ref/raw endpoint
+    (M4) returns 404.
+
+    `bpm_names` is the *canonicalized* (suffix-stripped) list from the
+    .mat — preserved separately from `first_turn` for the soft-merge
+    audit (M2) and diagnostics.
+    """
+    first_turn: FirstTurnResult
+    bpm_names: list[str]
+    raws: dict[str, RawBPM] | None
+    file_path: Path | None
+    saved_at: datetime | None
+
+
+@dataclass(frozen=True)
+class DiffSummary:
+    """Cheap summary of a B − R0 diff. NaN-aware."""
+    x_rms_mm: float
+    y_rms_mm: float
+    x_max_abs_mm: float
+    y_max_abs_mm: float
+    n_valid: int
