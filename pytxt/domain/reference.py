@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import numpy as np
@@ -132,7 +133,73 @@ def load_reference_mat(path: Path) -> Reference:
     )
 
 
-# save_reference_mat       — Task 3
+_N_SAMPLES = 100_000
+
+
+def _pytxt_version() -> str:
+    try:
+        return version("pytxt")
+    except PackageNotFoundError:
+        return "0.0.0+dev"
+
+
+def save_reference_mat(
+    path: Path,
+    first_turn: FirstTurnResult,
+    last_acquire_raws: dict[str, RawBPM],
+    bpm_prefixes: list[str],
+) -> None:
+    """Write a MATLAB-compatible reference .mat with PyTxT extras.
+
+    See module docstring for the schema. Failed BPMs (absent from
+    last_acquire_raws) are written with NaN in R0 and zero-filled
+    waveform rows.
+    """
+    n_bpms = len(bpm_prefixes)
+    assert first_turn.x_first_turn.shape == (n_bpms,), \
+        f"first_turn length {first_turn.x_first_turn.shape[0]} != prefixes {n_bpms}"
+
+    R0 = np.stack([
+        first_turn.x_first_turn.astype(np.float64),
+        first_turn.y_first_turn.astype(np.float64),
+    ])  # (2, n_bpms)
+
+    X_wf = np.zeros((n_bpms, _N_SAMPLES), dtype=np.int32)
+    Y_wf = np.zeros((n_bpms, _N_SAMPLES), dtype=np.int32)
+    sum_wf = np.zeros((n_bpms, _N_SAMPLES), dtype=np.int32)
+    inj = np.full(n_bpms, -1, dtype=np.int32)
+    for i, prefix in enumerate(bpm_prefixes):
+        raw = last_acquire_raws.get(prefix)
+        if raw is None:
+            continue
+        X_wf[i] = raw.x_wf
+        Y_wf[i] = raw.y_wf
+        sum_wf[i] = raw.sum_wf
+        inj[i] = int(first_turn.injection_turn[i])
+
+    bpms_struct = {
+        "Names": np.array([[p] for p in bpm_prefixes], dtype=object),
+        "ORDs": np.arange(1, n_bpms + 1, dtype=np.uint16),  # stub; we lack lattice ordinals
+        "nBuffer": np.int32(_N_SAMPLES),
+        # GUI-visible fields stubbed empty for completeness
+        "XGolden": np.array([], dtype=np.float64),
+        "YGolden": np.array([], dtype=np.float64),
+        "current_mode": "",
+        "attenuation": np.uint8(0),
+    }
+
+    scipy.io.savemat(path, {
+        "R0": R0,
+        "BPMs": bpms_struct,
+        "X_wf": X_wf,
+        "Y_wf": Y_wf,
+        "sum_wf": sum_wf,
+        "injection_turn": inj,
+        "bpm_prefixes_canonical": np.array([[p] for p in bpm_prefixes], dtype=object),
+        "saved_by": f"pytxt v{_pytxt_version()}",
+    })
+
+
 # align_to_current         — Task 4
 # compute_diff             — Task 5
 # summarize_diff           — Task 5
