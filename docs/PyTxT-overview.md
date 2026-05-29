@@ -1,6 +1,6 @@
 # PyTxT — Overview
 
-**Last refreshed:** 2026-05-22 · **Phase:** 2 (read path) · **Live status:** [`PyTxT-roadmap.html`](../PyTxT-roadmap.html)
+**Last refreshed:** 2026-05-29 · **Phase:** 2 (read path) **complete**; Phase 3 (reference trajectory) next · **Live status:** [`PyTxT-roadmap.html`](../PyTxT-roadmap.html)
 
 This is the canonical "what is this thing?" document for PyTxT. Read it
 top-to-bottom and you should be able to answer: what PyTxT does, where
@@ -247,6 +247,24 @@ The shared handler (`pytxt/handlers/acquire.py`) is what enforces
 acquire and a PV-initiated acquire to diverge, because they invoke
 literally the same function.
 
+Step 6 also stashes the per-BPM full waveforms (None entries stripped)
+into `AppState.last_acquire_raws`. That in-memory cache is what backs the
+raw-waveform drill-down endpoint (§7.2) — the one payload too large for
+PV semantics. Because `AppState.update` is atomic, a reader hitting
+`/result/bpm/raw` mid-acquire never sees half-written data, so the raw
+endpoint has no 409 path.
+
+### 5.3a The synthetic reader (e2e / demo)
+
+`pytxt/ca_client/synthetic_reader.py` provides `SyntheticBpmReader`, a
+drop-in for `BpmReader` selected at composition time via
+`PYTXT_USE_SYNTHETIC_READER=1`. It returns deterministic per-BPM
+waveforms — a flat sum signal with a rising edge at sample 1370 so the
+domain's injection-turn detection finds a real turn, and per-BPM-varying
+X/Y so the rendered polyline isn't flat. It performs no CA I/O, so the
+full click-ACQUIRE-render-hover cycle (and the Playwright e2e suite) runs
+with no live ring. It is never wired in production.
+
 ### 5.4 The WebSocket↔CA bridge
 
 `pytxt/api/ws_bridge.py` exposes one WebSocket endpoint,
@@ -294,19 +312,19 @@ pytxt/
 └── frontend/              # vanilla JS + Canvas (static assets)
 ```
 
-**Status flags** for each package as of 2026-05-22:
+**Status flags** for each package as of 2026-05-29 (Phase 2 complete):
 
 | Package | Status | Notes |
 |---|---|---|
 | `config/` | implemented | Settings + BPM prefix loader live; 107-entry catalog committed |
-| `state/` | implemented | AppState fields for phase 1 + 2 published |
+| `state/` | implemented | AppState fields for phase 1 + 2 published, incl. `last_acquire_raws` cache |
 | `handlers/` | implemented | `ping` + `acquire` |
 | `ioc/` | implemented | Phase-1 + phase-2 PV namespaces populated |
-| `ca_client/` | implemented | BpmReader validated against 107 BPMs ≤3 s |
+| `ca_client/` | implemented | `BpmReader` validated against 107 BPMs ≤3 s; `SyntheticBpmReader` for e2e/demo |
 | `domain/` | implemented (phase 2 scope) | First-turn extract done; response-matrix work lands in phase 4 |
-| `api/routes/` | partial | `cmd`/`state`/`health` live; `result` is a stub awaiting M4 raw-waveform endpoint |
+| `api/routes/` | implemented (phase 2 scope) | `cmd`/`state`/`config`/`health` + `result/bpm/raw` all live |
 | `api/ws_bridge` | implemented | Browser subscribes per-PV; coerces caproto values to JSON |
-| `frontend/` | scaffolded | M3 fills it out with the ring-trajectory plot |
+| `frontend/` | implemented (phase 2 scope) | Ring-trajectory X/Y plot, per-BPM hover tooltip, status header w/ timestamp |
 
 ---
 
@@ -360,13 +378,33 @@ auto-generated OpenAPI at `/docs`.
 | `GET` | `/api/v1/config` | Frontend bootstrap: returns the deployed `pv_prefix` |
 | `POST` | `/api/v1/cmd/ping` | REST mirror of `CMD:PING`; same handler |
 | `POST` | `/api/v1/cmd/acquire` | REST mirror of `CMD:ACQUIRE`; 409 if already in-flight |
+| `GET` | `/api/v1/result/bpm/raw?bpm=<prefix>` | Full raw TBT waveforms for one BPM (see below) |
 | `WS` | `/api/v1/pvs` | Subscribe to PVs over WebSocket; messages `{action, pvs[]}` in, `{pv, value, ts}` out |
-| `GET` | `/` | Static frontend (when built) |
+| `GET` | `/` | Static frontend |
 
-`GET /api/v1/result/bpm/raw` is reserved for M4 — bulk raw-waveform
-download for the trajectory plot's drill-down view. It's the one
-endpoint that exists *because* PVs can't carry 107 × 100 000 int32
-samples (~144 MB) cleanly.
+`GET /api/v1/result/bpm/raw?bpm=<prefix>` (live since M4) is the
+drill-down for one BPM's full turn-by-turn waveforms — the one endpoint
+that exists *because* PVs can't carry 107 × 100 000 int32 samples
+(~144 MB) cleanly. It reads the in-memory `last_acquire_raws` cache
+populated by the most recent acquire and returns a `BpmRawWaveforms`:
+
+```json
+{
+  "bpm_prefix": "SR01C:BPM1",
+  "x_nm":   [ ...100000 raw int nm... ],
+  "y_nm":   [ ...100000 raw int nm... ],
+  "sum_au": [ ...100000 raw int AU... ],
+  "armed": 0,
+  "read_timestamp": "2026-05-29T…Z"
+}
+```
+
+Note the values are **raw nm / AU** — the `/1e6` nm→mm conversion is
+applied only to the first-turn scalars published as PVs, not to this
+bulk download. Error paths: **400** for missing/empty `bpm`, **404** for
+an unknown prefix *or* a BPM with no stored data yet (acquire never ran,
+or that BPM was in the last failed-set). No **409** — the cache is
+swapped atomically, so concurrent acquires never expose partial data.
 
 ### 7.3 Equivalence
 
@@ -393,7 +431,7 @@ is the feature-parity target. Mapped to PyTxT phases:
 | 1–4 | Launch GUI, select reference, choose BPMs | Phase 3 (reference loader) |
 | 5–7 | Arm BPMs, fire injection one-shot, read TBT data | **Phase 2 read path + phase 4 (arm/inject)** |
 | 8–9 | Detect injection turn, extract first-turn X/Y | ✓ Phase 2 |
-| 10–11 | Plot ring trajectory, overlay reference | Phase 2 publish ✓ + phase 3 overlay |
+| 10–11 | Plot ring trajectory, overlay reference | Plot ✓ Phase 2 (X/Y panels + hover); reference overlay → phase 3 |
 | 12–14 | Compute orbit RMS, kick fits, dispersion | Phase 5 (analysis polish) |
 | 15–17 | Run trajectory correction (response-matrix inverse → CM steps) | Phase 4 (threading workflow) |
 | 18 | Save updated reference | Phase 3 |
@@ -404,22 +442,28 @@ behind it.
 
 ---
 
-## 9. Current status (2026-05-22)
+## 9. Current status (2026-05-29)
 
 - **Phase 1** (skeleton + hello-world IOC + WS bridge) — **complete**;
   proves the architecture round-trip end-to-end.
-- **Phase 2** (read path) — **in flight:**
-  - M1 (read pipeline, AppState wiring, IOC publish, e2e test) —
-    **complete, validated on real ring 2026-05-20**.
-  - M2-1 (composition-time BPM prefix loader) — **complete, validated
-    on appsdev2 2026-05-22**.
-  - M2-2 (multi-BPM scale, ≤3 s for 107 BPMs) — **code complete
-    2026-05-22**; spec/plan at
-    [`docs/superpowers/specs/`](superpowers/specs/) and
-    [`docs/superpowers/plans/2026-05-22-m2-2-multi-bpm-scale.md`](superpowers/plans/2026-05-22-m2-2-multi-bpm-scale.md).
-  - M3 (frontend ring-trajectory plot) — queued.
-  - M4 (raw-waveform REST endpoint) — queued.
-- **Phases 3–6** — not started. See §10.
+- **Phase 2** (read path) — **complete (2026-05-24)**. All four
+  milestones closed; full suite **121 pytest + 5 Playwright** green.
+  - **M1** — read pipeline, AppState wiring, IOC publish, e2e test.
+    **Validated on the real ring 2026-05-20** (SR01C:BPM1 via CA, REST,
+    browser). Surfaced and pinned five backend bugs.
+  - **M2** — scaled to all 107 BPMs. M2-1 composition-time prefix loader
+    (`load_bpm_prefixes`); M2-2 multi-BPM scale (`handle_acquire` ~1.2 s
+    at N=107, under the 3 s budget); M2-3 live-ring browser render —
+    surfaced two more backend fixes (EPICS_CA_ADDR_LIST localhost
+    discovery; WS-bridge waveform coercion).
+  - **M3** — failure handling: partial-fail / all-offline / timeout
+    classification + CA-side concurrency rejection (caput while in-flight
+    re-raises).
+  - **M4** — raw-waveform REST endpoint (`/result/bpm/raw`), frontend
+    hover tooltip + status-header timestamp, `SyntheticBpmReader` for
+    ring-free e2e, and the Playwright trajectory spec.
+- **Phase 3** (reference trajectory) — **next**; spec not yet drafted.
+- **Phases 4–6** — not started. See §10.
 
 The single-source-of-truth live tracker is
 [`PyTxT-roadmap.html`](../PyTxT-roadmap.html) — open it in a browser
