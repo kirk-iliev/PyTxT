@@ -18,6 +18,7 @@ MATLAB schema (interop-safe per spec §1, §6.1):
 from __future__ import annotations
 
 import re
+import warnings
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -232,5 +233,30 @@ def align_to_current(
     return aligned, n_aligned, n - n_aligned
 
 
-# compute_diff             — Task 5
-# summarize_diff           — Task 5
+def compute_diff(
+    live: FirstTurnResult,
+    aligned_ref: FirstTurnResult,
+) -> tuple[np.ndarray, np.ndarray]:
+    """NaN-propagating B − R0. See spec §6.1."""
+    return (
+        live.x_first_turn - aligned_ref.x_first_turn,
+        live.y_first_turn - aligned_ref.y_first_turn,
+    )
+
+
+def summarize_diff(dx: np.ndarray, dy: np.ndarray) -> DiffSummary:
+    """RMS/max/n_valid — NaN-aware. n_valid counts indices non-NaN in BOTH."""
+    both_valid = ~np.isnan(dx) & ~np.isnan(dy)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        x_rms = float(np.sqrt(np.nanmean(dx ** 2)))
+        y_rms = float(np.sqrt(np.nanmean(dy ** 2)))
+        x_max = float(np.nanmax(np.abs(dx)))
+        y_max = float(np.nanmax(np.abs(dy)))
+    return DiffSummary(
+        x_rms_mm=x_rms,
+        y_rms_mm=y_rms,
+        x_max_abs_mm=x_max,
+        y_max_abs_mm=y_max,
+        n_valid=int(np.sum(both_valid)),
+    )
