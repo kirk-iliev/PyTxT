@@ -12,6 +12,11 @@ from caproto.server import PVGroup, pvproperty
 
 from pytxt.handlers.acquire import handle_acquire
 from pytxt.handlers.ping import handle_ping
+from pytxt.handlers.reference import (
+    NoLastAcquireError,
+    handle_clear_ref,
+    handle_promote_ref,
+)
 from pytxt.state.app_state import AppState
 
 _BPM_MAX = 128  # waveform max_length; accommodates ~120 BPMs with headroom
@@ -85,6 +90,28 @@ class PyTxTPVGroup(PVGroup):
         doc="Names of failed BPMs from the most recent ACQUIRE",
     )
 
+    # === STATE:REF_* (phase 3) ===
+    ref_loaded = pvproperty(
+        value=0, dtype=int, read_only=True,
+        name="STATE:REF_LOADED",
+        doc="1 when a reference trajectory is loaded; 0 when none",
+    )
+    ref_name = pvproperty(
+        value="", dtype=ca.ChannelType.STRING, read_only=True,
+        name="STATE:REF_NAME",
+        doc="Name of the loaded reference ('<promoted>' under promote); empty when none",
+    )
+    ref_loaded_at = pvproperty(
+        value="", dtype=ca.ChannelType.STRING, read_only=True,
+        name="STATE:REF_LOADED_AT",
+        doc="ISO-8601 UTC timestamp when the reference was loaded; empty when none",
+    )
+    ref_source = pvproperty(
+        value="", dtype=ca.ChannelType.STRING, read_only=True,
+        name="STATE:REF_SOURCE",
+        doc="Provenance of the loaded reference: 'promoted', 'file', or empty when none",
+    )
+
     # === RESULT:BPM:* (phase 2) ===
     result_bpm_x_first_turn = pvproperty(
         value=[0.0] * _BPM_MAX, dtype=float, read_only=True,
@@ -97,6 +124,18 @@ class PyTxTPVGroup(PVGroup):
         name="RESULT:BPM:Y_FIRST_TURN",
         max_length=_BPM_MAX,
         doc="Per-BPM Y position (mm) at detected injection turn; NaN for failed BPMs",
+    )
+    result_bpm_x_diff_first_turn = pvproperty(
+        value=[0.0] * _BPM_MAX, dtype=float, read_only=True,
+        name="RESULT:BPM:X_DIFF_FIRST_TURN",
+        max_length=_BPM_MAX,
+        doc="Per-BPM X B-R0 (mm); NaN where either side NaN or no ref loaded",
+    )
+    result_bpm_y_diff_first_turn = pvproperty(
+        value=[0.0] * _BPM_MAX, dtype=float, read_only=True,
+        name="RESULT:BPM:Y_DIFF_FIRST_TURN",
+        max_length=_BPM_MAX,
+        doc="Per-BPM Y B-R0 (mm); NaN where either side NaN or no ref loaded",
     )
     result_bpm_sum_first_turn = pvproperty(
         value=[0.0] * _BPM_MAX, dtype=float, read_only=True,
@@ -128,6 +167,16 @@ class PyTxTPVGroup(PVGroup):
         name="CMD:ACQUIRE",
         doc="Write any value to trigger BPM acquisition (value ignored; trigger only)",
     )
+    cmd_promote_ref = pvproperty(
+        value=0, dtype=int,
+        name="CMD:PROMOTE_REF",
+        doc="Write any value to promote the current acquisition to an in-memory reference (value ignored; trigger only)",
+    )
+    cmd_clear_ref = pvproperty(
+        value=0, dtype=int,
+        name="CMD:CLEAR_REF",
+        doc="Write any value to unload the current reference (value ignored; trigger only)",
+    )
 
     def __init__(self, *args, state: AppState, reader: Optional[object] = None, **kwargs):
         self._state = state
@@ -155,4 +204,27 @@ class PyTxTPVGroup(PVGroup):
         if self._reader is None:
             return value
         await handle_acquire(self._state, self._reader)
+        return value
+
+    @cmd_promote_ref.putter
+    async def cmd_promote_ref(self, instance, value):
+        """CA write to CMD:PROMOTE_REF promotes the live acquisition to a ref.
+
+        Acts on self._state only — no reader required, unlike CMD:ACQUIRE.
+        NoLastAcquireError is RE-RAISED so caproto surfaces it as a CA write
+        error — symmetric to REST's 422 from POST /api/v1/cmd/promote_ref.
+        STATE:REF_LOADED publishes the outcome for subscribers who prefer
+        observation over retry.
+        """
+        await handle_promote_ref(self._state)
+        return value
+
+    @cmd_clear_ref.putter
+    async def cmd_clear_ref(self, instance, value):
+        """CA write to CMD:CLEAR_REF unloads the current reference.
+
+        Acts on self._state only — no reader required. Idempotent: succeeds
+        even when nothing is loaded (mirrors REST's /api/v1/cmd/clear_ref).
+        """
+        await handle_clear_ref(self._state)
         return value
