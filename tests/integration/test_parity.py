@@ -21,8 +21,9 @@ def _public_state(state) -> dict:
     """Explicit projection of AppState fields the parity test compares.
 
     Phase 2: also covers acquire_in_flight, last_acquire.status, ok/fail
-    counts. Raw waveform dicts and timestamps are normalized because they
-    differ across runs.
+    counts. Phase 3 (M2): reference status + last_diff summary. Raw waveform
+    dicts, timestamps, and diff arrays are normalized because they differ by
+    identity / across runs.
     """
     return {
         "heartbeat": state.heartbeat,
@@ -38,6 +39,16 @@ def _public_state(state) -> dict:
         "last_acquire_failed_bpm_names": list(state.last_acquire.failed_bpm_names),
         "last_acquire_timestamp": "<set>" if state.last_acquire.timestamp else None,
         "last_acquire_raws_keys": sorted(state.last_acquire_raws.keys()),
+        # phase 3 (M2): reference status + diff summary. Project last_diff to a
+        # stable shape — raw dx/dy arrays differ by identity and break ==.
+        "reference_loaded": state.reference_loaded,
+        "reference_source": state.reference_source.value,
+        "reference_name": state.reference_name,
+        "reference_loaded_at": "<set>" if state.reference_loaded_at else None,
+        "last_diff": (
+            None if state.last_diff is None
+            else {"n_valid": state.last_diff.summary.n_valid}
+        ),
     }
 
 
@@ -54,9 +65,15 @@ def _fake_raw(prefix):
     )
 
 
-async def _do_via_ca(prefix: str, cmd: str) -> None:
+async def _do_via_ca(prefix: str, cmd: str, pre_acquire: bool = False) -> None:
     client = ClientContext()
     try:
+        if pre_acquire:
+            # Commands like PROMOTE_REF need a prior successful acquire to
+            # source from. Trigger one on this same state before the command.
+            acq_pv, = await client.get_pvs(prefix + "CMD:ACQUIRE")
+            await acq_pv.write(1)
+            await asyncio.sleep(0.2)
         pv, = await client.get_pvs(prefix + cmd)
         await pv.write(1)
         await asyncio.sleep(0.2)   # let listener fan-out complete
@@ -69,20 +86,28 @@ async def _do_via_ca(prefix: str, cmd: str) -> None:
             pass
 
 
-async def _do_via_rest(app, path: str) -> None:
+async def _do_via_rest(app, path: str, pre_acquire: bool = False) -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        if pre_acquire:
+            ra = await ac.post("/api/v1/cmd/acquire", json={})
+            assert ra.status_code == 200, f"REST pre-acquire failed: {ra.status_code} {ra.text}"
         r = await ac.post(path, json={})
         assert r.status_code == 200, f"REST {path} failed: {r.status_code} {r.text}"
 
 
+# Commands that act on a live acquisition (e.g. PROMOTE_REF) need BPM prefixes
+# and a reader on both arms so the pre-acquire can run.
+_NEEDS_BPMS = {"acquire", "promote_ref", "clear_ref"}
+
+
 def _make_state(command_name: str):
     from pytxt.state.app_state import AppState
-    bpm = ["A"] if command_name == "acquire" else []
+    bpm = ["A"] if command_name in _NEEDS_BPMS else []
     return AppState(version="0.1.0", started_at=time.time(), bpm_prefixes=bpm)
 
 
 def _make_reader(command_name: str):
-    if command_name != "acquire":
+    if command_name not in _NEEDS_BPMS:
         return None
     reader = AsyncMock()
     reader.read_all.return_value = {"A": _fake_raw("A")}
@@ -91,14 +116,16 @@ def _make_reader(command_name: str):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "command_name, ca_pv_suffix, rest_path",
+    "command_name, ca_pv_suffix, rest_path, requires_acquire",
     [
-        ("ping", "CMD:PING", "/api/v1/cmd/ping"),
-        ("acquire", "CMD:ACQUIRE", "/api/v1/cmd/acquire"),
-        # phase 3+: ("load_ref", "CMD:LOAD_REF", "/api/v1/cmd/load-ref"),
+        ("ping", "CMD:PING", "/api/v1/cmd/ping", False),
+        ("acquire", "CMD:ACQUIRE", "/api/v1/cmd/acquire", False),
+        ("promote_ref", "CMD:PROMOTE_REF", "/api/v1/cmd/promote_ref", True),
+        ("clear_ref", "CMD:CLEAR_REF", "/api/v1/cmd/clear_ref", False),
+        # phase 3+: ("load_ref", "CMD:LOAD_REF", "/api/v1/cmd/load-ref", False),
     ],
 )
-async def test_parity_ca_vs_rest(test_pv_prefix, command_name, ca_pv_suffix, rest_path):
+async def test_parity_ca_vs_rest(test_pv_prefix, command_name, ca_pv_suffix, rest_path, requires_acquire):
     from pytxt.ioc.server import PyTxTIOC
     from pytxt.api.server import create_app
 
@@ -111,7 +138,7 @@ async def test_parity_ca_vs_rest(test_pv_prefix, command_name, ca_pv_suffix, res
     await ioc_ca.wait_until_running()
     try:
         before_ca = _public_state(state_ca)
-        await _do_via_ca(test_pv_prefix, ca_pv_suffix)
+        await _do_via_ca(test_pv_prefix, ca_pv_suffix, pre_acquire=requires_acquire)
         after_ca = _public_state(state_ca)
     finally:
         server_task.cancel()
@@ -130,7 +157,7 @@ async def test_parity_ca_vs_rest(test_pv_prefix, command_name, ca_pv_suffix, res
         app.state.bpm_reader = reader_rest
 
     before_rest = _public_state(state_rest)
-    await _do_via_rest(app, rest_path)
+    await _do_via_rest(app, rest_path, pre_acquire=requires_acquire)
     after_rest = _public_state(state_rest)
     diff_rest = {k: (before_rest[k], after_rest[k]) for k in after_rest if before_rest[k] != after_rest[k]}
 
