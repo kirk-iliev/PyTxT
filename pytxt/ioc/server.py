@@ -148,6 +148,23 @@ class PyTxTIOC:
 
         self.state.subscribe("bpm_prefixes", _publish_bpm_names)
 
+        # --- Phase 3 (M2): two-trigger reference publication ---
+        # reference_loaded drives the STATE:REF_* status bundle (fires on
+        # promote False→True and clear True→False); last_diff drives the diff
+        # waveforms (fires every acquire while a ref stays loaded, and on clear
+        # → None → NaN-fill). Keeping them on separate triggers means the diff
+        # arrays refresh in lockstep with the first-turn arrays each acquire
+        # while the status bundle only republishes on load/clear.
+        async def _listener_reference_status(value) -> None:
+            await self._publish_reference_status()
+
+        self.state.subscribe("reference_loaded", _listener_reference_status)
+
+        async def _listener_diff_arrays(value) -> None:
+            await self._publish_diff_arrays(value)
+
+        self.state.subscribe("last_diff", _listener_diff_arrays)
+
     async def _publish_last_acquire(self, value: LastAcquireResult) -> None:
         """Write all PVs derived from a LastAcquireResult.
 
@@ -190,6 +207,50 @@ class PyTxTIOC:
             )
         except Exception:
             logger.exception("IOC publish of LastAcquireResult / RESULT:BPM:* failed")
+
+    async def _publish_reference_status(self) -> None:
+        """Write the STATE:REF_* status bundle from current AppState.
+
+        Single try/except wraps all writes (matching _publish_last_acquire) so a
+        failure in any write aborts the rest, preventing partial-publish drift.
+        Triggered by the reference_loaded listener (promote / clear).
+        """
+        try:
+            await self.pvgroup.ref_loaded.write(int(bool(self.state.reference_loaded)))
+            await self.pvgroup.ref_name.write(self.state.reference_name or "")
+            loaded_at = self.state.reference_loaded_at
+            await self.pvgroup.ref_loaded_at.write(
+                loaded_at.isoformat() if loaded_at else ""
+            )
+            await self.pvgroup.ref_source.write(self.state.reference_source.value)
+        except Exception:
+            logger.exception("IOC publish of STATE:REF_* failed")
+
+    async def _publish_diff_arrays(self, value: Any) -> None:
+        """Write RESULT:BPM:{X,Y}_DIFF_FIRST_TURN from a DiffResult (or None).
+
+        None → NaN-filled arrays (no ref loaded / cleared); otherwise pad the
+        DiffResult dx/dy to _BPM_MAX. Triggered by the last_diff listener, so
+        the diff arrays refresh on every acquire in lockstep with the first-turn
+        arrays. Single try/except matches _publish_last_acquire.
+        """
+        try:
+            if value is None:
+                await self.pvgroup.result_bpm_x_diff_first_turn.write(
+                    _pad_numeric_array([], max_len=128, fill=math.nan)
+                )
+                await self.pvgroup.result_bpm_y_diff_first_turn.write(
+                    _pad_numeric_array([], max_len=128, fill=math.nan)
+                )
+            else:
+                await self.pvgroup.result_bpm_x_diff_first_turn.write(
+                    _pad_numeric_array(value.dx, max_len=128, fill=math.nan)
+                )
+                await self.pvgroup.result_bpm_y_diff_first_turn.write(
+                    _pad_numeric_array(value.dy, max_len=128, fill=math.nan)
+                )
+        except Exception:
+            logger.exception("IOC publish of RESULT:BPM:*_DIFF_FIRST_TURN failed")
 
     async def run(self) -> None:
         # caproto's server reads EPICS_CA_SERVER_PORT (no S) at Context.__init__
@@ -238,6 +299,23 @@ class PyTxTIOC:
                 )
             except Exception:
                 logger.exception("IOC startup: failed to initialise phase-2 PVs")
+
+            # Push phase-3 (M2) reference defaults: empty status bundle +
+            # NaN-filled diff arrays, so the PVs read sane values before the
+            # first promote.
+            try:
+                await pvgroup.ref_loaded.write(0)
+                await pvgroup.ref_name.write("")
+                await pvgroup.ref_loaded_at.write("")
+                await pvgroup.ref_source.write("")
+                await pvgroup.result_bpm_x_diff_first_turn.write(
+                    _pad_numeric_array([], max_len=128, fill=math.nan)
+                )
+                await pvgroup.result_bpm_y_diff_first_turn.write(
+                    _pad_numeric_array([], max_len=128, fill=math.nan)
+                )
+            except Exception:
+                logger.exception("IOC startup: failed to initialise phase-3 REF PVs")
 
             running_event.set()
 
