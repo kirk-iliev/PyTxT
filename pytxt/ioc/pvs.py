@@ -5,6 +5,7 @@ agents reading the IOC's introspection PVs.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional
 
 import caproto as ca
@@ -178,9 +179,17 @@ class PyTxTPVGroup(PVGroup):
         doc="Write any value to unload the current reference (value ignored; trigger only)",
     )
 
-    def __init__(self, *args, state: AppState, reader: Optional[object] = None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        state: AppState,
+        reader: Optional[object] = None,
+        reference_dir: Optional[Path] = None,
+        **kwargs,
+    ):
         self._state = state
         self._reader = reader
+        self._reference_dir = reference_dir
         super().__init__(*args, **kwargs)
 
     @cmd_ping.putter

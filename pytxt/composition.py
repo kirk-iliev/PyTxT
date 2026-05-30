@@ -66,6 +66,14 @@ async def main() -> None:
 
     bpm_prefixes = load_bpm_prefixes(settings.bpm_prefixes_path)
 
+    # Resolve + create the reference-trajectory library dir. Kept out of
+    # Settings (side-effect-free) so unit tests don't litter the repo; the
+    # one place the dir actually materializes is here. Threaded into both
+    # adapters (IOC + REST app) as the injected reference_dir dependency.
+    reference_dir = settings.reference_dir.resolve()
+    reference_dir.mkdir(parents=True, exist_ok=True)
+    logger.info("Reference library dir: %s", reference_dir)
+
     # Must run before gather() — once IOC / WS bridge / BpmReader start
     # constructing caproto Contexts, they capture EPICS_CA_ADDR_LIST as-is.
     _ensure_local_ioc_in_ca_addr_list(settings.ioc_host, settings.ioc_port)
@@ -106,9 +114,15 @@ async def main() -> None:
         repeater_port=settings.ioc_repeater_port,
         state=state,
         reader=reader,
+        reference_dir=reference_dir,
     )
 
-    api_app = create_app(state=state, settings=settings, bpm_reader=reader)
+    api_app = create_app(
+        state=state,
+        settings=settings,
+        bpm_reader=reader,
+        reference_dir=reference_dir,
+    )
     config = uvicorn.Config(
         api_app,
         host=settings.api_host,

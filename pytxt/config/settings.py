@@ -6,6 +6,7 @@ namespace and ports 59064/59065 so it cannot collide with real ALS
 PVs. Production deployment must explicitly override.
 """
 import os
+from pathlib import Path
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -38,6 +39,12 @@ class Settings(BaseSettings):
     # --- Phase 2 ---
     bpm_read_timeout_s: float = 2.0
     bpm_prefixes_path: str = "pytxt/config/bpm_prefixes.txt"
+
+    # --- Phase 3 ---
+    # Reference-trajectory file library. Declared here so PYTXT_REFERENCE_DIR
+    # is env-overridable; the dir is resolved + created in composition.main()
+    # (kept side-effect-free here so unit tests don't litter the repo).
+    reference_dir: Path = Path("data/references")
 
     # Version is NOT env-overridable; populated at startup by composition.main()
     # from importlib.metadata.version("pytxt") with fallback to "0.0.0+dev".

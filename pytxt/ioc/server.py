@@ -9,6 +9,7 @@ import asyncio
 import logging
 import math
 import os
+from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
@@ -80,13 +81,16 @@ class PyTxTIOC:
         repeater_port: int,
         state: AppState,
         reader: Optional[object] = None,
+        reference_dir: Optional[Path] = None,
     ):
         self.prefix = prefix
         self.host = host
         self.port = port
         self.repeater_port = repeater_port
         self.state = state
-        self.pvgroup = PyTxTPVGroup(prefix=prefix, state=state, reader=reader)
+        self.pvgroup = PyTxTPVGroup(
+            prefix=prefix, state=state, reader=reader, reference_dir=reference_dir
+        )
         self._context: Optional[Context] = None
         self._running_event = asyncio.Event()
         self._bind_state_changes()

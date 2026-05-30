@@ -22,6 +22,7 @@ def create_app(
     state: AppState,
     settings: Optional[Any] = None,
     bpm_reader: Optional[Any] = None,
+    reference_dir: Optional[Path] = None,
 ) -> FastAPI:
     """Create and configure the FastAPI app.
 
@@ -33,6 +34,9 @@ def create_app(
         Settings instance.
     bpm_reader : BpmReader | None
         Phase-2 CA client. None in tests that don't exercise ACQUIRE.
+    reference_dir : Path | None
+        Phase-3 reference-trajectory library dir. None in tests that don't
+        exercise LOAD/SAVE.
     """
     app = FastAPI(
         title="PyTxT",
@@ -47,6 +51,7 @@ def create_app(
     app.state.app_state = state
     app.state.settings = settings
     app.state.bpm_reader = bpm_reader
+    app.state.reference_dir = reference_dir
 
     app.add_middleware(
         CORSMiddleware,

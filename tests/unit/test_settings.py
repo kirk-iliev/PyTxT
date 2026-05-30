@@ -1,4 +1,6 @@
 """Unit tests for pytxt.config.settings."""
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -13,6 +15,20 @@ def test_default_values():
     assert s.api_port == 8008
     assert s.heartbeat_interval_s == 1.0
     assert s.log_level == "INFO"
+    # Phase 3: reference library dir defaults to data/references (relative;
+    # resolved + created in composition.main(), not here).
+    assert s.reference_dir == Path("data/references")
+
+
+def test_reference_dir_env_var_override(monkeypatch, tmp_path):
+    """PYTXT_REFERENCE_DIR is a known field → accepted (not rejected as unknown)."""
+    target = tmp_path / "my_refs"
+    monkeypatch.setenv("PYTXT_REFERENCE_DIR", str(target))
+    from pytxt.config.settings import Settings
+    s = Settings()
+    assert s.reference_dir == target
+    # Declaring the field must not have a mkdir side effect.
+    assert not target.exists()
 
 
 def test_pv_prefix_must_end_with_colon():
