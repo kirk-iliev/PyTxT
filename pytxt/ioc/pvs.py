@@ -16,7 +16,9 @@ from pytxt.handlers.ping import handle_ping
 from pytxt.handlers.reference import (
     NoLastAcquireError,
     handle_clear_ref,
+    handle_load_ref,
     handle_promote_ref,
+    handle_save_ref,
 )
 from pytxt.state.app_state import AppState
 
@@ -178,6 +180,16 @@ class PyTxTPVGroup(PVGroup):
         name="CMD:CLEAR_REF",
         doc="Write any value to unload the current reference (value ignored; trigger only)",
     )
+    cmd_load_ref = pvproperty(
+        value="", dtype=ca.ChannelType.STRING,
+        name="CMD:LOAD_REF",
+        doc="Write a reference basename (e.g. 'foo.mat') to load it from the library and arm its B-R0 diff",
+    )
+    cmd_save_ref = pvproperty(
+        value="", dtype=ca.ChannelType.STRING,
+        name="CMD:SAVE_REF",
+        doc="Write a basename (e.g. 'foo.mat') to save the current acquisition to the library; empty string uses a timestamp default",
+    )
 
     def __init__(
         self,
@@ -236,4 +248,31 @@ class PyTxTPVGroup(PVGroup):
         even when nothing is loaded (mirrors REST's /api/v1/cmd/clear_ref).
         """
         await handle_clear_ref(self._state)
+        return value
+
+    @cmd_load_ref.putter
+    async def cmd_load_ref(self, instance, value):
+        """CA write to CMD:LOAD_REF loads a named reference from the library.
+
+        The written string is the reference basename. Resolves + parses via
+        the canonical handler (using self._reference_dir injected at construct
+        time). Typed exceptions (InvalidReferenceNameError, ReferenceNotFoundError,
+        ReferenceLoadError) are RE-RAISED so caproto surfaces them as CA write
+        errors — symmetric to REST's 422/404. STATE:REF_* PVs confirm the load.
+        """
+        await handle_load_ref(self._state, self._reference_dir, value)
+        return value
+
+    @cmd_save_ref.putter
+    async def cmd_save_ref(self, instance, value):
+        """CA write to CMD:SAVE_REF saves the current acquisition to the library.
+
+        The written string is the target basename; an empty string maps to None
+        → the handler's timestamp default. Typed exceptions (NoLastAcquireError,
+        InvalidReferenceNameError, ReferenceExistsError) are RE-RAISED so caproto
+        surfaces them as CA write errors — symmetric to REST's 422/409. SAVE does
+        not mutate AppState; confirmation is the file appearing in the library.
+        """
+        name = value or None  # empty CA string → timestamp default
+        await handle_save_ref(self._state, self._reference_dir, name)
         return value
