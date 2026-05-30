@@ -6,6 +6,7 @@ M2 covers the file-free pair (PROMOTE/CLEAR). LOAD/SAVE land in M3.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 from pytxt.api.schemas.reference import (
     ClearRefResponse,
@@ -24,6 +25,54 @@ class NoLastAcquireError(Exception):
     Re-raised by the CA putter (→ alarm); mapped to HTTP 422 by the REST route.
     Mirrors how AcquisitionInFlightError is shared by the acquire putter/route.
     """
+
+
+class InvalidReferenceNameError(Exception):
+    """Reference name is not a safe bare ``.mat`` basename within the library.
+
+    Raised by ``_resolve_in_library`` for empty names, path separators,
+    ``.``/``..``, a missing ``.mat`` extension, or any name that resolves
+    outside the library dir. CA putter re-raises → alarm; REST → HTTP 422.
+    """
+
+
+class ReferenceNotFoundError(Exception):
+    """LOAD target does not exist in the library. CA → alarm; REST → HTTP 404."""
+
+
+class ReferenceExistsError(Exception):
+    """SAVE target already exists in the library (no overwrite).
+
+    CA putter re-raises → alarm; REST → HTTP 409.
+    """
+
+
+def _resolve_in_library(reference_dir: Path, name: str) -> Path:
+    """Resolve ``name`` to an absolute path inside ``reference_dir``, safely.
+
+    Rejects empty names, path separators, ``.``/``..``, and names without a
+    ``.mat`` extension, then defends against ``../`` and symlink escapes via
+    ``Path.is_relative_to`` (3.9+). Raises *only* ``InvalidReferenceNameError``;
+    existence (LOAD) and collision (SAVE) checks live in the handlers.
+    """
+    if not name:
+        raise InvalidReferenceNameError("Reference name must not be empty.")
+    if "/" in name or "\\" in name or name in (".", ".."):
+        raise InvalidReferenceNameError(
+            f"Reference name must be a bare basename: {name!r}"
+        )
+    if not name.endswith(".mat"):
+        raise InvalidReferenceNameError(
+            f"Reference name must end in '.mat': {name!r}"
+        )
+    candidate = reference_dir / name
+    resolved = candidate.resolve()
+    base = reference_dir.resolve()
+    if not resolved.is_relative_to(base):  # 3.9+; defends ../ and symlink escapes
+        raise InvalidReferenceNameError(
+            f"Reference path escapes the library: {name!r}"
+        )
+    return resolved
 
 
 def _current_first_turn(state: AppState):
