@@ -8,7 +8,7 @@ from typing import Any, Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from pytxt.api.routes import health, cmd, result
+from pytxt.api.routes import health, cmd, references, result
 from pytxt.api.routes import state as state_route
 from pytxt.api import ws_bridge
 from pytxt.state.app_state import AppState
@@ -65,6 +65,7 @@ def create_app(
     app.include_router(state_route.router)
     app.include_router(cmd.router)
     app.include_router(result.router)
+    app.include_router(references.router)
     app.include_router(ws_bridge.router)
 
     if (_FRONTEND_DIR / "index.html").exists():

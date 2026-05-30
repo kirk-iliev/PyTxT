@@ -9,14 +9,27 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request
 
 from pytxt.api.schemas.cmd import PingResponse
-from pytxt.api.schemas.reference import ClearRefResponse, PromoteRefResponse
+from pytxt.api.schemas.reference import (
+    ClearRefResponse,
+    LoadRefRequest,
+    LoadRefResponse,
+    PromoteRefResponse,
+    SaveRefRequest,
+    SaveRefResponse,
+)
 from pytxt.api.schemas.result import AcquireResponse
+from pytxt.domain.reference import ReferenceLoadError
 from pytxt.handlers.acquire import AcquisitionInFlightError, handle_acquire
 from pytxt.handlers.ping import handle_ping
 from pytxt.handlers.reference import (
+    InvalidReferenceNameError,
     NoLastAcquireError,
+    ReferenceExistsError,
+    ReferenceNotFoundError,
     handle_clear_ref,
+    handle_load_ref,
     handle_promote_ref,
+    handle_save_ref,
 )
 
 router = APIRouter(prefix="/api/v1/cmd", tags=["cmd"])
@@ -65,3 +78,42 @@ async def post_clear_ref(request: Request) -> ClearRefResponse:
     """Unload the in-memory reference. Identical effect to a CA write to
     CMD:CLEAR_REF. Idempotent — succeeds even when nothing is loaded."""
     return await handle_clear_ref(request.app.state.app_state)
+
+
+@router.post("/load_ref", response_model=LoadRefResponse)
+async def post_load_ref(request: Request, body: LoadRefRequest) -> LoadRefResponse:
+    """Load a named reference from the library, arming its B − R0 diff.
+
+    Identical effect to a CA write to CMD:LOAD_REF. Returns 422 for an
+    unsafe/malformed name or a corrupt .mat, 404 when the file is absent.
+    """
+    state = request.app.state.app_state
+    reference_dir = getattr(request.app.state, "reference_dir", None)
+    try:
+        return await handle_load_ref(state, reference_dir, body.name)
+    except InvalidReferenceNameError as e:
+        raise HTTPException(422, str(e))
+    except ReferenceNotFoundError as e:
+        raise HTTPException(404, str(e))
+    except ReferenceLoadError as e:
+        raise HTTPException(422, str(e))
+
+
+@router.post("/save_ref", response_model=SaveRefResponse)
+async def post_save_ref(request: Request, body: SaveRefRequest) -> SaveRefResponse:
+    """Write the current acquisition to a .mat in the library.
+
+    Identical effect to a CA write to CMD:SAVE_REF. An omitted ``name``
+    defaults to the timestamp pattern. Returns 422 when there has been no
+    successful acquire or the name is unsafe, 409 when the target exists.
+    """
+    state = request.app.state.app_state
+    reference_dir = getattr(request.app.state, "reference_dir", None)
+    try:
+        return await handle_save_ref(state, reference_dir, body.name)
+    except NoLastAcquireError as e:
+        raise HTTPException(422, str(e))
+    except InvalidReferenceNameError as e:
+        raise HTTPException(422, str(e))
+    except ReferenceExistsError as e:
+        raise HTTPException(409, str(e))
