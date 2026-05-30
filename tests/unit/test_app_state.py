@@ -176,6 +176,67 @@ async def test_acquire_in_flight_is_listener_observable():
     assert captured == [True, False]
 
 
+def test_app_state_has_phase_3_reference_defaults():
+    """A fresh AppState carries empty reference/diff state."""
+    from pytxt.state.app_state import AppState
+    from pytxt.domain.types import ReferenceSource
+    s = AppState()
+    assert s.reference_loaded is False
+    assert s.reference_name == ""
+    assert s.reference_loaded_at is None
+    assert s.reference_source is ReferenceSource.NONE
+    assert s.reference_first_turn is None
+    assert s.reference_file_path is None
+    assert s.reference_bpm_names is None
+    assert s.last_diff is None
+
+
+@pytest.mark.asyncio
+async def test_promote_shaped_update_is_atomic_and_fires_listeners():
+    """A multi-field promote-shaped update (including a DiffResult holding numpy
+    arrays) applies atomically and fires listeners for exactly the changed
+    fields. Exercises the numpy-tolerant equality guard on last_diff."""
+    import numpy as np
+    from pytxt.domain.types import DiffResult, DiffSummary, ReferenceSource
+    from pytxt.state.app_state import AppState
+
+    state = AppState()
+    loaded_calls = []
+    diff_calls = []
+
+    async def on_loaded(v):
+        loaded_calls.append(v)
+
+    async def on_diff(v):
+        diff_calls.append(v)
+
+    state.subscribe("reference_loaded", on_loaded)
+    state.subscribe("last_diff", on_diff)
+
+    diff = DiffResult(
+        dx=np.array([0.0]),
+        dy=np.array([0.0]),
+        summary=DiffSummary(0, 0, 0, 0, 1),
+    )
+    await state.update(
+        reference_loaded=True,
+        reference_name="<promoted>",
+        reference_source=ReferenceSource.PROMOTED,
+        last_diff=diff,
+    )
+
+    # State applied atomically.
+    assert state.reference_loaded is True
+    assert state.reference_name == "<promoted>"
+    assert state.reference_source is ReferenceSource.PROMOTED
+    assert state.last_diff is diff
+
+    # Listeners fired exactly once for their changed field.
+    assert loaded_calls == [True]
+    assert len(diff_calls) == 1
+    assert diff_calls[0] is diff
+
+
 @pytest.mark.asyncio
 async def test_update_handles_numpy_bearing_field_replacement():
     """Replacing last_acquire_raws (dict[str, RawBPM] containing numpy arrays)

@@ -5,6 +5,7 @@ Adapters that construct these types live above the domain package.
 """
 from __future__ import annotations
 
+import enum
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -66,3 +67,22 @@ class DiffSummary:
     x_max_abs_mm: float
     y_max_abs_mm: float
     n_valid: int
+
+
+class ReferenceSource(str, enum.Enum):
+    """Provenance of the currently-loaded reference trajectory."""
+    NONE = ""
+    FILE = "file"          # reachable in M3 (LOAD_REF)
+    PROMOTED = "promoted"  # reachable in M2 (PROMOTE_REF)
+
+
+@dataclass(frozen=True)
+class DiffResult:
+    """Latest per-BPM B − R0 diff plus its cheap summary.
+
+    `dx`/`dy` are (n_bpms,) float64, NaN where either side is NaN. When
+    AppState.last_diff is None, the IOC NaN-fills the diff PVs.
+    """
+    dx: np.ndarray
+    dy: np.ndarray
+    summary: DiffSummary

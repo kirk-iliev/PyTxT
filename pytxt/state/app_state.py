@@ -10,9 +10,12 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
 from pytxt.api.schemas.result import AcquireStatus, LastAcquireResult
+from pytxt.domain.types import DiffResult, FirstTurnResult, ReferenceSource
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +50,18 @@ class AppState:
     # In-memory only: raw waveforms from the most recent acquisition,
     # served by GET /api/v1/result/bpm/raw. Not mirrored to PVs.
     last_acquire_raws: dict = field(default_factory=dict)
+
+    # === Phase 3 reference state (all-or-nothing) ===
+    # When reference_loaded is False, every other reference_* field is at its
+    # empty default. Flips on PROMOTE_REF / CLEAR_REF.
+    reference_loaded: bool = False
+    reference_name: str = ""
+    reference_loaded_at: Optional[datetime] = None
+    reference_source: ReferenceSource = ReferenceSource.NONE
+    reference_first_turn: Optional[FirstTurnResult] = None
+    reference_file_path: Optional[Path] = None  # always None in M2 (file backing is M3)
+    reference_bpm_names: Optional[list[str]] = None
+    last_diff: Optional[DiffResult] = None  # None → diff PVs NaN-filled
 
     # Internal: per-field listener lists (excluded from repr/init)
     _listeners: dict[str, list[ListenerFn]] = field(
