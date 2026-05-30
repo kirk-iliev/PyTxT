@@ -2,6 +2,7 @@
 from typing import Optional
 from pydantic import BaseModel, Field
 
+from pytxt.api.schemas.reference import DiffSummary, ReferenceStatus
 from pytxt.api.schemas.result import AcquireStatus, LastAcquireResult
 
 
@@ -40,4 +41,13 @@ class StateSnapshot(BaseModel):
     last_acquire: LastAcquireResult = Field(
         default_factory=_never_last_acquire,
         description="Outcome of the most recent ACQUIRE; status=NEVER before first",
+    )
+    # Phase 3 (reference) — optional; null when nothing loaded / no diff yet
+    reference: Optional[ReferenceStatus] = Field(
+        default=None,
+        description="Currently-loaded reference; null when none loaded",
+    )
+    last_diff: Optional[DiffSummary] = Field(
+        default=None,
+        description="Summary of the most recent B − R0 diff; null when no diff",
     )

@@ -9,9 +9,15 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request
 
 from pytxt.api.schemas.cmd import PingResponse
+from pytxt.api.schemas.reference import ClearRefResponse, PromoteRefResponse
 from pytxt.api.schemas.result import AcquireResponse
 from pytxt.handlers.acquire import AcquisitionInFlightError, handle_acquire
 from pytxt.handlers.ping import handle_ping
+from pytxt.handlers.reference import (
+    NoLastAcquireError,
+    handle_clear_ref,
+    handle_promote_ref,
+)
 
 router = APIRouter(prefix="/api/v1/cmd", tags=["cmd"])
 
@@ -38,3 +44,24 @@ async def post_acquire(request: Request) -> AcquireResponse:
         return await handle_acquire(state, reader)
     except AcquisitionInFlightError as e:
         raise HTTPException(409, str(e))
+
+
+@router.post("/promote_ref", response_model=PromoteRefResponse)
+async def post_promote_ref(request: Request) -> PromoteRefResponse:
+    """Promote the current acquisition to an in-memory reference.
+
+    Identical effect to a CA write to CMD:PROMOTE_REF. Returns 422 if there
+    has been no successful acquisition to source the reference from.
+    """
+    state = request.app.state.app_state
+    try:
+        return await handle_promote_ref(state)
+    except NoLastAcquireError as e:
+        raise HTTPException(422, str(e))
+
+
+@router.post("/clear_ref", response_model=ClearRefResponse)
+async def post_clear_ref(request: Request) -> ClearRefResponse:
+    """Unload the in-memory reference. Identical effect to a CA write to
+    CMD:CLEAR_REF. Idempotent — succeeds even when nothing is loaded."""
+    return await handle_clear_ref(request.app.state.app_state)
