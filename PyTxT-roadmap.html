@@ -556,31 +556,32 @@
 <div class="hero">
   <div class="hero-current">
     <div class="label">Current phase</div>
-    <h2>Phase 3 · Reference trajectory (M1 ✓ · M2 · M3 · M4 — in progress)</h2>
+    <h2>Phase 3 · Reference trajectory (M1 ✓ · M2 ✓ · M3 · M4 — in progress)</h2>
     <p>
-      <strong>Phase 2 (read path) closed 2026-05-24; Phase 3 underway.</strong> M1 (pure domain) landed
-      2026-05-29: a new I/O-free <code>pytxt/domain/reference.py</code> with the five public functions —
-      <code>canonicalize_bpm_name</code>, <code>load_reference_mat</code>, <code>save_reference_mat</code>
-      (MATLAB-compatible <code>R0</code>/<code>BPMs</code> + PyTxT-extended waveform schema, interop-safe both
-      ways), <code>align_to_current</code> (soft-merge by canonical BPM name), and
-      <code>compute_diff</code>/<code>summarize_diff</code> (NaN-aware <code>B − R0</code> math). New
-      <code>Reference</code>/<code>DiffSummary</code> dataclasses in <code>domain/types.py</code>; scipy added
-      as a runtime dep. Verified against the real 104-BPM MATLAB sample file. 40 new unit tests, all green;
-      no PV/REST/AppState/frontend surface yet (that's M2+). Next: M2 — wire the domain into AppState, publish
-      <code>STATE:REF_*</code> + <code>RESULT:BPM:*_DIFF_*</code> PVs, and the file-free
-      <code>PROMOTE_REF</code>/<code>CLEAR_REF</code> command pair.
+      <strong>Phase 2 (read path) closed 2026-05-24; Phase 3 underway.</strong> M2 (in-memory ops + diff
+      publication) landed 2026-05-29 — the file-free half of Phase 3. The M1 pure-domain core is now wired
+      into the live surface: the <code>PROMOTE_REF</code>/<code>CLEAR_REF</code> command pair with full CA +
+      REST parity (one canonical <code>handle_promote_ref</code>/<code>handle_clear_ref</code> handler each,
+      called identically by the CA putters and the REST routes), reference status on
+      <code>STATE:REF_LOADED/NAME/LOADED_AT/SOURCE</code>, and per-BPM <code>B − R0</code> diff arrays on
+      <code>RESULT:BPM:{X,Y}_DIFF_FIRST_TURN</code>. <code>handle_acquire</code> now recomputes &amp; publishes
+      the diff against the loaded reference on every acquire (NaN-filled when none loaded). New AppState
+      reference/diff fields; <code>ReferenceSource</code>/<code>DiffResult</code> in <code>domain/types.py</code>;
+      parity table grew by 2 rows (PROMOTE, CLEAR). Backend-only — all reference frontend lands in M4.
+      Next: M3 — the file library + <code>LOAD_REF</code>/<code>SAVE_REF</code> (<code>reference_dir</code>,
+      path-safety, <code>GET /references</code>).
     </p>
-    <div class="progress" title="Phase 3: 1 of 4 milestones complete">
-      <div class="progress-fill" style="width: 25%"></div>
+    <div class="progress" title="Phase 3: 2 of 4 milestones complete">
+      <div class="progress-fill" style="width: 50%"></div>
     </div>
-    <div class="progress-text">M1 ✓ · M2 · M3 · M4</div>
+    <div class="progress-text">M1 ✓ · M2 ✓ · M3 · M4</div>
   </div>
 
   <div class="stats">
     <div class="stat"><div class="num">2 / 6</div><div class="lbl">Phases complete</div></div>
-    <div class="stat"><div class="num">160 / 161</div><div class="lbl">Tests passing <span class="hint">1 known-flaky CA test</span></div></div>
+    <div class="stat"><div class="num">189 / 189</div><div class="lbl">Tests passing <span class="hint">1 CA-loopback test can flake; passed this run</span></div></div>
     <div class="stat"><div class="num">5</div><div class="lbl">E2E specs</div></div>
-    <div class="stat"><div class="num">9</div><div class="lbl">Unpushed commits</div></div>
+    <div class="stat"><div class="num">19</div><div class="lbl">Unpushed commits</div></div>
   </div>
 </div>
 
@@ -679,13 +680,13 @@
       <div class="num">Phase 3</div>
       <div class="title">Reference trajectory</div>
       <div class="blurb">Load/save <code>.mat</code>; overlay reference; difference panels.</div>
-      <div class="badges"><span class="badge badge-now">🔨 In progress · M1 ✓</span></div>
+      <div class="badges"><span class="badge badge-now">🔨 In progress · M2 ✓</span></div>
     </summary>
     <div class="body">
       <h4>Milestones (per design spec §11)</h4>
       <ul>
         <li><strong>M1 — Pure domain ✓</strong> (2026-05-29): I/O-free <code>pytxt/domain/reference.py</code> (<code>.mat</code> load/save + <code>B − R0</code> math), <code>Reference</code>/<code>DiffSummary</code> types, scipy dep. 40 unit tests green.</li>
-        <li><strong>M2 — In-memory ops + diff publication:</strong> AppState fields, <code>STATE:REF_*</code> + <code>RESULT:BPM:*_DIFF_*</code> PVs, <code>PROMOTE_REF</code>/<code>CLEAR_REF</code> command pair, <code>handle_acquire</code> publishes the diff.</li>
+        <li><strong>M2 — In-memory ops + diff publication ✓</strong> (2026-05-29): AppState reference/diff fields, <code>STATE:REF_*</code> + <code>RESULT:BPM:*_DIFF_*</code> PVs, file-free <code>PROMOTE_REF</code>/<code>CLEAR_REF</code> command pair (CA + REST parity), <code>handle_acquire</code> computes &amp; publishes the diff. Parity table +2 rows. Backend-only (frontend deferred to M4).</li>
         <li><strong>M3 — File library + LOAD/SAVE:</strong> <code>reference_dir</code>, path-safety, <code>handlers/reference.py</code>, <code>CMD:LOAD_REF</code>/<code>CMD:SAVE_REF</code> + REST mirrors, <code>GET /references</code>.</li>
         <li><strong>M4 — Upload/download + frontend + e2e:</strong> multipart <code>POST /references</code>, 4-panel layout (X, Y, ΔX, ΔY) when a ref is loaded, reference sidebar, Playwright spec.</li>
       </ul>
@@ -758,7 +759,7 @@
 <!-- ============================================== -->
 <!-- CURRENT-PHASE MILESTONE TRACKER                 -->
 <!-- ============================================== -->
-<h2 class="section">Phase 3 milestones <span class="hint">M1 done · M2 next</span></h2>
+<h2 class="section">Phase 3 milestones <span class="hint">M2 done · M3 next</span></h2>
 
 <div class="milestones">
   <div class="ms done">
@@ -767,15 +768,15 @@
     <div class="ms-title">Pure domain</div>
     <div class="ms-meta">6 tasks · 40 unit tests · <code>pytxt/domain/reference.py</code> (<code>canonicalize_bpm_name</code>, <code>load_reference_mat</code>, <code>save_reference_mat</code>, <code>align_to_current</code>, <code>compute_diff</code>/<code>summarize_diff</code>) + <code>Reference</code>/<code>DiffSummary</code> types + scipy dep. Round-trips and parses the real 104-BPM MATLAB file. No PV/REST/AppState/frontend surface yet. Done 2026-05-29.</div>
   </div>
-  <div class="ms now">
+  <div class="ms done">
     <div class="ms-label">M2</div>
-    <span class="ms-status"><span class="badge badge-now">Next</span></span>
+    <span class="ms-status"><span class="badge badge-done">✓ Done</span></span>
     <div class="ms-title">In-memory ops + diff publication</div>
-    <div class="ms-meta">AppState fields, <code>STATE:REF_*</code> + <code>RESULT:BPM:*_DIFF_*</code> PVs, file-free <code>PROMOTE_REF</code>/<code>CLEAR_REF</code> command pair (CA + REST), <code>handle_acquire</code> computes &amp; publishes the diff. Parity test grows by 2 rows.</div>
+    <div class="ms-meta">7 tasks · promote/clear handlers (one canonical fn each, CA + REST parity), <code>STATE:REF_LOADED/NAME/LOADED_AT/SOURCE</code> + <code>RESULT:BPM:{X,Y}_DIFF_FIRST_TURN</code> PVs, <code>handle_acquire</code> recomputes &amp; publishes the diff every acquire (NaN-fill when none loaded), parity table +2 rows (PROMOTE, CLEAR), promote/clear integration tests via CA + REST. Backend-only. Done 2026-05-29.</div>
   </div>
-  <div class="ms todo">
+  <div class="ms now">
     <div class="ms-label">M3</div>
-    <span class="ms-status"><span class="badge badge-plan">⏳ Planned</span></span>
+    <span class="ms-status"><span class="badge badge-now">Next</span></span>
     <div class="ms-title">File library + LOAD/SAVE</div>
     <div class="ms-meta"><code>settings.reference_dir</code>, path-safety helper, <code>pytxt/handlers/reference.py</code>, <code>CMD:LOAD_REF</code>/<code>CMD:SAVE_REF</code> + REST mirrors, <code>GET /references</code>, error paths (404/409/422). Parity test grows by 2 more rows.</div>
   </div>
@@ -957,6 +958,51 @@
 <h2 class="section">Recent activity <span class="hint">most recent commits</span></h2>
 
 <div class="activity">
+  <div class="commit">
+    <div class="hash">M2 ✓</div>
+    <div class="msg">2026-05-29 · <strong>Phase 3 M2 (in-memory ops + diff publication) done.</strong> Wired the M1 pure-domain core into the live surface: file-free <code>PROMOTE_REF</code>/<code>CLEAR_REF</code> pair with CA + REST parity, <code>STATE:REF_LOADED/NAME/LOADED_AT/SOURCE</code> + <code>RESULT:BPM:{X,Y}_DIFF_FIRST_TURN</code> PVs, <code>handle_acquire</code> publishes the <code>B − R0</code> diff every acquire (NaN-fill when no ref). New AppState reference/diff fields; <code>ReferenceSource</code>/<code>DiffResult</code> in <code>domain/types.py</code>; parity table +2 rows. Backend-only (frontend → M4). 189/189 full suite green (1 known-flaky CA test passed this run).</div>
+    <div class="tag">milestone</div>
+  </div>
+  <div class="commit">
+    <div class="hash">54ec5c5</div>
+    <div class="msg">M2 Task 7 — promote/clear pipeline integration tests (CA + REST) + parity rows (PROMOTE, CLEAR) with optional pre-acquire</div>
+    <div class="tag">test(integration)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">fc25cfa</div>
+    <div class="msg">M2 Task 6 — <code>/cmd/promote_ref</code> + <code>/cmd/clear_ref</code> routes; reference block + <code>last_diff</code> summary in <code>/state</code> snapshot</div>
+    <div class="tag">feat(api)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">58064a1</div>
+    <div class="msg">M2 Task 5 — <code>handle_acquire</code> computes &amp; publishes <code>last_diff</code> when a ref is loaded (defensive guard keeps first-turn publication safe)</div>
+    <div class="tag">feat(handlers)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">30fae8c</div>
+    <div class="msg">M2 Task 4 — publish <code>STATE:REF_*</code> status bundle (on <code>reference_loaded</code>) + diff arrays (on <code>last_diff</code>) + startup defaults</div>
+    <div class="tag">feat(ioc)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">c5924ce</div>
+    <div class="msg">M2 Task 3 — <code>STATE:REF_*</code> state PVs, <code>RESULT:BPM:{X,Y}_DIFF_FIRST_TURN</code> waveform PVs, <code>PROMOTE</code>/<code>CLEAR</code> putters</div>
+    <div class="tag">feat(ioc)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">de3806e</div>
+    <div class="msg">M2 Task 2 — promote/clear reference handlers (one canonical fn each) + <code>NoLastAcquireError</code> + pydantic response schemas</div>
+    <div class="tag">feat(handlers)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">290e391</div>
+    <div class="msg">M2 Task 1 — <code>ReferenceSource</code>/<code>DiffResult</code> in <code>domain/types.py</code> + 8 AppState reference/diff fields (all-or-nothing defaults)</div>
+    <div class="tag">feat(state)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">485c464</div>
+    <div class="msg">Phase 3 M2 implementation plan — reference-wiring (AppState + PVs + <code>PROMOTE</code>/<code>CLEAR</code> + diff publication), 8 tasks task-by-task</div>
+    <div class="tag">docs(plan)</div>
+  </div>
   <div class="commit">
     <div class="hash">M1 ✓</div>
     <div class="msg">2026-05-29 · <strong>Phase 3 M1 (pure domain) done.</strong> New I/O-free <code>pytxt/domain/reference.py</code> — <code>.mat</code> load/save (MATLAB-compat + PyTxT-extended schema), <code>align_to_current</code> soft-merge, NaN-aware <code>compute_diff</code>/<code>summarize_diff</code>; <code>Reference</code>/<code>DiffSummary</code> types; scipy dep. 40 new unit tests green (160/161 full suite; 1 known-flaky CA test). No PV/REST/AppState/frontend surface yet.</div>

@@ -88,3 +88,81 @@ Append-only log of implementation-time decisions: choices made during coding tha
 **Spec relationship:** Fills gap (the plan's ~151 count was an estimate; this records the measured reality and the flaky test).
 
 **Forward impact:** M3 should add port-isolation / retry hardening to `tests/integration/test_acquire_partial_fail.py` so the CA loopback test is deterministic. Until then, treat a lone `test_partial_fail_state_pvs_published` timeout as the known flake (re-run to confirm), not a regression. `[needs-spec-update]` not required — this is a test-infra note, not a design change.
+
+
+## 2026-05-29 — M2 is backend-only; all frontend work deferred to M4
+
+**Context:** M2 (reference wiring) scope — spec §11 M2 prose mentions "Frontend hover tooltip extended (no layout switch yet)."
+
+**Decision:** M2 ships zero `pytxt/frontend/` changes. All reference-related frontend work (hover-tooltip extension, the 4-panel ΔX/ΔY layout, reference sidebar) lands atomically in M4 alongside the e2e Playwright spec.
+
+**Why:** The M2 *DoD bullets* require only PV/REST parity plus the parity test — not frontend. Splitting frontend across M2 and M4 would mean a partial hover-tooltip change with no e2e coverage. Keeping M2 backend-only makes it fully unit + integration testable with no Playwright dependency, and lets M4 design the layout switch in one coherent pass.
+
+**Spec relationship:** Deviates from §11 M2 prose; the M2 DoD bullets are unaffected.
+
+**Forward impact:** M4 owns the entire reference frontend surface. No follow-up needed in M2/M3.
+
+
+## 2026-05-29 — ReferenceSource + DiffResult live in domain/types.py, not api/schemas
+
+**Context:** M2 Task 1 — placing the new `ReferenceSource` enum and `DiffResult` dataclass that `AppState` references.
+
+**Decision:** Both landed in `pytxt/domain/types.py`. The Pydantic `pytxt/api/schemas/reference.py` re-exports/re-uses the domain `ReferenceSource` enum rather than defining its own.
+
+**Why:** `AppState` (in `pytxt/state/`) references both types. Defining them in `api/schemas/` would force a `state → api` import, inverting the layering (adapters depend on state/domain, never the reverse). This mirrors the M1 decision to keep `Reference`/`DiffSummary` in `types.py`.
+
+**Spec relationship:** Deviates from the §5.3 sketch (which placed them in `api/schemas/reference.py`); functional surface identical.
+
+**Forward impact:** M3's file-load path should keep building `ReferenceSource.FILE` from the same domain enum; no schema-side enum definition to drift.
+
+
+## 2026-05-29 — Two publish triggers: reference_loaded drives status, last_diff drives the diff arrays
+
+**Context:** M2 Task 4 — `server.py` IOC publisher wiring the new `STATE:REF_*` bundle and the `RESULT:BPM:{X,Y}_DIFF_FIRST_TURN` waveforms.
+
+**Decision:** Subscribe two independent listeners. `reference_loaded` change → `_publish_reference_status()` (writes `STATE:REF_LOADED/NAME/LOADED_AT/SOURCE`). `last_diff` change → `_publish_diff_arrays()` (writes the diff waveforms; NaN-fills when `last_diff is None`).
+
+**Why:** On a normal acquire while a ref stays loaded, `reference_loaded` does not change (status listener stays quiet) but `last_diff` does → the diff arrays refresh every acquire in lockstep with the first-turn arrays, while the status bundle only republishes on promote/clear. Driving the diff arrays off `last_diff` (not `reference_loaded`) is exactly the §7.5 semantic.
+
+**Spec relationship:** Implements §6.5/§7.5; the two-trigger split is the implementation choice the spec left open.
+
+**Forward impact:** Known cosmetic edge: a re-promote while already loaded leaves `reference_loaded` True→True, so the status listener does not fire and `STATE:REF_LOADED_AT` stays stale until the next clear/promote cycle. Acceptable for M2 (name/source are unchanged under re-promote). If the timestamp ever needs to refresh on re-promote, switch the status trigger to `reference_loaded_at`.
+
+
+## 2026-05-29 — Promote recomputes the live first-turn rather than storing it on AppState
+
+**Context:** M2 Task 2 — `handle_promote_ref` needs the live first-turn *arrays* to set as the promoted R0, but `handle_acquire` only persists `last_acquire_raws` (dict) + the `LastAcquireResult` summary, not a `FirstTurnResult`.
+
+**Decision:** Option (A) — recompute inside the handler: `extract_first_turn({p: state.last_acquire_raws.get(p) for p in state.bpm_prefixes})`. No new `last_first_turn` AppState field.
+
+**Why:** The IOC publisher (`server.py:_publish_last_acquire`) already re-derives first-turn arrays from `last_acquire_raws + bpm_prefixes` this exact way, so there is a proven helper pattern to mirror. This keeps AppState from carrying a redundant array copy that would have to be kept in sync on every acquire. Since the recomputed first-turn is already aligned to `bpm_prefixes`, `align_to_current` is a no-op for promote; for symmetry we still set `reference_bpm_names = list(state.bpm_prefixes)`.
+
+**Spec relationship:** Implements §7.3; the recompute-vs-store choice (the spec offered both) is resolved here as (A).
+
+**Forward impact:** M3's file-load path supplies `reference_first_turn` from the loaded `.mat` aligned via `align_to_current`, so the field is already the right shape — no AppState migration.
+
+
+## 2026-05-29 — No-acquire guard uses last_acquire.ok_count == 0; numpy-tolerant update() needed no change
+
+**Context:** M2 Task 2 — confirming the exact `LastAcquireResult` field the promote refusal keys on, plus whether `AppState.update()` needed touching for the new array-bearing fields.
+
+**Decision:** `handle_promote_ref` refuses with `NoLastAcquireError` when `state.last_acquire.ok_count == 0` (no BPM produced a position — covers the initial sentinel and the all-fail case in one check). The numpy-tolerant `AppState.update()` required **no** change: its existing `except (ValueError, TypeError)` equality guard already treats `DiffResult` (holds `dx`/`dy` arrays) and `FirstTurnResult` (holds arrays) as "changed" when an elementwise comparison is ambiguous, so listeners fire correctly for `last_diff` and `reference_first_turn`.
+
+**Why:** `ok_count` is the single field that distinguishes "have a real first-turn to copy" from "nothing acquired yet"; keying on it avoids inspecting raw dicts. Confirming the equality guard already covered the new fields avoided a speculative `update()` change (regression-tested in `test_app_state.py`).
+
+**Spec relationship:** Fills gap — §6.3 said "confirm the exact field name"; this records `ok_count`. §6.2's numpy-tolerance note is confirmed sufficient.
+
+**Forward impact:** None. M3's `LOAD_REF` does not gate on `last_acquire` (it sources from a file), so the `ok_count` guard is promote-specific.
+
+
+## 2026-05-29 — Integration tests use AsyncMock readers / fake_bpm_ioc, not a SyntheticBpmReader + reference_dir fixture
+
+**Context:** M2 Task 7 — the plan header (and §10.3) referenced reusing "the phase-2 `SyntheticBpmReader` + IOC/REST integration fixtures" and implied a tmp `reference_dir` fixture.
+
+**Decision:** Task 7 followed the *real* phase-2 integration convention instead: `AsyncMock`-based readers and the `fake_bpm_ioc` fixture for CA-loopback acquires. No `reference_dir` fixture was added — M2 is file-free, so there is nothing to back with a directory (file LOAD/SAVE and `reference_dir` are M3).
+
+**Why:** `SyntheticBpmReader` is the e2e/Playwright reader wired via `PYTXT_USE_SYNTHETIC_READER=1` at the composition root; the phase-2 *integration* tests drive acquires through `AsyncMock` readers and `fake_bpm_ioc`, which is the established harness. Adding a `reference_dir` fixture in M2 would be premature scope creep into M3's file backing.
+
+**Spec relationship:** Fills gap / minor deviation from the plan's fixture phrasing; the test coverage (promote/clear via CA + REST, no-acquire refusal, NaN-fill on clear, parity rows) matches §10.3's M2 subset exactly.
+
+**Forward impact:** M3 introduces the tmp `reference_dir` fixture when it adds file LOAD/SAVE; M2's integration tests need no rework.
