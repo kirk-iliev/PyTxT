@@ -5,16 +5,26 @@ M2 covers the file-free pair (PROMOTE/CLEAR). LOAD/SAVE land in M3.
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 
 from pytxt.api.schemas.reference import (
     ClearRefResponse,
     DiffSummary,
+    LoadRefResponse,
     PromoteRefResponse,
+    SaveRefResponse,
 )
 from pytxt.domain.first_turn_extract import extract_first_turn
-from pytxt.domain.reference import compute_diff, summarize_diff
+from pytxt.domain.reference import (
+    ReferenceLoadError,
+    align_to_current,
+    compute_diff,
+    load_reference_mat,
+    save_reference_mat,
+    summarize_diff,
+)
 from pytxt.domain.types import DiffResult, ReferenceSource
 from pytxt.state.app_state import AppState
 
@@ -141,3 +151,100 @@ async def handle_clear_ref(state: AppState) -> ClearRefResponse:
         last_diff=None,
     )
     return ClearRefResponse(loaded=False)
+
+
+async def handle_load_ref(
+    state: AppState,
+    reference_dir: Path,
+    name: str,
+) -> LoadRefResponse:
+    """Load a named reference from the library and arm its B − R0 diff.
+
+    Resolves ``name`` safely inside ``reference_dir`` (→
+    ``InvalidReferenceNameError``), requires the file to exist (→
+    ``ReferenceNotFoundError``), parses it via the M1 domain loader through
+    ``asyncio.to_thread`` (blocking scipy; → ``ReferenceLoadError`` on a bad
+    ``.mat``), then soft-merges onto the current prefixes. If a successful
+    acquire has happened, a diff against the live first-turn is computed and
+    stored; otherwise ``last_diff`` is left unset (None). Zero BPM overlap is
+    *not* an error — the ref loads with ``n_aligned=0`` and an all-NaN diff.
+
+    SAVE-symmetric: LOAD mutates AppState (so the STATE:REF_* PVs confirm it).
+    """
+    path = _resolve_in_library(reference_dir, name)
+    if not path.exists():
+        raise ReferenceNotFoundError(name)
+
+    ref = await asyncio.to_thread(load_reference_mat, path)
+    aligned, n_aligned, n_unaligned = align_to_current(ref, state.bpm_prefixes)
+
+    diff: DiffResult | None = None
+    if state.last_acquire.ok_count > 0:
+        live = _current_first_turn(state)
+        dx, dy = compute_diff(live, aligned)
+        diff = DiffResult(dx=dx, dy=dy, summary=summarize_diff(dx, dy))
+
+    now = datetime.now(timezone.utc)
+    await state.update(
+        reference_loaded=True,
+        reference_name=path.name,
+        reference_loaded_at=now,
+        reference_source=ReferenceSource.FILE,
+        reference_first_turn=aligned,
+        reference_file_path=path,
+        reference_bpm_names=list(ref.bpm_names),
+        last_diff=diff,
+    )
+
+    return LoadRefResponse(
+        loaded=True,
+        name=path.name,
+        source=ReferenceSource.FILE,
+        n_aligned=n_aligned,
+        n_unaligned=n_unaligned,
+    )
+
+
+async def handle_save_ref(
+    state: AppState,
+    reference_dir: Path,
+    name: str | None,
+) -> SaveRefResponse:
+    """Write the current live acquisition to a ``.mat`` in the library.
+
+    Requires a prior successful acquire (→ ``NoLastAcquireError``). A None
+    ``name`` defaults to the MATLAB-GUI timestamp pattern. The target is
+    resolved safely (→ ``InvalidReferenceNameError``) and must not already
+    exist (→ ``ReferenceExistsError`` — no overwrite). The blocking scipy
+    writer runs via ``asyncio.to_thread``.
+
+    SAVE does NOT mutate AppState (decision §3, spec §7.2): saving is not
+    loading. Confirmation is the file appearing + GET /references listing it.
+    """
+    if state.last_acquire.ok_count == 0:
+        raise NoLastAcquireError("No successful acquisition to save.")
+
+    if name is None:
+        name = datetime.now(timezone.utc).strftime(
+            "%Y-%m-%d_%H:%M:%S_reference_trajectory.mat"
+        )
+
+    path = _resolve_in_library(reference_dir, name)
+    if path.exists():
+        raise ReferenceExistsError(name)
+
+    first_turn = _current_first_turn(state)
+    await asyncio.to_thread(
+        save_reference_mat,
+        path,
+        first_turn,
+        state.last_acquire_raws,
+        state.bpm_prefixes,
+    )
+
+    size = path.stat().st_size
+    return SaveRefResponse(
+        name=path.name,
+        size_bytes=size,
+        saved_at=datetime.now(timezone.utc),
+    )

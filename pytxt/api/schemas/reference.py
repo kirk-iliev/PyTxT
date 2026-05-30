@@ -16,6 +16,12 @@ __all__ = [
     "DiffSummary",
     "PromoteRefResponse",
     "ClearRefResponse",
+    "LoadRefRequest",
+    "SaveRefRequest",
+    "LoadRefResponse",
+    "SaveRefResponse",
+    "ReferenceLibraryEntry",
+    "ReferenceLibraryList",
 ]
 
 
@@ -55,3 +61,49 @@ class PromoteRefResponse(BaseModel):
 class ClearRefResponse(BaseModel):
     """Response body for POST /api/v1/cmd/clear_ref. Idempotent."""
     loaded: bool = Field(default=False, description="Always False after clear")
+
+
+class LoadRefRequest(BaseModel):
+    """Request body for POST /api/v1/cmd/load_ref."""
+    name: str = Field(
+        min_length=1,
+        description="Reference filename (basename, incl. .mat).",
+    )
+
+
+class SaveRefRequest(BaseModel):
+    """Request body for POST /api/v1/cmd/save_ref."""
+    name: str | None = Field(
+        default=None,
+        description="Basename incl. .mat; omit for timestamp default.",
+    )
+
+
+class LoadRefResponse(BaseModel):
+    """Response body for POST /api/v1/cmd/load_ref."""
+    loaded: bool = Field(description="Always True on success")
+    name: str = Field(description="Loaded reference basename")
+    source: ReferenceSource = Field(description="Always FILE for load")
+    n_aligned: int = Field(description="BPMs the reference aligned onto current prefixes")
+    n_unaligned: int = Field(description="Current prefixes with no reference value")
+
+
+class SaveRefResponse(BaseModel):
+    """Response body for POST /api/v1/cmd/save_ref."""
+    name: str = Field(description="Saved reference basename")
+    size_bytes: int = Field(description="Size of the written .mat file in bytes")
+    saved_at: datetime = Field(description="UTC time the reference was written")
+
+
+class ReferenceLibraryEntry(BaseModel):
+    """One .mat file in the reference library. Mirrors a directory entry."""
+    name: str = Field(description="Reference basename (incl. .mat)")
+    size_bytes: int = Field(description="File size in bytes")
+    modified_at: datetime = Field(description="UTC mtime of the file")
+
+
+class ReferenceLibraryList(BaseModel):
+    """Response body for GET /api/v1/references — newest first."""
+    references: list[ReferenceLibraryEntry] = Field(
+        description="Library .mat files, newest first"
+    )
