@@ -166,3 +166,107 @@ Append-only log of implementation-time decisions: choices made during coding tha
 **Spec relationship:** Fills gap / minor deviation from the plan's fixture phrasing; the test coverage (promote/clear via CA + REST, no-acquire refusal, NaN-fill on clear, parity rows) matches §10.3's M2 subset exactly.
 
 **Forward impact:** M3 introduces the tmp `reference_dir` fixture when it adds file LOAD/SAVE; M2's integration tests need no rework.
+
+
+## 2026-05-29 — `reference_dir` created in composition, not a Settings validator
+
+**Context:** M3 Task 1 — wiring `Settings.reference_dir` (default `Path("data/references")`) through composition into the IOC and REST app.
+
+**Decision:** `Settings` only *declares* the field; the directory is created (`reference_dir.mkdir(parents=True, exist_ok=True)`) in `composition.main()` after `settings.reference_dir.resolve()`, NOT in a `@field_validator` on `Settings`.
+
+**Why:** A mkdir validator fires on *every* `Settings()` instantiation — including the unit-test suite, which constructs `Settings()` repeatedly — and would litter the repo with a stray `data/references/` directory on every test run. Putting the side effect at the composition root keeps `Settings()` pure and side-effect-free; tests inject their own `tmp_path` dirs directly into `create_app`/`PyTxTIOC`.
+
+**Spec relationship:** Deviates from spec §6.12 (which floated a field-validator that mkdir's the path); implements §6.13 (composition-root creation).
+
+**Forward impact:** Any future code that needs the library directory to exist must go through composition or create it itself — never assume `Settings()` made it. No spec update needed beyond noting §6.12's validator was rejected.
+
+
+## 2026-05-29 — M3 ships only `GET /references`; upload/download/`/result/ref/raw` deferred to M4
+
+**Context:** M3 Task 5 — creating `pytxt/api/routes/references.py`.
+
+**Decision:** M3's `references.py` exposes only `GET /api/v1/references` (the library listing). Multipart `POST /references` (upload), `GET /references/{name}` (download-by-name), and the lazy `GET /result/ref/raw` are explicitly out of scope and land in M4.
+
+**Why:** M3's goal is the CA-reachable half of the reference workflow (LOAD/SAVE via `.mat` files already in the library, plus discovery via listing). Upload/download are bulk-transfer REST concerns tied to the M4 frontend (drag-in a file, download a saved ref); building them now would mean shipping endpoints with no UI consumer and no e2e coverage. `references.py` is structured so M4 extends it rather than rewrites it.
+
+**Spec relationship:** Implements spec §6.8 (GET-only in M3); §11 M4 owns the rest.
+
+**Forward impact:** M4 adds the upload/download routes to the same router. No state model or schema rework needed — `ReferenceLibraryEntry`/`ReferenceLibraryList` already exist.
+
+
+## 2026-05-29 — SAVE does not mutate AppState; parity SAVE-row asserts identical (none) state effect
+
+**Context:** M3 Tasks 3 & 6 — `handle_save_ref` and its parity-table row.
+
+**Decision:** `handle_save_ref` writes the `.mat` file and returns a `SaveRefResponse` but performs **no** `state.update()` — saving does not auto-load. The parity SAVE row therefore asserts that the CA and REST arms produce *identical* (post-acquire, unchanged-by-save) `_public_state`; the file-write effect is covered separately by the dedicated `test_save_ref_*` integration tests. Each parity arm uses its own `tmp_path` reference_dir so the two saves don't collide on a 409.
+
+**Why:** SAVE's observable confirmation is the file appearing in the library (+ `GET /references` listing it), not a state PV — by design (CLAUDE.md observability: not every command needs a state PV when a more natural artifact exists). Asserting "no state delta" across arms is the correct parity contract for a state-free command. Per-arm dirs avoid one arm's save tripping the other arm's overwrite guard.
+
+**Spec relationship:** Implements spec §7.2; resolves the parity-harness ambiguity the spec left open.
+
+**Forward impact:** If M4 ever makes SAVE auto-load, the parity row must switch from "identical state" to "loaded state matches"; flagged here so that change is deliberate.
+
+
+## 2026-05-29 — Path-safety via `is_relative_to` (3.9+) after explicit basename rejection
+
+**Context:** M3 Task 2 — `_resolve_in_library(reference_dir, name)` in `pytxt/handlers/reference.py`.
+
+**Decision:** The helper rejects in a fixed order — empty name; any `/`/`\\` separator or `.`/`..`; missing `.mat` suffix — then resolves the candidate and confirms `resolved.is_relative_to(reference_dir.resolve())`, raising `InvalidReferenceNameError` on any failure. Concrete reject vectors covered by `test_reference_path_safety.py`: `''`, `'foo'` (no ext), `'a/b.mat'`, `'../etc/passwd'`, `'/etc/passwd'`, `'..'`, `'foo.mat/../bar.mat'`. Positive: `'good.mat'`, `'2025-03-23_12:43:16_reference_trajectory.mat'`.
+
+**Why:** `Path.is_relative_to` (Python 3.9+, available on the 3.10 control-room hosts) is the cleanest defense against both `../` traversal and symlink escapes after `.resolve()`, and is preferred over manual string-prefix comparison which is fragile across separators. The explicit basename checks run *first* so common bad input fails with a precise message before touching the filesystem. The helper raises only `InvalidReferenceNameError`; "not found" (LOAD) and "exists" (SAVE) checks live in the handlers since they're operation-specific.
+
+**Spec relationship:** Implements spec §6.3 verbatim.
+
+**Forward impact:** M4's download-by-name route reuses `_resolve_in_library` for the same guarantees — no second path-safety implementation.
+
+
+## 2026-05-29 — Blocking scipy load/save run via `asyncio.to_thread`
+
+**Context:** M3 Task 3 — `handle_load_ref`/`handle_save_ref` calling the M1 domain `load_reference_mat`/`save_reference_mat`.
+
+**Decision:** Both handlers invoke the M1 scipy I/O through `await asyncio.to_thread(load_reference_mat, path)` / `await asyncio.to_thread(save_reference_mat, path, ...)` rather than calling them inline.
+
+**Why:** `scipy.io.loadmat`/`savemat` are synchronous, disk-bound calls that would block the single shared asyncio event loop — stalling the IOC's CA responsiveness and every other in-flight REST request for the duration of a `.mat` read/write. `asyncio.to_thread` offloads them to the default executor, keeping the loop responsive. This honors CLAUDE.md §5 (domain stays I/O-free and synchronous; the adapter layer owns the threading) — no async leaks into `domain/reference.py`.
+
+**Spec relationship:** Implements spec §7.1/§7.2.
+
+**Forward impact:** Any future bulk file op (M4 upload parse, download read) should follow the same `to_thread` pattern at the adapter boundary.
+
+
+## 2026-05-29 — Reference exception taxonomy + HTTP/CA mappings
+
+**Context:** M3 Tasks 2/3/5 — defining the error model shared by the CA putters and REST routes.
+
+**Decision:** Three new handler exceptions live beside the M2 `NoLastAcquireError` in `pytxt/handlers/reference.py`: `InvalidReferenceNameError` (→ HTTP 422 / CA alarm), `ReferenceNotFoundError` (→ 404 / alarm), `ReferenceExistsError` (→ 409 / alarm). The domain `ReferenceLoadError` (corrupt/wrong-schema `.mat`) is *imported* from `pytxt.domain.reference` and reused (→ 422 / alarm), not redefined. `NoLastAcquireError` (existing, M2) maps SAVE-with-no-acquire → 422 / alarm. The REST routes do the typed-exception → `HTTPException` mapping; the CA putters re-raise the typed exceptions so caproto surfaces them as PV alarms — parity by construction since both call the same handlers.
+
+**Why:** A flat, operation-agnostic taxonomy keeps the CA and REST surfaces in lockstep (CLAUDE.md §1 — parity is the contract): the handler decides *what* went wrong, each adapter decides *how to report it* in its native idiom. Reusing the domain `ReferenceLoadError` avoids a duplicate type and keeps the corrupt-`.mat` path mapping consistent with M1.
+
+**Spec relationship:** Implements spec §8 (error table).
+
+**Forward impact:** M4's upload route reuses `InvalidReferenceNameError`/`ReferenceExistsError`; download reuses `ReferenceNotFoundError`. No new error types anticipated.
+
+
+## 2026-05-29 — Env-var whitelist is automatic; empty name is caught by pydantic before the handler
+
+**Context:** M3 Tasks 1 & 6 — verifying the new `reference_dir` field against the unknown-`PYTXT_*` rejector, and pinning down where an empty LOAD name fails.
+
+**Decision:** Recorded two confirmed behaviors. (1) The `@model_validator(mode="before")` that rejects unknown `PYTXT_*` env vars iterates `cls.model_fields`, so simply declaring `reference_dir` auto-whitelisted `PYTXT_REFERENCE_DIR` — **no** edit to any hardcoded allowlist was needed (the M2 plan note flagged this as "verify"; verified true, tested in `test_settings.py`). (2) For the REST LOAD route, `LoadRefRequest.name` carries `Field(min_length=1)`, so an empty `""` name is rejected by **pydantic** as a 422 *before* reaching `handle_load_ref`/`_resolve_in_library` — the handler's own empty-name guard never fires on that path. Both produce 422, so the path-safety integration test treats empty-name as a valid 422 vector regardless of which layer rejects it; this is noted inline in `test_reference_path_safety_rest.py`.
+
+**Why:** The env-var behavior confirms the M2-established "add a field, it's auto-accepted" ergonomic — future settings fields need no allowlist bookkeeping. The empty-name finding documents a benign double-guard (pydantic + handler) so a future reader doesn't mistake the handler's empty check for dead code; it's the CA-side defense, since CA string PVs bypass pydantic.
+
+**Spec relationship:** Fills gap (spec §6.12 said "verify" the env-var acceptance; §8/§10.3 didn't pin the empty-name layer).
+
+**Forward impact:** None. The handler's empty-name guard stays as the CA-path defense even though the REST path never reaches it.
+
+
+## 2026-05-29 — SURPRISE: single-BPM references don't survive a save→load round-trip (latent M1 edge)
+
+**Context:** M3 Task 6 — building the load/save integration + parity fixtures, which `save_reference_mat` a synthetic reference and then `load_reference_mat` it back.
+
+**Decision:** Discovered that a reference with exactly **one** BPM cannot round-trip through save→load. `scipy.io.savemat` squeezes a `(2, 1)` `R0` array down to `(2,)`, and `load_reference_mat` (which uses `squeeze_me=True`) then rejects the loaded `R0` as not matching the expected `(2, n_bpms)` shape. Worked around it in Task 6 by using **2 BPMs** in every save→load fixture (the parity LOAD/SAVE rows and the integration round-trips), which round-trips cleanly. Logged as a known latent M1-domain edge rather than fixed in M3.
+
+**Why:** It's latent-only in production: the real ring has N=107 BPMs and a saved reference is never N=1, so the live path never hits it. Fixing it touches M1 pure-domain code (`load_reference_mat`/`save_reference_mat`) outside M3's adapter scope, so the disciplined call was to document + work around in tests, not widen M3. The clean fix is a one-liner in the loader — `np.atleast_2d(R0)` (and re-check the `(2, n)` orientation) after `loadmat` — deferred to a future hardening milestone.
+
+**Spec relationship:** Surprise from real upstream API (`scipy.io.savemat` squeeze behavior); not contemplated by spec §6 (M1 load/save).
+
+**Forward impact:** `[needs-spec-update]` not required, but a future M1-hardening pass should add `np.atleast_2d` on `R0` in `load_reference_mat` and an explicit N=1 round-trip test. Until then, never assume an N=1 reference round-trips; the production N=107 path is unaffected.

@@ -556,32 +556,34 @@
 <div class="hero">
   <div class="hero-current">
     <div class="label">Current phase</div>
-    <h2>Phase 3 · Reference trajectory (M1 ✓ · M2 ✓ · M3 · M4 — in progress)</h2>
+    <h2>Phase 3 · Reference trajectory (M1 ✓ · M2 ✓ · M3 ✓ · M4 — in progress)</h2>
     <p>
-      <strong>Phase 2 (read path) closed 2026-05-24; Phase 3 underway.</strong> M2 (in-memory ops + diff
-      publication) landed 2026-05-29 — the file-free half of Phase 3. The M1 pure-domain core is now wired
-      into the live surface: the <code>PROMOTE_REF</code>/<code>CLEAR_REF</code> command pair with full CA +
-      REST parity (one canonical <code>handle_promote_ref</code>/<code>handle_clear_ref</code> handler each,
-      called identically by the CA putters and the REST routes), reference status on
-      <code>STATE:REF_LOADED/NAME/LOADED_AT/SOURCE</code>, and per-BPM <code>B − R0</code> diff arrays on
-      <code>RESULT:BPM:{X,Y}_DIFF_FIRST_TURN</code>. <code>handle_acquire</code> now recomputes &amp; publishes
-      the diff against the loaded reference on every acquire (NaN-filled when none loaded). New AppState
-      reference/diff fields; <code>ReferenceSource</code>/<code>DiffResult</code> in <code>domain/types.py</code>;
-      parity table grew by 2 rows (PROMOTE, CLEAR). Backend-only — all reference frontend lands in M4.
-      Next: M3 — the file library + <code>LOAD_REF</code>/<code>SAVE_REF</code> (<code>reference_dir</code>,
-      path-safety, <code>GET /references</code>).
+      <strong>Phase 2 (read path) closed 2026-05-24; Phase 3 underway.</strong> M3 (file library + LOAD/SAVE)
+      landed 2026-05-29 — completing the CA-reachable half of the reference workflow. An operator/agent can now
+      save the current acquisition to a <code>.mat</code> in the library (<code>CMD:SAVE_REF</code> /
+      <code>POST /cmd/save_ref</code>), load a named reference so its <code>B − R0</code> diff publishes on the
+      next acquire (<code>CMD:LOAD_REF</code> / <code>POST /cmd/load_ref</code>), and list what's available
+      (<code>GET /api/v1/references</code>). The two CMDs each go through one canonical handler
+      (<code>handle_load_ref</code>/<code>handle_save_ref</code>) called identically by the CA putters and the
+      REST routes — CA↔REST parity by construction (parity table +2 rows). A <code>_resolve_in_library</code>
+      path-safety helper (basename-only, <code>.mat</code>-suffixed, <code>is_relative_to</code> escape guard)
+      gates every file path; <code>reference_dir</code> is threaded from <code>Settings</code> through composition
+      into both adapters; the blocking scipy <code>.mat</code> read/write runs via <code>asyncio.to_thread</code>
+      to keep the event loop responsive. Backend-only — all reference frontend lands in M4.
+      Next: M4 — multipart upload/download (<code>POST /references</code>, <code>GET /references/{name}</code>) +
+      <code>GET /result/ref/raw</code> + the 4-panel (X, Y, ΔX, ΔY) frontend + Playwright e2e.
     </p>
-    <div class="progress" title="Phase 3: 2 of 4 milestones complete">
-      <div class="progress-fill" style="width: 50%"></div>
+    <div class="progress" title="Phase 3: 3 of 4 milestones complete">
+      <div class="progress-fill" style="width: 75%"></div>
     </div>
-    <div class="progress-text">M1 ✓ · M2 ✓ · M3 · M4</div>
+    <div class="progress-text">M1 ✓ · M2 ✓ · M3 ✓ · M4</div>
   </div>
 
   <div class="stats">
     <div class="stat"><div class="num">2 / 6</div><div class="lbl">Phases complete</div></div>
-    <div class="stat"><div class="num">189 / 189</div><div class="lbl">Tests passing <span class="hint">1 CA-loopback test can flake; passed this run</span></div></div>
+    <div class="stat"><div class="num">236 / 236</div><div class="lbl">Tests passing <span class="hint">1 CA-loopback test can flake; passes on retry</span></div></div>
     <div class="stat"><div class="num">5</div><div class="lbl">E2E specs</div></div>
-    <div class="stat"><div class="num">19</div><div class="lbl">Unpushed commits</div></div>
+    <div class="stat"><div class="num">27</div><div class="lbl">Unpushed commits</div></div>
   </div>
 </div>
 
@@ -680,14 +682,14 @@
       <div class="num">Phase 3</div>
       <div class="title">Reference trajectory</div>
       <div class="blurb">Load/save <code>.mat</code>; overlay reference; difference panels.</div>
-      <div class="badges"><span class="badge badge-now">🔨 In progress · M2 ✓</span></div>
+      <div class="badges"><span class="badge badge-now">🔨 In progress · M3 ✓</span></div>
     </summary>
     <div class="body">
       <h4>Milestones (per design spec §11)</h4>
       <ul>
         <li><strong>M1 — Pure domain ✓</strong> (2026-05-29): I/O-free <code>pytxt/domain/reference.py</code> (<code>.mat</code> load/save + <code>B − R0</code> math), <code>Reference</code>/<code>DiffSummary</code> types, scipy dep. 40 unit tests green.</li>
         <li><strong>M2 — In-memory ops + diff publication ✓</strong> (2026-05-29): AppState reference/diff fields, <code>STATE:REF_*</code> + <code>RESULT:BPM:*_DIFF_*</code> PVs, file-free <code>PROMOTE_REF</code>/<code>CLEAR_REF</code> command pair (CA + REST parity), <code>handle_acquire</code> computes &amp; publishes the diff. Parity table +2 rows. Backend-only (frontend deferred to M4).</li>
-        <li><strong>M3 — File library + LOAD/SAVE:</strong> <code>reference_dir</code>, path-safety, <code>handlers/reference.py</code>, <code>CMD:LOAD_REF</code>/<code>CMD:SAVE_REF</code> + REST mirrors, <code>GET /references</code>.</li>
+        <li><strong>M3 — File library + LOAD/SAVE ✓</strong> (2026-05-29): <code>reference_dir</code> threaded through settings/composition, <code>_resolve_in_library</code> path-safety helper, <code>handlers/reference.py</code> <code>handle_load_ref</code>/<code>handle_save_ref</code>, <code>CMD:LOAD_REF</code>/<code>CMD:SAVE_REF</code> + REST mirrors (CA↔REST parity), <code>GET /references</code> listing, blocking scipy via <code>asyncio.to_thread</code>. Parity table +2 rows (LOAD, SAVE). Backend-only.</li>
         <li><strong>M4 — Upload/download + frontend + e2e:</strong> multipart <code>POST /references</code>, 4-panel layout (X, Y, ΔX, ΔY) when a ref is loaded, reference sidebar, Playwright spec.</li>
       </ul>
       <h4>Note</h4>
@@ -759,7 +761,7 @@
 <!-- ============================================== -->
 <!-- CURRENT-PHASE MILESTONE TRACKER                 -->
 <!-- ============================================== -->
-<h2 class="section">Phase 3 milestones <span class="hint">M2 done · M3 next</span></h2>
+<h2 class="section">Phase 3 milestones <span class="hint">M3 done · M4 next</span></h2>
 
 <div class="milestones">
   <div class="ms done">
@@ -774,15 +776,15 @@
     <div class="ms-title">In-memory ops + diff publication</div>
     <div class="ms-meta">7 tasks · promote/clear handlers (one canonical fn each, CA + REST parity), <code>STATE:REF_LOADED/NAME/LOADED_AT/SOURCE</code> + <code>RESULT:BPM:{X,Y}_DIFF_FIRST_TURN</code> PVs, <code>handle_acquire</code> recomputes &amp; publishes the diff every acquire (NaN-fill when none loaded), parity table +2 rows (PROMOTE, CLEAR), promote/clear integration tests via CA + REST. Backend-only. Done 2026-05-29.</div>
   </div>
-  <div class="ms now">
+  <div class="ms done">
     <div class="ms-label">M3</div>
-    <span class="ms-status"><span class="badge badge-now">Next</span></span>
+    <span class="ms-status"><span class="badge badge-done">✓ Done</span></span>
     <div class="ms-title">File library + LOAD/SAVE</div>
-    <div class="ms-meta"><code>settings.reference_dir</code>, path-safety helper, <code>pytxt/handlers/reference.py</code>, <code>CMD:LOAD_REF</code>/<code>CMD:SAVE_REF</code> + REST mirrors, <code>GET /references</code>, error paths (404/409/422). Parity test grows by 2 more rows.</div>
+    <div class="ms-meta">7 tasks · <code>handle_load_ref</code>/<code>handle_save_ref</code> handlers (one canonical fn each, CA + REST parity), <code>CMD:LOAD_REF</code>/<code>CMD:SAVE_REF</code> string PVs + REST <code>/cmd/load_ref</code>·<code>/cmd/save_ref</code>, <code>GET /api/v1/references</code> listing, <code>settings.reference_dir</code> threaded through composition, <code>_resolve_in_library</code> path-safety, error paths (404/409/422), blocking scipy via <code>asyncio.to_thread</code>. Parity table +2 rows (LOAD, SAVE). Backend-only. Done 2026-05-29.</div>
   </div>
-  <div class="ms todo">
+  <div class="ms now">
     <div class="ms-label">M4</div>
-    <span class="ms-status"><span class="badge badge-plan">⏳ Planned</span></span>
+    <span class="ms-status"><span class="badge badge-now">Next</span></span>
     <div class="ms-title">Upload/download + 4-panel frontend + e2e</div>
     <div class="ms-meta">Multipart <code>POST /references</code> + <code>GET /references/{name}</code> + <code>GET /result/ref/raw</code>; frontend reference sidebar + layout switch to 4 panels (X, Y, ΔX, ΔY) on <code>REF_LOADED</code>; Playwright e2e (acquire → promote → diff → save → clear → load).</div>
   </div>
@@ -958,6 +960,46 @@
 <h2 class="section">Recent activity <span class="hint">most recent commits</span></h2>
 
 <div class="activity">
+  <div class="commit">
+    <div class="hash">M3 ✓</div>
+    <div class="msg">2026-05-29 · <strong>Phase 3 M3 (file library + LOAD/SAVE) done.</strong> Completed the CA-reachable half of the reference workflow: <code>CMD:LOAD_REF</code>/<code>CMD:SAVE_REF</code> string PVs + <code>POST /cmd/load_ref</code>·<code>/cmd/save_ref</code> REST mirrors (one canonical <code>handle_load_ref</code>/<code>handle_save_ref</code> each, CA↔REST parity), <code>GET /api/v1/references</code> listing, <code>_resolve_in_library</code> path-safety (basename-only, <code>.mat</code>-suffixed, <code>is_relative_to</code> escape guard), <code>reference_dir</code> threaded through settings/composition into both adapters, blocking scipy <code>.mat</code> I/O via <code>asyncio.to_thread</code>. Error taxonomy: <code>InvalidReferenceNameError</code>/422, <code>ReferenceNotFoundError</code>/404, <code>ReferenceExistsError</code>/409 + reused <code>ReferenceLoadError</code>/<code>NoLastAcquireError</code>. Parity table +2 rows (LOAD, SAVE). Backend-only (frontend → M4). 236/236 full suite green (1 known-flaky CA test passes on retry).</div>
+    <div class="tag">milestone</div>
+  </div>
+  <div class="commit">
+    <div class="hash">4fcea73</div>
+    <div class="msg">M3 Task 6 — load/save pipeline integration tests (CA + REST), REST path-safety, parity rows (LOAD, SAVE)</div>
+    <div class="tag">test(integration)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">4de6b11</div>
+    <div class="msg">M3 Task 5 — <code>/cmd/load_ref</code> + <code>/cmd/save_ref</code> routes + <code>GET /references</code> listing</div>
+    <div class="tag">feat(api)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">0a85856</div>
+    <div class="msg">M3 Task 4 — <code>CMD:LOAD_REF</code> / <code>CMD:SAVE_REF</code> string PVs + putters (re-raise typed exceptions → CA alarm)</div>
+    <div class="tag">feat(ioc)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">b2f5da4</div>
+    <div class="msg">M3 Task 3 — <code>handle_load_ref</code>/<code>handle_save_ref</code> + library schemas (scipy I/O via <code>asyncio.to_thread</code>)</div>
+    <div class="tag">feat(handlers)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">e65775e</div>
+    <div class="msg">M3 Task 2 — <code>_resolve_in_library</code> path-safety helper + reference exceptions (Invalid/NotFound/Exists)</div>
+    <div class="tag">feat(handlers)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">f0bba07</div>
+    <div class="msg">M3 Task 1 — thread <code>reference_dir</code> through settings, composition, IOC, REST app</div>
+    <div class="tag">feat(config)</div>
+  </div>
+  <div class="commit">
+    <div class="hash">fd93e23</div>
+    <div class="msg">Phase 3 M3 implementation plan — reference file library (LOAD/SAVE + path safety + <code>GET /references</code>), 7 tasks task-by-task</div>
+    <div class="tag">docs(plan)</div>
+  </div>
   <div class="commit">
     <div class="hash">M2 ✓</div>
     <div class="msg">2026-05-29 · <strong>Phase 3 M2 (in-memory ops + diff publication) done.</strong> Wired the M1 pure-domain core into the live surface: file-free <code>PROMOTE_REF</code>/<code>CLEAR_REF</code> pair with CA + REST parity, <code>STATE:REF_LOADED/NAME/LOADED_AT/SOURCE</code> + <code>RESULT:BPM:{X,Y}_DIFF_FIRST_TURN</code> PVs, <code>handle_acquire</code> publishes the <code>B − R0</code> diff every acquire (NaN-fill when no ref). New AppState reference/diff fields; <code>ReferenceSource</code>/<code>DiffResult</code> in <code>domain/types.py</code>; parity table +2 rows. Backend-only (frontend → M4). 189/189 full suite green (1 known-flaky CA test passed this run).</div>
