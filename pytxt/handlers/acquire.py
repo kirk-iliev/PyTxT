@@ -18,7 +18,8 @@ from pytxt.api.schemas.result import (
     LastAcquireResult,
 )
 from pytxt.domain.first_turn_extract import extract_first_turn
-from pytxt.domain.types import RawBPM
+from pytxt.domain.reference import compute_diff, summarize_diff
+from pytxt.domain.types import DiffResult, RawBPM
 from pytxt.state.app_state import AppState
 
 logger = logging.getLogger(__name__)
@@ -94,9 +95,23 @@ async def handle_acquire(state: AppState, reader: _ReaderProtocol) -> AcquireRes
         # Strip None entries from raws so /result/bpm/raw can simply look up by prefix.
         successful_raws = {p: r for p, r in raws.items() if r is not None}
 
+        # Compute the B − R0 diff when a reference is loaded. Defensive: a diff
+        # bug must NEVER lose the first-turn publication (spec §6.4/§8), so on
+        # any exception we set diff=None and still publish the first-turn below.
+        diff = None
+        if state.reference_loaded and state.reference_first_turn is not None:
+            try:
+                dx, dy = compute_diff(first_turn, state.reference_first_turn)
+                diff = DiffResult(dx=dx, dy=dy, summary=summarize_diff(dx, dy))
+            except Exception:
+                logger.exception("handle_acquire: diff computation failed; "
+                                 "publishing first-turn with last_diff=None")
+                diff = None
+
         await state.update(
             last_acquire=last,
             last_acquire_raws=successful_raws,
+            last_diff=diff,            # None when no ref → IOC NaN-fills
         )
 
         return AcquireResponse(

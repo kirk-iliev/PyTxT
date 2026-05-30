@@ -8,6 +8,7 @@ import pytest
 from pytxt.api.schemas.result import AcquireStatus
 from pytxt.domain.types import RawBPM
 from pytxt.handlers.acquire import AcquisitionInFlightError, handle_acquire
+from pytxt.handlers.reference import handle_promote_ref
 from pytxt.state.app_state import AppState
 
 
@@ -88,3 +89,35 @@ async def test_exception_clears_in_flight():
 
     assert state.acquire_in_flight is False
     assert state.last_acquire.status == "FAILED"
+
+
+@pytest.mark.asyncio
+async def test_acquire_no_ref_leaves_last_diff_none():
+    state = AppState(bpm_prefixes=["A", "B"])
+    reader = AsyncMock()
+    reader.read_all.return_value = {"A": _fake_raw("A"), "B": _fake_raw("B")}
+
+    await handle_acquire(state, reader)
+
+    assert state.reference_loaded is False
+    assert state.last_diff is None
+
+
+@pytest.mark.asyncio
+async def test_acquire_after_promote_computes_last_diff():
+    prefixes = ["A", "B"]
+    state = AppState(bpm_prefixes=prefixes)
+    reader = AsyncMock()
+    reader.read_all.return_value = {"A": _fake_raw("A"), "B": _fake_raw("B")}
+
+    # First acquire gives us a last_acquire to promote from.
+    await handle_acquire(state, reader)
+    await handle_promote_ref(state)
+    assert state.reference_loaded is True
+
+    # Second acquire now computes a diff against the promoted reference.
+    await handle_acquire(state, reader)
+
+    assert state.last_diff is not None
+    assert state.last_diff.dx.shape == (len(prefixes),)
+    assert state.last_diff.dy.shape == (len(prefixes),)
