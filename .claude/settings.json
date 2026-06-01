@@ -9,7 +9,26 @@
       "Bash(sleep:*)",
       "Bash(npx:*)",
       "Bash(cd tests/e2e && npx:*)",
-      "Bash(PYTXT_USE_SYNTHETIC_READER=1:*)"
+      "Bash(PYTXT_USE_SYNTHETIC_READER=1:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(awk:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(tree:*)",
+      "Bash(sort:*)",
+      "Bash(uniq:*)",
+      "Bash(diff:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
