@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     # (kept side-effect-free here so unit tests don't litter the repo).
     reference_dir: Path = Path("data/references")
 
+    # Max bytes accepted by the multipart upload route (POST /references).
+    # Default 200 MB covers the ~144 MB worst-case PyTxT-extended .mat with
+    # headroom; overflow → HTTP 413. Env-overridable via PYTXT_MAX_UPLOAD_BYTES.
+    max_upload_bytes: int = 200 * 1024 * 1024
+
     # Version is NOT env-overridable; populated at startup by composition.main()
     # from importlib.metadata.version("pytxt") with fallback to "0.0.0+dev".
     version: str = ""

@@ -18,6 +18,16 @@ def test_default_values():
     # Phase 3: reference library dir defaults to data/references (relative;
     # resolved + created in composition.main(), not here).
     assert s.reference_dir == Path("data/references")
+    # Phase 3 M4: upload cap defaults to 200 MB.
+    assert s.max_upload_bytes == 200 * 1024 * 1024
+
+
+def test_max_upload_bytes_env_var_override(monkeypatch):
+    """PYTXT_MAX_UPLOAD_BYTES is a known field → accepted and parsed as int."""
+    monkeypatch.setenv("PYTXT_MAX_UPLOAD_BYTES", "1048576")
+    from pytxt.config.settings import Settings
+    s = Settings()
+    assert s.max_upload_bytes == 1048576
 
 
 def test_reference_dir_env_var_override(monkeypatch, tmp_path):
