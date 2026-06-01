@@ -28,6 +28,10 @@ htmlcov/
 .env.*.local
 docker/.env.prod
 
+# Reference library (runtime dir; dev default for PYTXT_REFERENCE_DIR).
+# Saved/uploaded .mat files are operator data, not source.
+data/references/
+
 # Node (for Playwright e2e)
 node_modules/
 tests/e2e/test-results/
