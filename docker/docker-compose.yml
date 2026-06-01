@@ -13,4 +13,10 @@ services:
       - "8008:8008"
     restart: unless-stopped
     volumes:
+      # Read-only inputs (BPM prefix catalog, etc.)...
       - ../data:/app/data:ro
+      # ...but the reference library (PYTXT_REFERENCE_DIR default
+      # data/references) must be writable for SAVE / multipart upload.
+      # Overlaps the :ro mount with a more-specific :rw bind. Seed it on the
+      # host with the legacy GUI .mat files to expose them in the library.
+      - ../data/references:/app/data/references:rw
