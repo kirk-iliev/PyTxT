@@ -1,9 +1,17 @@
 """GET /api/v1/result/* — read-only result endpoints."""
+import asyncio
+
 from fastapi import APIRouter, HTTPException, Request
 
 from pytxt.api.schemas.result import BpmRawWaveforms
+from pytxt.domain.reference import load_reference_mat
 
 router = APIRouter(prefix="/api/v1", tags=["result"])
+
+# Returned (404) when a loaded reference carries no full TBT waveforms — either
+# a promoted reference (no file on disk) or a MATLAB-GUI .mat that omits the
+# PyTxT-extended X_wf/Y_wf/sum_wf variables.
+_NO_WAVEFORMS_DETAIL = "Reference has no full waveforms (loaded from MATLAB-only schema)"
 
 
 @router.get("/result/bpm/raw", response_model=BpmRawWaveforms)
@@ -32,6 +40,49 @@ async def get_bpm_raw(request: Request, bpm: str = "") -> BpmRawWaveforms:
     raw = state.last_acquire_raws.get(bpm)
     if raw is None:
         raise HTTPException(404, f"No raw waveform data for {bpm!r} yet")
+    return BpmRawWaveforms(
+        bpm_prefix=raw.prefix,
+        x_nm=raw.x_wf.tolist(),
+        y_nm=raw.y_wf.tolist(),
+        sum_au=raw.sum_wf.tolist(),
+        armed=raw.armed,
+        read_timestamp=raw.read_timestamp,
+    )
+
+
+@router.get("/result/ref/raw", response_model=BpmRawWaveforms)
+async def get_ref_bpm_raw(request: Request, bpm: str = "") -> BpmRawWaveforms:
+    """Return the loaded reference's full TBT waveforms for one BPM.
+
+    The reference is re-parsed from disk on demand (waveforms are bulk content
+    and are never cached in AppState — CLAUDE.md §3), so this is a drill-down
+    for PyTxT-saved references that carry the extended waveform schema.
+
+    Query params:
+        bpm: BPM prefix (e.g. ``SR01C:BPM1``). Required and non-empty. Matched
+             against the reference's *canonicalized* BPM names.
+
+    Returns:
+        200: ``BpmRawWaveforms`` for the requested BPM.
+        400: missing or empty ``bpm`` query parameter.
+        404: no reference loaded; the reference has no waveforms (promoted, or
+             a MATLAB-only .mat); or ``bpm`` is not in the reference's BPM set.
+    """
+    if not bpm:
+        raise HTTPException(400, "Missing required query parameter: bpm")
+    state = request.app.state.app_state
+    if not state.reference_loaded:
+        raise HTTPException(404, "No reference loaded")
+    path = state.reference_file_path
+    if path is None:
+        # Promoted reference — lives only in memory, has no file to re-read.
+        raise HTTPException(404, _NO_WAVEFORMS_DETAIL)
+    ref = await asyncio.to_thread(load_reference_mat, path)
+    if ref.raws is None:
+        raise HTTPException(404, _NO_WAVEFORMS_DETAIL)
+    raw = ref.raws.get(bpm)
+    if raw is None:
+        raise HTTPException(404, f"BPM not in reference: {bpm!r}")
     return BpmRawWaveforms(
         bpm_prefix=raw.prefix,
         x_nm=raw.x_wf.tolist(),
