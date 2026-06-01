@@ -32,13 +32,39 @@ def ioc_repeater_port() -> int:
     return _find_free_port()
 
 
+@pytest.fixture(scope="session")
+def beacon_absorber() -> Generator[int, None, None]:
+    """A live UDP socket that absorbs caproto server beacons for the session.
+
+    Without it, the fake-IOC's beacon loop sends to a dead loopback port
+    (EPICS_CAS_BEACON_PORT default 5065, where nothing listens) and Linux
+    intermittently returns ICMP port-unreachable → ECONNREFUSED on a later
+    send. caproto raises that as a fatal CaprotoNetworkError out of
+    broadcast_beacon_loop, flaking any test with a running IOC. Binding a
+    real socket on the beacon destination keeps the port alive so the send
+    always succeeds silently. We never recv — the kernel buffer just drops
+    the tiny, infrequent beacons. Returns the bound port for
+    EPICS_CAS_BEACON_PORT.
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", 0))
+    try:
+        yield sock.getsockname()[1]
+    finally:
+        sock.close()
+
+
 @pytest.fixture(scope="session", autouse=True)
-def configure_caproto_env(ioc_port: int, ioc_repeater_port: int) -> Generator[None, None, None]:
+def configure_caproto_env(
+    ioc_port: int, ioc_repeater_port: int, beacon_absorber: int
+) -> Generator[None, None, None]:
     """Pin caproto's address resolution to localhost + ephemeral ports."""
     saved = {k: os.environ.get(k) for k in (
         "EPICS_CAS_SERVER_PORT",
         "EPICS_CAS_INTF_ADDR_LIST",
         "EPICS_CAS_BEACON_ADDR_LIST",
+        "EPICS_CAS_AUTO_BEACON_ADDR_LIST",
+        "EPICS_CAS_BEACON_PORT",
         "EPICS_CA_SERVER_PORT",
         "EPICS_CA_ADDR_LIST",
         "EPICS_CA_AUTO_ADDR_LIST",
@@ -46,7 +72,12 @@ def configure_caproto_env(ioc_port: int, ioc_repeater_port: int) -> Generator[No
     )}
     os.environ["EPICS_CAS_SERVER_PORT"] = str(ioc_port)
     os.environ["EPICS_CAS_INTF_ADDR_LIST"] = "127.0.0.1"
+    # Beacons go ONLY to the loopback absorber: a fixed address list +
+    # AUTO=no suppresses the 255.255.255.255 broadcast, and BEACON_PORT
+    # targets the live absorber socket so the send never hits a dead port.
     os.environ["EPICS_CAS_BEACON_ADDR_LIST"] = "127.0.0.1"
+    os.environ["EPICS_CAS_AUTO_BEACON_ADDR_LIST"] = "no"
+    os.environ["EPICS_CAS_BEACON_PORT"] = str(beacon_absorber)
     os.environ["EPICS_CA_SERVER_PORT"] = str(ioc_port)
     os.environ["EPICS_CA_ADDR_LIST"] = "127.0.0.1"
     os.environ["EPICS_CA_AUTO_ADDR_LIST"] = "NO"

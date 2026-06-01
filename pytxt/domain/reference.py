@@ -65,6 +65,11 @@ def load_reference_mat(path: Path) -> Reference:
         raise ReferenceLoadError(f"{path.name}: missing required variable 'BPMs'")
 
     R0 = np.asarray(mat["R0"], dtype=np.float64)
+    # scipy.io.loadmat(squeeze_me=True) collapses a single-BPM (2, 1) R0 to
+    # shape (2,). Restore the column so n_bpms=1 references round-trip; the
+    # value (2 floats = one BPM's X/Y) is unambiguous under squeeze.
+    if R0.ndim == 1 and R0.shape[0] == 2:
+        R0 = R0.reshape(2, 1)
     if R0.ndim != 2 or R0.shape[0] != 2:
         raise ReferenceLoadError(
             f"{path.name}: R0 has shape {R0.shape}, expected (2, n_bpms)"

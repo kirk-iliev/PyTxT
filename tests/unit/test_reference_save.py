@@ -57,6 +57,28 @@ def test_save_then_load_round_trips_basic(tmp_path: Path) -> None:
     np.testing.assert_array_equal(ref.raws["SR01C:BPM1"].x_wf, raws["SR01C:BPM1"].x_wf)
 
 
+def test_save_then_load_round_trips_single_bpm(tmp_path: Path) -> None:
+    """Regression: a 1-BPM reference must survive save -> load.
+
+    scipy.io.savemat writes R0 as (2, 1); loadmat(squeeze_me=True) collapses
+    it to (2,). The loader restores the column so n_bpms=1 round-trips instead
+    of raising 'R0 has shape (2,), expected (2, n_bpms)'. Latent in production
+    (N=107) but surfaced by single-BPM test fixtures.
+    """
+    p = tmp_path / "single.mat"
+    prefixes = ["SR01C:BPM1"]
+    first_turn = _synth_first_turn(1)
+    raws = _synth_raws(prefixes)
+
+    save_reference_mat(p, first_turn, raws, prefixes)
+    ref = load_reference_mat(p)
+
+    assert ref.bpm_names == prefixes
+    assert ref.first_turn.x_first_turn.shape == (1,)
+    np.testing.assert_allclose(ref.first_turn.x_first_turn, first_turn.x_first_turn)
+    np.testing.assert_allclose(ref.first_turn.y_first_turn, first_turn.y_first_turn)
+
+
 def test_save_handles_failed_bpms_as_nan(tmp_path: Path) -> None:
     """A BPM in prefixes but absent from last_acquire_raws → NaN row in R0."""
     p = tmp_path / "with_failure.mat"
