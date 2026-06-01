@@ -26,29 +26,66 @@
         <span id="trajectoryDiffRms" class="diff-rms" hidden></span>
         <span id="trajectoryCounts" class="counts"></span>
       </div>
-      <div class="panel-grid panels-2" id="panelGrid">
-        <div class="canvas-wrap">
-          <div class="axis-label">X (mm)</div>
-          <canvas id="canvasX" width="800" height="190" aria-label="X position vs BPM index"></canvas>
+      <div class="trajectory-body">
+        <div class="panel-grid panels-2" id="panelGrid">
+          <div class="canvas-wrap">
+            <div class="axis-label">X (mm)</div>
+            <canvas id="canvasX" width="800" height="190" aria-label="X position vs BPM index"></canvas>
+          </div>
+          <div class="canvas-wrap">
+            <div class="axis-label">Y (mm)</div>
+            <canvas id="canvasY" width="800" height="190" aria-label="Y position vs BPM index"></canvas>
+          </div>
+          <div class="canvas-wrap diff-panel">
+            <div class="axis-label">ΔX (mm)</div>
+            <canvas id="canvasDX" width="800" height="190" aria-label="X deviation from reference vs BPM index"></canvas>
+          </div>
+          <div class="canvas-wrap diff-panel">
+            <div class="axis-label">ΔY (mm)</div>
+            <canvas id="canvasDY" width="800" height="190" aria-label="Y deviation from reference vs BPM index"></canvas>
+          </div>
         </div>
-        <div class="canvas-wrap">
-          <div class="axis-label">Y (mm)</div>
-          <canvas id="canvasY" width="800" height="190" aria-label="Y position vs BPM index"></canvas>
-        </div>
-        <div class="canvas-wrap diff-panel">
-          <div class="axis-label">ΔX (mm)</div>
-          <canvas id="canvasDX" width="800" height="190" aria-label="X deviation from reference vs BPM index"></canvas>
-        </div>
-        <div class="canvas-wrap diff-panel">
-          <div class="axis-label">ΔY (mm)</div>
-          <canvas id="canvasDY" width="800" height="190" aria-label="Y deviation from reference vs BPM index"></canvas>
-        </div>
+        <aside class="reference-sidebar" id="referenceSidebar">
+          <h2 class="sidebar-title">Reference</h2>
+          <div class="ref-status" id="refStatus">No reference loaded</div>
+          <div class="ref-buttons">
+            <button type="button" id="promoteRefBtn">Promote current</button>
+            <button type="button" id="loadRefBtn">Load…</button>
+            <button type="button" id="saveRefBtn">Save current…</button>
+            <button type="button" id="uploadRefBtn">Upload .mat</button>
+            <button type="button" id="clearRefBtn">Clear</button>
+          </div>
+          <div class="ref-msg" id="refMsg" role="status"></div>
+          <input type="file" id="uploadRefInput" accept=".mat" hidden>
+        </aside>
       </div>
       <div class="actions">
         <button type="button" id="acquireButton" class="primary">▶ Acquire</button>
         <span id="acquireMeta" class="meta"></span>
       </div>
     </section>
+
+    <div class="ref-dialog" id="loadRefDialog" hidden>
+      <div class="ref-dialog-box">
+        <h3>Load reference from library</h3>
+        <ul class="ref-list" id="refList"></ul>
+        <div class="ref-dialog-actions">
+          <button type="button" id="loadRefCancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ref-dialog" id="saveRefDialog" hidden>
+      <div class="ref-dialog-box">
+        <h3>Save current trajectory as reference</h3>
+        <label for="saveRefName">Filename</label>
+        <input type="text" id="saveRefName" spellcheck="false" autocomplete="off">
+        <div class="ref-dialog-actions">
+          <button type="button" id="saveRefConfirm" class="primary">Save</button>
+          <button type="button" id="saveRefCancel">Cancel</button>
+        </div>
+      </div>
+    </div>
     <div id="trajectoryTooltip" class="trajectory-tooltip" hidden>
       <div class="tt-name" id="trajectoryTooltipName"></div>
       <div class="tt-values" id="trajectoryTooltipValues"></div>
@@ -57,5 +94,6 @@
 
   <script src="/js/connection.js"></script>
   <script src="/js/trajectory.js"></script>
+  <script src="/js/reference.js"></script>
 </body>
 </html>

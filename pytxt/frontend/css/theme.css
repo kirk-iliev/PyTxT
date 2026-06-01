@@ -159,6 +159,17 @@ html, body {
 }
 .trajectory-header .diff-rms[hidden] { display: none; }
 
+/* Canvas area + reference sidebar sit side by side. */
+.trajectory-body {
+  display: flex;
+  gap: 0.8rem;
+  align-items: flex-start;
+}
+.trajectory-body .panel-grid {
+  flex: 1;
+  min-width: 0;
+}
+
 /* 2-panel (X,Y) by default; 4-panel (X,Y,ΔX,ΔY) when a reference is loaded.
    The grid class is toggled in trajectory.js on STATE:REF_LOADED. */
 .panel-grid {
@@ -253,4 +264,135 @@ canvas {
 .trajectory-tooltip .tt-close:hover { color: var(--fg); }
 .trajectory-tooltip.pinned {
   padding-right: 1.4rem;  /* room for × */
+}
+
+/* === Phase 3 M4 — reference sidebar + dialogs === */
+.reference-sidebar {
+  flex: 0 0 210px;
+  width: 210px;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 0.7rem;
+  background: rgba(255, 255, 255, 0.02);
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 0.85em;
+}
+.reference-sidebar .sidebar-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.95em;
+  color: var(--fg);
+}
+.reference-sidebar .ref-status {
+  color: var(--fg-muted, #9ba0a6);
+  margin-bottom: 0.7rem;
+  word-break: break-all;
+  min-height: 2.4em;
+}
+.reference-sidebar .ref-status .ref-name { color: var(--fg); font-weight: 600; }
+.reference-sidebar .ref-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.reference-sidebar .ref-buttons button {
+  width: 100%;
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--fg);
+  border: 1px solid #3a3a42;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+}
+.reference-sidebar .ref-buttons button:hover:not(:disabled) {
+  border-color: var(--accent, #0b5fff);
+  background: rgba(11, 95, 255, 0.08);
+}
+.reference-sidebar .ref-buttons button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.reference-sidebar .ref-msg {
+  margin-top: 0.6rem;
+  min-height: 1.2em;
+  font-size: 0.92em;
+}
+.reference-sidebar .ref-msg.error { color: #f87171; }
+.reference-sidebar .ref-msg.ok { color: var(--canvas-x, #4ade80); }
+
+.ref-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+.ref-dialog[hidden] { display: none; }
+.ref-dialog-box {
+  background: #14161c;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  min-width: 320px;
+  max-width: 90vw;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  font-family: "SF Mono", Menlo, monospace;
+}
+.ref-dialog-box h3 { margin: 0 0 0.7rem; font-size: 1em; }
+.ref-dialog-box label { display: block; font-size: 0.8em; color: var(--fg-muted, #9ba0a6); margin-bottom: 0.2rem; }
+.ref-dialog-box input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.4rem 0.5rem;
+  background: #0a0a0a;
+  color: var(--fg);
+  border: 1px solid #3a3a42;
+  border-radius: 4px;
+  font: inherit;
+}
+.ref-list {
+  list-style: none;
+  margin: 0 0 0.8rem;
+  padding: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+}
+.ref-list li {
+  padding: 0.45rem 0.6rem;
+  cursor: pointer;
+  border-bottom: 1px solid #222;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.ref-list li:last-child { border-bottom: 0; }
+.ref-list li:hover { background: rgba(11, 95, 255, 0.1); }
+.ref-list li .ref-list-name { color: var(--fg); }
+.ref-list li .ref-list-meta { color: var(--fg-muted, #9ba0a6); font-size: 0.85em; white-space: nowrap; }
+.ref-list .ref-list-empty { color: var(--fg-muted, #9ba0a6); cursor: default; }
+.ref-list .ref-list-empty:hover { background: none; }
+.ref-dialog-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.6rem;
+}
+.ref-dialog-actions button {
+  padding: 0.35rem 0.8rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--fg);
+  border: 1px solid #3a3a42;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+}
+.ref-dialog-actions button.primary {
+  background: var(--accent, #0b5fff);
+  border-color: var(--accent, #0b5fff);
+  color: #fff;
 }
