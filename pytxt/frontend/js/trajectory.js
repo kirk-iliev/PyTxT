@@ -18,11 +18,18 @@
   const acquireMetaEl = document.getElementById('acquireMeta');
   const canvasX = document.getElementById('canvasX');
   const canvasY = document.getElementById('canvasY');
+  const canvasDX = document.getElementById('canvasDX');
+  const canvasDY = document.getElementById('canvasDY');
+  const panelGridEl = document.getElementById('panelGrid');
+  const diffRmsEl = document.getElementById('trajectoryDiffRms');
 
   const state = {
     prefix: 'OSPREY:TEST:TXT:',  // overridden by /api/v1/config
     x: [], y: [], injectionTurn: [], names: [],
     status: 'NEVER', okCount: 0, failCount: 0, timestamp: '',
+    // Phase 3 M4 — reference deviation. dx/dy are NaN-filled by the IOC when
+    // no reference is loaded; refLoaded drives the 2↔4-panel layout switch.
+    dx: [], dy: [], refLoaded: false,
   };
 
   const tooltipEl = document.getElementById('trajectoryTooltip');
@@ -61,7 +68,11 @@
     const yv = state.y[i];
     if (!Number.isFinite(xv) && !Number.isFinite(yv)) { hideTooltip(); return; }
     tooltipNameEl.textContent = name;
-    tooltipValuesEl.textContent = `X: ${fmtMm(xv)} mm   Y: ${fmtMm(yv)} mm`;
+    let line = `X: ${fmtMm(xv)} mm   Y: ${fmtMm(yv)} mm`;
+    if (state.refLoaded) {
+      line += `   ΔX: ${fmtMm(state.dx[i])} mm   ΔY: ${fmtMm(state.dy[i])} mm`;
+    }
+    tooltipValuesEl.textContent = line;
     tooltipEl.style.left = (pageX + 12) + 'px';
     tooltipEl.style.top = (pageY + 12) + 'px';
     tooltipEl.hidden = false;
@@ -249,15 +260,42 @@
     }
   }
 
+  function rms(data) {
+    // Root-mean-square over the finite (non-NaN) entries — matches the
+    // backend summarize_diff's x_rms_mm/y_rms_mm computed on the same arrays.
+    let sum = 0, n = 0;
+    for (const v of data) {
+      if (Number.isFinite(v)) { sum += v * v; n++; }
+    }
+    return n ? Math.sqrt(sum / n) : NaN;
+  }
+
   function redraw() {
     render(canvasX, state.x, getComputedStyle(canvasX).getPropertyValue('--canvas-x').trim() || '#4ade80');
     render(canvasY, state.y, getComputedStyle(canvasY).getPropertyValue('--canvas-y').trim() || '#60a5fa');
+
+    // Layout switch: 4 panels when a reference is loaded, 2 otherwise.
+    panelGridEl.classList.toggle('panels-4', state.refLoaded);
+    panelGridEl.classList.toggle('panels-2', !state.refLoaded);
+    if (state.refLoaded) {
+      render(canvasDX, state.dx, getComputedStyle(canvasDX).getPropertyValue('--canvas-dx').trim() || '#f59e0b');
+      render(canvasDY, state.dy, getComputedStyle(canvasDY).getPropertyValue('--canvas-dy').trim() || '#c084fc');
+    }
 
     trajectoryStatusEl.textContent = `Status: ${state.status} · turn ${
       Number.isFinite(state.medianTurn) ? state.medianTurn : '—'}`;
     const ts = formatTimestamp(state.timestamp);
     trajectoryCountsEl.textContent =
       `${state.okCount} OK · ${state.failCount} FAIL${ts ? ' · ' + ts : ''}`;
+
+    // Δ rms row (status header) — only meaningful with a reference loaded.
+    const xr = rms(state.dx), yr = rms(state.dy);
+    if (state.refLoaded && (Number.isFinite(xr) || Number.isFinite(yr))) {
+      diffRmsEl.textContent = `Δ rms: X=${fmtMm(xr)} · Y=${fmtMm(yr)} mm`;
+      diffRmsEl.hidden = false;
+    } else {
+      diffRmsEl.hidden = true;
+    }
   }
 
   function pv(name) { return state.prefix + name; }
@@ -306,6 +344,20 @@
     });
     connection.subscribe(pv('STATE:LAST_ACQUIRE_TIMESTAMP'), (msg) => {
       state.timestamp = msg.value || ''; redraw();
+    });
+
+    // Phase 3 M4 — reference deviation + layout switch.
+    connection.subscribe(pv('RESULT:BPM:X_DIFF_FIRST_TURN'), (msg) => {
+      state.dx = Array.isArray(msg.value) ? msg.value : [msg.value];
+      redraw();
+    });
+    connection.subscribe(pv('RESULT:BPM:Y_DIFF_FIRST_TURN'), (msg) => {
+      state.dy = Array.isArray(msg.value) ? msg.value : [msg.value];
+      redraw();
+    });
+    connection.subscribe(pv('STATE:REF_LOADED'), (msg) => {
+      state.refLoaded = Boolean(msg.value);
+      redraw();
     });
 
     acquireButton.addEventListener('click', async () => {

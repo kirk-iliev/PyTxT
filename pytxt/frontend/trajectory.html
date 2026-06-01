@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PyTxT — Trajectory</title>
-  <link rel="stylesheet" href="/css/theme.css?v=2">
+  <link rel="stylesheet" href="/css/theme.css?v=3">
 </head>
 <body>
   <header class="app-header">
@@ -23,15 +23,26 @@
     <section class="trajectory-panel">
       <div class="trajectory-header">
         <span id="trajectoryStatus">No acquisition yet</span>
+        <span id="trajectoryDiffRms" class="diff-rms" hidden></span>
         <span id="trajectoryCounts" class="counts"></span>
       </div>
-      <div class="canvas-wrap">
-        <div class="axis-label">X (mm)</div>
-        <canvas id="canvasX" width="800" height="190" aria-label="X position vs BPM index"></canvas>
-      </div>
-      <div class="canvas-wrap">
-        <div class="axis-label">Y (mm)</div>
-        <canvas id="canvasY" width="800" height="190" aria-label="Y position vs BPM index"></canvas>
+      <div class="panel-grid panels-2" id="panelGrid">
+        <div class="canvas-wrap">
+          <div class="axis-label">X (mm)</div>
+          <canvas id="canvasX" width="800" height="190" aria-label="X position vs BPM index"></canvas>
+        </div>
+        <div class="canvas-wrap">
+          <div class="axis-label">Y (mm)</div>
+          <canvas id="canvasY" width="800" height="190" aria-label="Y position vs BPM index"></canvas>
+        </div>
+        <div class="canvas-wrap diff-panel">
+          <div class="axis-label">ΔX (mm)</div>
+          <canvas id="canvasDX" width="800" height="190" aria-label="X deviation from reference vs BPM index"></canvas>
+        </div>
+        <div class="canvas-wrap diff-panel">
+          <div class="axis-label">ΔY (mm)</div>
+          <canvas id="canvasDY" width="800" height="190" aria-label="Y deviation from reference vs BPM index"></canvas>
+        </div>
       </div>
       <div class="actions">
         <button type="button" id="acquireButton" class="primary">▶ Acquire</button>

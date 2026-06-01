@@ -113,6 +113,9 @@ html, body {
   --canvas-grid: #2a2a2a;
   --canvas-x: #4ade80;
   --canvas-y: #60a5fa;
+  /* Phase 3 M4 — reference deviation panels (distinct hues from X/Y). */
+  --canvas-dx: #f59e0b;
+  --canvas-dy: #c084fc;
 }
 
 .app-nav {
@@ -149,6 +152,27 @@ html, body {
 }
 .trajectory-header .counts {
   color: var(--fg-muted, #8a8a92);
+}
+.trajectory-header .diff-rms {
+  color: var(--canvas-dx, #f59e0b);
+  font-family: "SF Mono", Menlo, monospace;
+}
+.trajectory-header .diff-rms[hidden] { display: none; }
+
+/* 2-panel (X,Y) by default; 4-panel (X,Y,ΔX,ΔY) when a reference is loaded.
+   The grid class is toggled in trajectory.js on STATE:REF_LOADED. */
+.panel-grid {
+  display: grid;
+  gap: 0.6rem;
+}
+.panel-grid.panels-2 {
+  grid-template-columns: 1fr;
+}
+.panel-grid.panels-2 .diff-panel {
+  display: none;
+}
+.panel-grid.panels-4 {
+  grid-template-columns: 1fr 1fr;
 }
 .canvas-wrap {
   position: relative;
