@@ -29,6 +29,11 @@ class SyntheticBpmReader:
 
     def __init__(self, prefixes: list[str]) -> None:
         self.prefixes = list(prefixes)
+        # Per-call counter: consecutive read_all() calls return slightly
+        # different amplitudes so a reference promoted on one acquire shows a
+        # non-zero B − R0 diff on the next. Bounded (modulo) and deterministic,
+        # so it stays reproducible; per-prefix variation is preserved.
+        self._call = 0
 
     async def start(self) -> None:  # noqa: D401 - protocol no-op
         """Match the BpmReader protocol; nothing to connect to."""
@@ -39,11 +44,16 @@ class SyntheticBpmReader:
         out: dict[str, RawBPM | None] = {}
         sum_wf = np.full(_N_SAMPLES, 1000, dtype=np.int32)
         sum_wf[_INJECTION_INDEX:] = 200_000
+        # Adjacent integers mod 7 / mod 5 always differ, so the diff between
+        # consecutive acquires is always a clearly-visible >= ~0.02 mm step.
+        x_jitter = 30_000 * (self._call % 7)
+        y_jitter = 20_000 * (self._call % 5)
+        self._call += 1
         for i, prefix in enumerate(self.prefixes):
             # Vary x/y per BPM so the rendered polyline shows a non-flat
             # pattern. Amplitude in nm; rendered as mm after /1e6.
-            x_amp = 80_000 + 5_000 * i
-            y_amp = 40_000 - 3_000 * i
+            x_amp = 80_000 + 5_000 * i + x_jitter
+            y_amp = 40_000 - 3_000 * i + y_jitter
             x_wf = np.full(_N_SAMPLES, x_amp, dtype=np.int32)
             y_wf = np.full(_N_SAMPLES, y_amp, dtype=np.int32)
             out[prefix] = RawBPM(
