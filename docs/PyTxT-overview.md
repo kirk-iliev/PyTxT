@@ -1,6 +1,6 @@
 # PyTxT — Overview
 
-**Last refreshed:** 2026-05-29 · **Phase:** 2 (read path) **complete**; Phase 3 (reference trajectory) next · **Live status:** [`PyTxT-roadmap.html`](../PyTxT-roadmap.html)
+**Last refreshed:** 2026-06-01 · **Phase:** 3 (reference trajectory) **complete** (M1–M4); Phase 4 (threading workflow) next · **Live status:** [`PyTxT-roadmap.html`](../PyTxT-roadmap.html)
 
 This is the canonical "what is this thing?" document for PyTxT. Read it
 top-to-bottom and you should be able to answer: what PyTxT does, where
@@ -312,19 +312,19 @@ pytxt/
 └── frontend/              # vanilla JS + Canvas (static assets)
 ```
 
-**Status flags** for each package as of 2026-05-29 (Phase 2 complete):
+**Status flags** for each package as of 2026-06-01 (Phase 3 complete):
 
 | Package | Status | Notes |
 |---|---|---|
-| `config/` | implemented | Settings + BPM prefix loader live; 107-entry catalog committed |
-| `state/` | implemented | AppState fields for phase 1 + 2 published, incl. `last_acquire_raws` cache |
-| `handlers/` | implemented | `ping` + `acquire` |
-| `ioc/` | implemented | Phase-1 + phase-2 PV namespaces populated |
-| `ca_client/` | implemented | `BpmReader` validated against 107 BPMs ≤3 s; `SyntheticBpmReader` for e2e/demo |
-| `domain/` | implemented (phase 2 scope) | First-turn extract done; response-matrix work lands in phase 4 |
-| `api/routes/` | implemented (phase 2 scope) | `cmd`/`state`/`config`/`health` + `result/bpm/raw` all live |
+| `config/` | implemented | Settings + BPM prefix loader live; 107-entry catalog; `reference_dir` + `max_upload_bytes` |
+| `state/` | implemented | AppState fields for phase 1–3 published, incl. `last_acquire_raws` cache + reference/diff fields |
+| `handlers/` | implemented | `ping` + `acquire` + `reference` (promote/clear/load/save) |
+| `ioc/` | implemented | Phase 1–3 PV namespaces populated (incl. `STATE:REF_*`, `*_DIFF_*`, `CMD:{PROMOTE,CLEAR,LOAD,SAVE}_REF`) |
+| `ca_client/` | implemented | `BpmReader` validated against 107 BPMs ≤3 s; `SyntheticBpmReader` (per-call jitter) for e2e/demo |
+| `domain/` | implemented (phase 3 scope) | First-turn extract + reference `.mat` I/O + diff math done; response-matrix work lands in phase 4 |
+| `api/routes/` | implemented (phase 3 scope) | `cmd` (+reference mirrors) / `state` / `config` / `health` / `references` (list/upload/download) / `result/{bpm,ref}/raw` all live |
 | `api/ws_bridge` | implemented | Browser subscribes per-PV; coerces caproto values to JSON |
-| `frontend/` | implemented (phase 2 scope) | Ring-trajectory X/Y plot, per-BPM hover tooltip, status header w/ timestamp |
+| `frontend/` | implemented (phase 3 scope) | Ring-trajectory X/Y plot + 4-panel ΔX/ΔY overlay, reference sidebar (load/save/upload/promote/clear), per-BPM hover tooltip (incl. ΔX/ΔY), status header w/ timestamp + Δrms |
 
 ---
 
@@ -355,8 +355,18 @@ the prefix.
 | `RESULT:BPM:SUM_FIRST_TURN` | float[128] | R | Per-BPM sum signal (AU) at injection turn |
 | `RESULT:BPM:INJECTION_TURN` | int[128] | R | Per-BPM detected injection-turn sample index; −1 for failed |
 | `RESULT:BPM:NAMES` | string[128] | R | Static-after-startup: BPM prefix for each array index |
+| `RESULT:BPM:X_DIFF_FIRST_TURN` | float[128] | R | Per-BPM ΔX = B − R0 (mm) vs the loaded reference; NaN when no ref |
+| `RESULT:BPM:Y_DIFF_FIRST_TURN` | float[128] | R | Per-BPM ΔY = B − R0 (mm) vs the loaded reference; NaN when no ref |
+| `STATE:REF_LOADED` | int | R | 1 when a reference is loaded |
+| `STATE:REF_NAME` | string | R | Loaded reference filename (or "" when promoted/none) |
+| `STATE:REF_SOURCE` | string | R | "file" \| "promoted" \| "" |
+| `STATE:REF_LOADED_AT` | string | R | ISO-8601 UTC when the reference was loaded |
 | `CMD:PING` | int | W | Write any value → issue a ping (smoke test) |
 | `CMD:ACQUIRE` | int | W | Write any value → trigger BPM acquisition |
+| `CMD:PROMOTE_REF` | int | W | Write any value → promote the current acquire as the reference |
+| `CMD:CLEAR_REF` | int | W | Write any value → unload the reference (diff PVs go NaN) |
+| `CMD:LOAD_REF` | string | W | Write a library `.mat` basename → load it as the reference |
+| `CMD:SAVE_REF` | string | W | Write a basename (or "" for the timestamp default) → save current acquire to the library |
 
 The waveform arrays use a static `max_length=128` (defined in
 `pytxt/ioc/pvs.py` as `_BPM_MAX`) to accommodate up to ~128 BPMs with
@@ -378,7 +388,15 @@ auto-generated OpenAPI at `/docs`.
 | `GET` | `/api/v1/config` | Frontend bootstrap: returns the deployed `pv_prefix` |
 | `POST` | `/api/v1/cmd/ping` | REST mirror of `CMD:PING`; same handler |
 | `POST` | `/api/v1/cmd/acquire` | REST mirror of `CMD:ACQUIRE`; 409 if already in-flight |
+| `POST` | `/api/v1/cmd/promote_ref` | REST mirror of `CMD:PROMOTE_REF`; 422 if no last acquire |
+| `POST` | `/api/v1/cmd/clear_ref` | REST mirror of `CMD:CLEAR_REF` (idempotent) |
+| `POST` | `/api/v1/cmd/load_ref` | REST mirror of `CMD:LOAD_REF`; body `{name}`; 404/422 on errors |
+| `POST` | `/api/v1/cmd/save_ref` | REST mirror of `CMD:SAVE_REF`; body `{name?}`; 409/422 on errors |
+| `GET` | `/api/v1/references` | List the reference library (`.mat` files, newest first) |
+| `POST` | `/api/v1/references` | Multipart upload of a `.mat` (REST-only); 201/409/413/422 |
+| `GET` | `/api/v1/references/{name}` | Download a library `.mat` (`application/octet-stream`); 200/404/422 |
 | `GET` | `/api/v1/result/bpm/raw?bpm=<prefix>` | Full raw TBT waveforms for one BPM (see below) |
+| `GET` | `/api/v1/result/ref/raw?bpm=<prefix>` | Loaded reference's raw TBT waveforms for one BPM; 404 for promoted/MATLAB-only refs |
 | `WS` | `/api/v1/pvs` | Subscribe to PVs over WebSocket; messages `{action, pvs[]}` in, `{pv, value, ts}` out |
 | `GET` | `/` | Static frontend |
 
@@ -412,12 +430,16 @@ swapped atomically, so concurrent acquires never expose partial data.
 |---|---|---|
 | Ping | write `CMD:PING` | `POST /api/v1/cmd/ping` |
 | Acquire | write `CMD:ACQUIRE` | `POST /api/v1/cmd/acquire` |
-| Observe last acquire | subscribe `STATE:LAST_ACQUIRE_*` | `GET /api/v1/state` (one-shot) |
-| Observe results | subscribe `RESULT:BPM:*` | `GET /api/v1/state` (one-shot) |
+| Promote / clear reference | write `CMD:PROMOTE_REF` / `CMD:CLEAR_REF` | `POST /api/v1/cmd/promote_ref` / `clear_ref` |
+| Load / save reference by name | write `CMD:LOAD_REF` / `CMD:SAVE_REF` | `POST /api/v1/cmd/load_ref` / `save_ref` |
+| Observe last acquire + reference | subscribe `STATE:LAST_ACQUIRE_*` / `STATE:REF_*` | `GET /api/v1/state` (one-shot) |
+| Observe results + diff | subscribe `RESULT:BPM:*` (incl. `*_DIFF_*`) | `GET /api/v1/state` (one-shot) |
 | Stream results | subscribe via CA | subscribe via `WS /api/v1/pvs` |
 
-Both transports route through the same handler functions. There is no
-"REST-only" or "PV-only" behaviour.
+Both transports route through the same handler functions. The **one**
+REST-only action is uploading a brand-new reference file
+(`POST /api/v1/references`) — a file's bytes can't be a PV. Loading a
+reference *by name* from the library has full CA parity via `CMD:LOAD_REF`.
 
 ---
 
@@ -428,10 +450,10 @@ is the feature-parity target. Mapped to PyTxT phases:
 
 | Step | Workflow action | Delivered by |
 |---|---|---|
-| 1–4 | Launch GUI, select reference, choose BPMs | Phase 3 (reference loader) |
+| 1–4 | Launch GUI, select reference, choose BPMs | ✓ Phase 3 (reference load/save/upload library + sidebar) |
 | 5–7 | Arm BPMs, fire injection one-shot, read TBT data | **Phase 2 read path + phase 4 (arm/inject)** |
 | 8–9 | Detect injection turn, extract first-turn X/Y | ✓ Phase 2 |
-| 10–11 | Plot ring trajectory, overlay reference | Plot ✓ Phase 2 (X/Y panels + hover); reference overlay → phase 3 |
+| 10–11 | Plot ring trajectory, overlay reference | ✓ Phase 2 (X/Y panels + hover) + ✓ Phase 3 (4-panel ΔX/ΔY overlay) |
 | 12–14 | Compute orbit RMS, kick fits, dispersion | Phase 5 (analysis polish) |
 | 15–17 | Run trajectory correction (response-matrix inverse → CM steps) | Phase 4 (threading workflow) |
 | 18 | Save updated reference | Phase 3 |

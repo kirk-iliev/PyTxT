@@ -270,3 +270,81 @@ Append-only log of implementation-time decisions: choices made during coding tha
 **Spec relationship:** Surprise from real upstream API (`scipy.io.savemat` squeeze behavior); not contemplated by spec §6 (M1 load/save).
 
 **Forward impact:** `[needs-spec-update]` not required, but a future M1-hardening pass should add `np.atleast_2d` on `R0` in `load_reference_mat` and an explicit N=1 round-trip test. Until then, never assume an N=1 reference round-trips; the production N=107 path is unaffected.
+
+
+## 2026-06-01 — M4: `python-multipart` added as a hard dependency
+
+**Context:** M4 Task 1 — implementing the multipart `POST /api/v1/references` upload route.
+
+**Decision:** Added `python-multipart>=0.0.9` to `pyproject.toml` `[project].dependencies`. FastAPI's `UploadFile`/`File(...)` requires it, and it was neither installed in the venv nor declared. Made it a hard (not optional-dev) dependency since upload is core to the M4 DoD.
+
+**Why:** Without it, importing/registering the upload route raises at runtime. It's a production-path dependency (operators/agents upload references), so it belongs in `dependencies`, not `[project.optional-dependencies].dev`.
+
+**Spec relationship:** Gap — spec §6.8 specified the multipart route but didn't call out the dependency.
+
+**Forward impact:** None beyond the lockstep `pip install`. Any future multipart/form route is now covered.
+
+
+## 2026-06-01 — M4: upload validates by parse-then-keep-or-delete; collision before write; streamed byte cap
+
+**Context:** M4 Task 1 — `upload_reference` route semantics.
+
+**Decision:** Upload order is: (1) `_resolve_in_library` the client filename (same path-safety as `CMD:LOAD_REF`) → 422; (2) refuse if the target exists → 409 (checked *before* any write); (3) stream chunks to disk under a running byte counter vs `settings.max_upload_bytes` → 413 on overflow; (4) `load_reference_mat` the written file in a thread → 422 on bad `.mat`. A `BaseException` handler `unlink(missing_ok=True)`s the path on any failure (413, parse error, client disconnect) so a bad upload never lingers as junk in the library. Added `Settings.max_upload_bytes` (default 200 MB, `PYTXT_MAX_UPLOAD_BYTES`). The cap lookup is defensive (`getattr(settings, "max_upload_bytes", 200MB)`) so a minimally-built test app without `settings` still works.
+
+**Why:** "Validate before commit" is the safe shape for accepting external files — the library should only ever contain loadable references. Checking collision before writing avoids clobbering. Streaming + a running cap bounds memory and disk for a hostile/oversized upload without buffering the whole body.
+
+**Spec relationship:** Implements spec §6.8 (basename-safe, no-overwrite, parse-validated) + the §6.8 "200 MB default, configurable" cap.
+
+**Forward impact:** Reuses the M3 path-safety helper and exceptions; no new error taxonomy. A future `DELETE /references/{name}` (deferred, §15) would reuse the same `_resolve_in_library`.
+
+
+## 2026-06-01 — M4: `/result/ref/raw` re-parses from disk; promoted + MATLAB-only refs both 404 via one detail
+
+**Context:** M4 Task 2 — `GET /api/v1/result/ref/raw` reference-waveform drill-down.
+
+**Decision:** The endpoint reads the loaded reference *lazily from disk* (`load_reference_mat(state.reference_file_path)` in a thread) rather than caching waveforms in AppState. Two distinct "no waveforms" conditions return 404 with the **same** detail string (`"Reference has no full waveforms (loaded from MATLAB-only schema)"`): a **promoted** reference (`reference_file_path is None` — lives only in memory, no file to re-read) and a **MATLAB-GUI** `.mat` (`ref.raws is None` — the extended `X_wf/Y_wf/sum_wf` vars are absent). No-ref-loaded → 404 "No reference loaded"; unknown BPM → 404; missing `bpm` param → 400.
+
+**Why:** Reference TBT waveforms are ~100k-sample arrays per BPM (bulk content) — caching them in AppState violates CLAUDE.md §3. Re-parsing per drill-down call is cheap relative to its operator-driven cadence. Collapsing the promoted and MATLAB-only cases to one detail is honest: from the client's view both mean "this reference carries no waveforms," and the cause (no file vs. no extended vars) isn't actionable differently.
+
+**Spec relationship:** Implements spec §6.9 ("lazily on demand", "MATLAB-saved refs return 404 with explanatory detail"). The spec only named the MATLAB-only 404; promoted-ref 404 is the natural extension (a promoted ref has no file at all).
+
+**Forward impact:** If references ever cache waveforms in state for performance, this endpoint and the §3 principle both need revisiting. The shared detail constant lives in `routes/result.py` (`_NO_WAVEFORMS_DETAIL`).
+
+
+## 2026-06-01 — M4: Δrms readout computed client-side, not fetched from /state
+
+**Context:** M4 Task 3 — the status-header "Δ rms: X=… · Y=… mm" row.
+
+**Decision:** Computed the X/Y rms client-side in `trajectory.js` from the already-subscribed `RESULT:BPM:{X,Y}_DIFF_FIRST_TURN` arrays (NaN-aware `sqrt(mean(v²))`), rather than reading `last_diff.{x,y}_rms_mm` from a `/api/v1/state` snapshot as the spec §5.4 sketched.
+
+**Why:** The diff arrays the panels already render are the *same* arrays the backend's `summarize_diff` reduces, so a client-side rms is numerically equivalent — and it stays reactive with the diff PV (updates the instant a new diff publishes) without an extra `/state` fetch or a polling loop. One source of truth for the diff display (the PV), no fetch/PV staleness skew.
+
+**Spec relationship:** Minor deviation from spec §5.4 (which sourced the row from the `/state` `last_diff`). Equivalent result; simpler data flow.
+
+**Forward impact:** If the rms definition ever diverges between front and back ends (e.g. weighting, outlier trimming), switch the readout to the authoritative `/state` value. Today they match.
+
+
+## 2026-06-01 — M4: SyntheticBpmReader gained a deterministic per-call jitter (e2e enabler)
+
+**Context:** M4 Task 5 — `reference.spec.js` step 4 asserts the diff goes non-zero after re-acquiring against a promoted reference.
+
+**Decision:** Added a bounded, deterministic per-call amplitude jitter to `SyntheticBpmReader.read_all` (`30_000·(call%7)` nm in X, `20_000·(call%5)` in Y). Consecutive acquires now always differ by a clearly-visible (~≥0.02 mm) step, so a reference promoted on acquire N shows a non-zero `B − R0` diff on acquire N+1. Previously the reader varied only *per-prefix*, returning identical data on every call → a post-promote diff was always exactly zero and the spec §10.4 step-4 assertion was unsatisfiable.
+
+**Why:** Spec §10.4 explicitly assumed "the synthetic reader varies per-BPM amplitude per call when seeded"; the reader didn't. Adding the jitter aligns reality with the spec's assumption. Kept it modulo-bounded and counter-driven (not random) so it stays reproducible, and preserved the per-prefix variation so the existing synthetic-reader unit tests (`test_synthetic_reader.py`, `test_cmd_reference_putters.py`) stay green. `PYTXT_USE_SYNTHETIC_READER` is only set by the e2e config, so this never touches production.
+
+**Spec relationship:** Implements the §10.4 assumption that was previously false. Updates effective behavior of a phase-2 helper.
+
+**Forward impact:** The e2e diff assertion is "non-zero somewhere", not exact values (per §10.4, decision §7 of the M4 plan) — robust to the exact jitter constants.
+
+
+## 2026-06-01 — M4: SURPRISE — pre-existing smoke.spec.js heartbeat timing flake (ping page)
+
+**Context:** M4 Task 3 — running the phase-2 e2e specs to check for a 2-panel regression.
+
+**Decision:** Observed `smoke.spec.js`'s "heartbeat updates within 3 seconds" assertion fail intermittently. Isolated it to a **pre-existing** flake by reproducing it on a clean tree (`git stash` of the frontend changes), and confirmed the backend heartbeat is healthy (counter=3 at 3.7 s uptime via `/api/v1/state`). It is the **ping page** (`/`), untouched by M4. On the full-suite run it passed. Cause: the 3 s window can be eaten by WS-connect + CA-subscription latency on a loaded host. Left as-is (out of M4 scope); noted here and in the Task 3 commit.
+
+**Why:** The failure is environmental timing, not a fault, and is unrelated to the reference work. Fixing it (widen the window, or wait for `connected` before asserting heartbeat) is a phase-2 e2e hardening task, not M4.
+
+**Spec relationship:** None (phase-2 test infra).
+
+**Forward impact:** A future e2e hardening pass should make `smoke.spec.js` wait for `#connectionStatus[data-state="connected"]` before asserting `#heartbeat`, mirroring `trajectory.spec.js`. Distinct from the known CA-loopback pytest flake (`test_acquire_partial_fail`).

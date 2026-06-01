@@ -556,34 +556,32 @@
 <div class="hero">
   <div class="hero-current">
     <div class="label">Current phase</div>
-    <h2>Phase 3 · Reference trajectory (M1 ✓ · M2 ✓ · M3 ✓ · M4 — in progress)</h2>
+    <h2>Phase 3 · Reference trajectory — ✓ complete (M1 ✓ · M2 ✓ · M3 ✓ · M4 ✓)</h2>
     <p>
-      <strong>Phase 2 (read path) closed 2026-05-24; Phase 3 underway.</strong> M3 (file library + LOAD/SAVE)
-      landed 2026-05-29 — completing the CA-reachable half of the reference workflow. An operator/agent can now
-      save the current acquisition to a <code>.mat</code> in the library (<code>CMD:SAVE_REF</code> /
-      <code>POST /cmd/save_ref</code>), load a named reference so its <code>B − R0</code> diff publishes on the
-      next acquire (<code>CMD:LOAD_REF</code> / <code>POST /cmd/load_ref</code>), and list what's available
-      (<code>GET /api/v1/references</code>). The two CMDs each go through one canonical handler
-      (<code>handle_load_ref</code>/<code>handle_save_ref</code>) called identically by the CA putters and the
-      REST routes — CA↔REST parity by construction (parity table +2 rows). A <code>_resolve_in_library</code>
-      path-safety helper (basename-only, <code>.mat</code>-suffixed, <code>is_relative_to</code> escape guard)
-      gates every file path; <code>reference_dir</code> is threaded from <code>Settings</code> through composition
-      into both adapters; the blocking scipy <code>.mat</code> read/write runs via <code>asyncio.to_thread</code>
-      to keep the event loop responsive. Backend-only — all reference frontend lands in M4.
-      Next: M4 — multipart upload/download (<code>POST /references</code>, <code>GET /references/{name}</code>) +
-      <code>GET /result/ref/raw</code> + the 4-panel (X, Y, ΔX, ΔY) frontend + Playwright e2e.
+      <strong>Phase 3 (reference trajectory) complete 2026-06-01.</strong> M4 (upload/download + frontend + e2e)
+      landed — closing the phase. The reference workflow is now whole across all three surfaces. <strong>Bulk file
+      transfer (REST):</strong> multipart <code>POST /api/v1/references</code> (basename-safe, no-overwrite,
+      parse-validated, streamed under a 200 MB cap → 409/413/422), <code>GET /api/v1/references/{name}</code>
+      download, and a lazy <code>GET /api/v1/result/ref/raw</code> that re-parses the loaded reference from disk to
+      serve a BPM's full TBT waveforms (404 for promoted + MATLAB-only refs). <strong>Browser UI:</strong> the
+      trajectory page switches from 2-panel (X, Y) to 4-panel (X, Y, ΔX, ΔY) when a reference is loaded, a
+      reference sidebar drives promote/load/save/upload/clear (every button a parity'd CMD except upload — the one
+      REST-only action, since a file's bytes can't be a PV), the hover tooltip gains ΔX/ΔY, and a Δrms row appears
+      in the status header. A Playwright spec walks the full happy path (acquire → promote → diff → save → clear →
+      load). Upload is the one capability with no CA path (design §15). Next: <strong>Phase 4 · Threading
+      workflow</strong> — the <code>srinjectoneshot</code>/<code>steppv</code> MML-wrapped operations.
     </p>
-    <div class="progress" title="Phase 3: 3 of 4 milestones complete">
-      <div class="progress-fill" style="width: 75%"></div>
+    <div class="progress" title="Phase 3: 4 of 4 milestones complete">
+      <div class="progress-fill" style="width: 100%"></div>
     </div>
-    <div class="progress-text">M1 ✓ · M2 ✓ · M3 ✓ · M4</div>
+    <div class="progress-text">M1 ✓ · M2 ✓ · M3 ✓ · M4 ✓ — Phase 3 complete</div>
   </div>
 
   <div class="stats">
-    <div class="stat"><div class="num">2 / 6</div><div class="lbl">Phases complete</div></div>
-    <div class="stat"><div class="num">236 / 236</div><div class="lbl">Tests passing <span class="hint">1 CA-loopback test can flake; passes on retry</span></div></div>
-    <div class="stat"><div class="num">5</div><div class="lbl">E2E specs</div></div>
-    <div class="stat"><div class="num">27</div><div class="lbl">Unpushed commits</div></div>
+    <div class="stat"><div class="num">3 / 6</div><div class="lbl">Phases complete</div></div>
+    <div class="stat"><div class="num">256 / 256</div><div class="lbl">Tests passing <span class="hint">1 CA-loopback test can flake; passes on retry</span></div></div>
+    <div class="stat"><div class="num">6</div><div class="lbl">E2E specs</div></div>
+    <div class="stat"><div class="num">35</div><div class="lbl">Unpushed commits</div></div>
   </div>
 </div>
 
@@ -677,12 +675,12 @@
   </details>
 
   <!-- ====== PHASE 3 ====== -->
-  <details class="phase now" open>
+  <details class="phase done" open>
     <summary>
       <div class="num">Phase 3</div>
       <div class="title">Reference trajectory</div>
       <div class="blurb">Load/save <code>.mat</code>; overlay reference; difference panels.</div>
-      <div class="badges"><span class="badge badge-now">🔨 In progress · M3 ✓</span></div>
+      <div class="badges"><span class="badge badge-done">✓ Complete (M1·M2·M3·M4)</span></div>
     </summary>
     <div class="body">
       <h4>Milestones (per design spec §11)</h4>
@@ -690,7 +688,7 @@
         <li><strong>M1 — Pure domain ✓</strong> (2026-05-29): I/O-free <code>pytxt/domain/reference.py</code> (<code>.mat</code> load/save + <code>B − R0</code> math), <code>Reference</code>/<code>DiffSummary</code> types, scipy dep. 40 unit tests green.</li>
         <li><strong>M2 — In-memory ops + diff publication ✓</strong> (2026-05-29): AppState reference/diff fields, <code>STATE:REF_*</code> + <code>RESULT:BPM:*_DIFF_*</code> PVs, file-free <code>PROMOTE_REF</code>/<code>CLEAR_REF</code> command pair (CA + REST parity), <code>handle_acquire</code> computes &amp; publishes the diff. Parity table +2 rows. Backend-only (frontend deferred to M4).</li>
         <li><strong>M3 — File library + LOAD/SAVE ✓</strong> (2026-05-29): <code>reference_dir</code> threaded through settings/composition, <code>_resolve_in_library</code> path-safety helper, <code>handlers/reference.py</code> <code>handle_load_ref</code>/<code>handle_save_ref</code>, <code>CMD:LOAD_REF</code>/<code>CMD:SAVE_REF</code> + REST mirrors (CA↔REST parity), <code>GET /references</code> listing, blocking scipy via <code>asyncio.to_thread</code>. Parity table +2 rows (LOAD, SAVE). Backend-only.</li>
-        <li><strong>M4 — Upload/download + frontend + e2e:</strong> multipart <code>POST /references</code>, 4-panel layout (X, Y, ΔX, ΔY) when a ref is loaded, reference sidebar, Playwright spec.</li>
+        <li><strong>M4 — Upload/download + frontend + e2e ✓</strong> (2026-06-01): multipart <code>POST /references</code> (parse-validated, 200 MB cap → 409/413/422) + <code>GET /references/{name}</code> download + lazy <code>GET /result/ref/raw</code> (404 for promoted/MATLAB-only refs); 2↔4-panel layout switch (X, Y, ΔX, ΔY), reference sidebar (promote/load/save/upload/clear), ΔX/ΔY tooltip + Δrms header row; Playwright <code>reference.spec.js</code> happy path. <code>python-multipart</code> dep added. 256/256 pytest + 6/6 e2e green.</li>
       </ul>
       <h4>Note</h4>
       <ul><li>Zero structural changes from phase 2 — every addition lands in a package that already exists.</li></ul>
@@ -698,12 +696,12 @@
   </details>
 
   <!-- ====== PHASE 4 ====== -->
-  <details class="phase future">
+  <details class="phase now" open>
     <summary>
       <div class="num">Phase 4</div>
       <div class="title">Threading workflow</div>
       <div class="blurb">Arm + trigger; pySC + response matrix; CM steps.</div>
-      <div class="badges"><span class="badge badge-fut">Future</span></div>
+      <div class="badges"><span class="badge badge-now">⏭ Next</span></div>
     </summary>
     <div class="body">
       <h4>Anticipated scope</h4>
@@ -761,7 +759,7 @@
 <!-- ============================================== -->
 <!-- CURRENT-PHASE MILESTONE TRACKER                 -->
 <!-- ============================================== -->
-<h2 class="section">Phase 3 milestones <span class="hint">M3 done · M4 next</span></h2>
+<h2 class="section">Phase 3 milestones <span class="hint">all closed · Phase 3 complete</span></h2>
 
 <div class="milestones">
   <div class="ms done">
@@ -782,11 +780,11 @@
     <div class="ms-title">File library + LOAD/SAVE</div>
     <div class="ms-meta">7 tasks · <code>handle_load_ref</code>/<code>handle_save_ref</code> handlers (one canonical fn each, CA + REST parity), <code>CMD:LOAD_REF</code>/<code>CMD:SAVE_REF</code> string PVs + REST <code>/cmd/load_ref</code>·<code>/cmd/save_ref</code>, <code>GET /api/v1/references</code> listing, <code>settings.reference_dir</code> threaded through composition, <code>_resolve_in_library</code> path-safety, error paths (404/409/422), blocking scipy via <code>asyncio.to_thread</code>. Parity table +2 rows (LOAD, SAVE). Backend-only. Done 2026-05-29.</div>
   </div>
-  <div class="ms now">
+  <div class="ms done">
     <div class="ms-label">M4</div>
-    <span class="ms-status"><span class="badge badge-now">Next</span></span>
+    <span class="ms-status"><span class="badge badge-done">✓ Done</span></span>
     <div class="ms-title">Upload/download + 4-panel frontend + e2e</div>
-    <div class="ms-meta">Multipart <code>POST /references</code> + <code>GET /references/{name}</code> + <code>GET /result/ref/raw</code>; frontend reference sidebar + layout switch to 4 panels (X, Y, ΔX, ΔY) on <code>REF_LOADED</code>; Playwright e2e (acquire → promote → diff → save → clear → load).</div>
+    <div class="ms-meta">6 tasks · multipart <code>POST /references</code> (parse-validated, 200 MB cap → 409/413/422) + <code>GET /references/{name}</code> + lazy <code>GET /result/ref/raw</code> (404 for promoted/MATLAB-only); 2↔4-panel layout switch (X, Y, ΔX, ΔY) on <code>REF_LOADED</code>, reference sidebar (promote/load/save/upload/clear), ΔX/ΔY tooltip + Δrms header row; <code>python-multipart</code> dep; Playwright <code>reference.spec.js</code> happy path. 256/256 pytest + 6/6 e2e green. Done 2026-06-01 — <strong>Phase 3 complete</strong>.</div>
   </div>
 </div>
 
@@ -929,17 +927,17 @@
 <div class="next-box">
   <h3>Immediate — Kirk</h3>
   <ol>
-    <li><strong>Push the 9 unpushed commits to <code>origin/main</code>.</strong> Local <code>main</code> is ahead by the Phase 3 design spec + decision log, the M1 plan, and the 6 M1 implementation/closeout commits. Nothing on origin will conflict.</li>
-    <li><strong>Live-ring revalidation on appsdev2.</strong> M2-3 already proved the trajectory pipeline against the real 107-BPM ring on 2026-05-22, but Phase-2 M4's operator-facing polish (sector ticks, hover tooltip with click-to-pin, compact timestamp) has only been seen via the 12-BPM synthetic reader. Phase-2 DoD §12.2 expects the fresh smoke-test now that polish has landed. Operational follow-through.</li>
+    <li><strong>Push the 35 unpushed commits to <code>origin/main</code>.</strong> Local <code>main</code> is ahead by the entire Phase 3 work (design spec + decision log + the four milestone plans + M1–M4 implementation/closeout) plus the M4 plan and M3-hardening fixes. Nothing on origin will conflict.</li>
+    <li><strong>Live-ring revalidation on appsdev2 (Phase 3 DoD §12).</strong> The full reference workflow has only been exercised against the synthetic reader. The phase isn't operationally done until, on the real ring: an operator loads a reference from the legacy MATLAB library and sees ΔX/ΔY populate; saves a new reference and confirms the legacy <code>TxT_GUI.mlapp</code> can load it back; and an Osprey agent round-trips list → upload → load → acquire → download. Operational follow-through.</li>
   </ol>
 
-  <h3 style="margin-top:1rem">Next milestone — Phase 3 M2 (In-memory ops + diff publication)</h3>
+  <h3 style="margin-top:1rem">Next milestone — Phase 4 (Threading workflow)</h3>
   <ol>
-    <li><strong>Scope</strong> (per design spec §11 M2): new <code>AppState</code> fields <code>reference_trajectory</code> + <code>reference_loaded_at</code>; new PVs <code>STATE:REF_LOADED</code>, <code>STATE:REF_SOURCE</code>, <code>RESULT:BPM:X_DIFF_FIRST_TURN</code>, <code>RESULT:BPM:Y_DIFF_FIRST_TURN</code>; the file-free <code>CMD:PROMOTE_REF</code> / <code>CMD:CLEAR_REF</code> command pair with REST mirrors; <code>handle_acquire</code> extended to compute &amp; publish the diff against the loaded reference. Parity test grows by 2 rows (PROMOTE, CLEAR). The M1 domain core (<code>align_to_current</code>, <code>compute_diff</code>, <code>summarize_diff</code>) is ready to wire in.</li>
-    <li><strong>Structural promise:</strong> spec §14 commits to "zero structural changes from phase 2" — every addition lands in a package that already exists. Composition root grows by one or two lines. A per-phase M2 plan should be written first (same brainstorm → plan flow as M1).</li>
+    <li><strong>Scope</strong> (per project plan): arm BPMs (CA writes to <code>wfr:TBT:arm</code>), trigger injection (resolves the <code>srinjectoneshot</code> MML black box), port <code>FirstTurnThreading.m</code>, golden-orbit subtraction, pySC integration (lattice, response matrix, SVD pseudo-inverse), CM step calc + apply (<code>steppv</code> black box).</li>
+    <li><strong>First step:</strong> resolve the two deferred MML-wrapped operations (<code>srinjectoneshot</code>, <code>steppv</code>) — what PVs they actually write — then write a per-phase Phase-4 design spec + M1 plan (same brainstorm → plan flow as Phase 3).</li>
   </ol>
 
-  <h3 style="margin-top:1rem">Open questions worth picking up at Phase 3 start</h3>
+  <h3 style="margin-top:1rem">Open questions carried forward</h3>
   <ol>
     <li><strong>WS message <code>type</code> discriminator</strong> (deferred from Phase 1 code review). The WS payload shape is currently implicit; Phase 3 adds enough new message types that an explicit discriminator becomes worth it. Phase-2-design spec §15.</li>
     <li><strong>Per-BPM raw waveforms as PVs in addition to REST.</strong> Current decision: REST-only (raw is too large for PV semantics). Revisit if the archiver wants CA-native access to log first-turn data. Spec §15.</li>
@@ -960,6 +958,11 @@
 <h2 class="section">Recent activity <span class="hint">most recent commits</span></h2>
 
 <div class="activity">
+  <div class="commit">
+    <div class="hash">P3 ✓</div>
+    <div class="msg">2026-06-01 · <strong>Phase 3 complete — M4 (upload/download + frontend + e2e) done.</strong> Closed the reference workflow across all three surfaces. <strong>REST bulk transfer:</strong> multipart <code>POST /api/v1/references</code> (basename-safe via the shared <code>_resolve_in_library</code>, no-overwrite → 409, streamed under <code>max_upload_bytes</code> 200 MB → 413, parse-then-keep-or-delete → 422), <code>GET /api/v1/references/{name}</code> download, lazy <code>GET /api/v1/result/ref/raw</code> re-parsing the loaded ref from disk (404 for promoted + MATLAB-only refs, shared detail). <code>python-multipart</code> added as a hard dep. <strong>Frontend:</strong> 2↔4-panel layout switch (X, Y, ΔX, ΔY) on <code>STATE:REF_LOADED</code>, new <code>js/reference.js</code> sidebar (promote/load/save/upload/clear — every button a parity'd CMD except upload, the one REST-only action), ΔX/ΔY hover tooltip + client-computed Δrms header row. <strong>e2e:</strong> <code>reference.spec.js</code> 7-step happy path; <code>SyntheticBpmReader</code> gained a deterministic per-call jitter so re-acquire shows a non-zero diff. 256/256 pytest + 6/6 Playwright green. Next: Phase 4 (threading workflow).</div>
+    <div class="tag">milestone</div>
+  </div>
   <div class="commit">
     <div class="hash">M3 ✓</div>
     <div class="msg">2026-05-29 · <strong>Phase 3 M3 (file library + LOAD/SAVE) done.</strong> Completed the CA-reachable half of the reference workflow: <code>CMD:LOAD_REF</code>/<code>CMD:SAVE_REF</code> string PVs + <code>POST /cmd/load_ref</code>·<code>/cmd/save_ref</code> REST mirrors (one canonical <code>handle_load_ref</code>/<code>handle_save_ref</code> each, CA↔REST parity), <code>GET /api/v1/references</code> listing, <code>_resolve_in_library</code> path-safety (basename-only, <code>.mat</code>-suffixed, <code>is_relative_to</code> escape guard), <code>reference_dir</code> threaded through settings/composition into both adapters, blocking scipy <code>.mat</code> I/O via <code>asyncio.to_thread</code>. Error taxonomy: <code>InvalidReferenceNameError</code>/422, <code>ReferenceNotFoundError</code>/404, <code>ReferenceExistsError</code>/409 + reused <code>ReferenceLoadError</code>/<code>NoLastAcquireError</code>. Parity table +2 rows (LOAD, SAVE). Backend-only (frontend → M4). 236/236 full suite green (1 known-flaky CA test passes on retry).</div>
