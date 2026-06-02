@@ -124,16 +124,23 @@ template at the top of each log when adding entries.
 
 ## Status
 
-Phase 1 (skeleton + hello-world IOC) — **complete**. Phase 2 (read path) — next.
+Phases 1–3 **complete** (skeleton/IOC → read path → reference trajectory, the
+last shipped 2026-06-01). Phase 4 (threading workflow) — next. Live detail:
+`PyTxT-roadmap.html`; end-to-end picture: `docs/PyTxT-overview.md`.
 
 ## Open architectural questions to resolve as we go
 
 - **Osprey integration shape**: does Osprey prefer to invoke services via
   HTTP/REST, via MCP, via CA directly, or all three? Until known, design
   for all three to be cheap to add.
-- **MML-wrapped operations** (`srinjectoneshot`, `steppv`): two MATLAB
-  wrappers hide injection-trigger and CM-step PVs. Resolution deferred
-  to phase 4 — does not block phases 1–3.
+- **MML-wrapped operations** (`srinjectoneshot`, `steppv`): two external
+  MATLAB Middle Layer functions (not in repo) hide the injection-trigger and
+  CM-step PVs. **Key finding (see `docs/phase-4-injection-notes.md`):** in the
+  legacy GUI, firing injection is an *optional* checkbox step
+  (`enable_inject`) — the passive arm+read+analyze path (which PyTxT already
+  implements) works without it. So these are optional, safety-gated Phase-4
+  conveniences, not blockers. De-box via `type srinjectoneshot` / `camonitor`
+  on a control-room host. The BPMs latch on timing **event 48**.
 - **Test-IOC port isolation**: dev IOC must use `OSPREY:TEST:TXT:*`
   prefix and ports 59064/59065 per als-profiles safety rules. Production
   uses real `TxT:*`. Make this config-driven from day 1.
