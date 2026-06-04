@@ -82,6 +82,7 @@ class PyTxTIOC:
         state: AppState,
         reader: Optional[object] = None,
         reference_dir: Optional[Path] = None,
+        corrector_writer: Optional[object] = None,
     ):
         self.prefix = prefix
         self.host = host
@@ -89,7 +90,8 @@ class PyTxTIOC:
         self.repeater_port = repeater_port
         self.state = state
         self.pvgroup = PyTxTPVGroup(
-            prefix=prefix, state=state, reader=reader, reference_dir=reference_dir
+            prefix=prefix, state=state, reader=reader, reference_dir=reference_dir,
+            corrector_writer=corrector_writer,
         )
         self._context: Optional[Context] = None
         self._running_event = asyncio.Event()
@@ -169,6 +171,22 @@ class PyTxTIOC:
 
         self.state.subscribe("last_diff", _listener_diff_arrays)
 
+        # --- Phase 4: corrector-step state ---
+        cm_in_flight_pv = self.pvgroup.cm_step_in_flight
+
+        async def _write_cm_in_flight(value) -> None:
+            try:
+                await cm_in_flight_pv.write(int(bool(value)))
+            except Exception:
+                logger.exception("IOC write to STATE:CM_STEP_IN_FLIGHT failed")
+
+        self.state.subscribe("cm_step_in_flight", _write_cm_in_flight)
+
+        async def _listener_last_cm_step(value) -> None:
+            await self._publish_last_cm_step(value)
+
+        self.state.subscribe("last_cm_step", _listener_last_cm_step)
+
     async def _publish_last_acquire(self, value: LastAcquireResult) -> None:
         """Write all PVs derived from a LastAcquireResult.
 
@@ -229,6 +247,22 @@ class PyTxTIOC:
             await self.pvgroup.ref_source.write(self.state.reference_source.value)
         except Exception:
             logger.exception("IOC publish of STATE:REF_* failed")
+
+    async def _publish_last_cm_step(self, value: Any) -> None:
+        """Write the STATE:CM_LAST_* bundle from a LastCMStepResult.
+
+        Single try/except wraps all writes (matching _publish_last_acquire) so a
+        partial publish can't drift; the next STEP_CM republishes from scratch.
+        """
+        try:
+            await self.pvgroup.cm_last_status.write(value.status)
+            await self.pvgroup.cm_last_family.write(value.family or "")
+            await self.pvgroup.cm_last_n_applied.write(int(value.n_applied))
+            await self.pvgroup.cm_last_n_clamped.write(int(value.n_clamped))
+            ts = value.timestamp.isoformat() if value.timestamp else ""
+            await self.pvgroup.cm_last_timestamp.write(ts)
+        except Exception:
+            logger.exception("IOC publish of STATE:CM_LAST_* failed")
 
     async def _publish_diff_arrays(self, value: Any) -> None:
         """Write RESULT:BPM:{X,Y}_DIFF_FIRST_TURN from a DiffResult (or None).
@@ -320,6 +354,13 @@ class PyTxTIOC:
                 )
             except Exception:
                 logger.exception("IOC startup: failed to initialise phase-3 REF PVs")
+
+            # Push phase-4 corrector-step defaults (NEVER / empty).
+            try:
+                await pvgroup.cm_step_in_flight.write(int(state.cm_step_in_flight))
+                await pvgroup.cm_last_status.write(state.last_cm_step.status)
+            except Exception:
+                logger.exception("IOC startup: failed to initialise phase-4 CM PVs")
 
             running_event.set()
 

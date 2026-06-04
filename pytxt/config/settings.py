@@ -51,6 +51,19 @@ class Settings(BaseSettings):
     # headroom; overflow → HTTP 413. Env-overridable via PYTXT_MAX_UPLOAD_BYTES.
     max_upload_bytes: int = 200 * 1024 * 1024
 
+    # --- Phase 4 ---
+    # HCM/VCM corrector setpoint-channel catalogs (name + |amps| limit), used by
+    # CMD:STEP_CM and the threading loop. PROVISIONAL pending the control-room
+    # family2dev confirm (checklist A2).
+    hcm_channels_path: str = "pytxt/config/hcm_channels.txt"
+    vcm_channels_path: str = "pytxt/config/vcm_channels.txt"
+    # Timeout for corrector setpoint caget/caput.
+    corrector_io_timeout_s: float = 2.0
+    # When false (default), do NOT open the corrector CA client at startup —
+    # STEP_CM returns 503 until explicitly enabled. Active machine commanding is
+    # opt-in (north-star safety): set PYTXT_ENABLE_CORRECTOR_WRITER=true to arm.
+    enable_corrector_writer: bool = False
+
     # Version is NOT env-overridable; populated at startup by composition.main()
     # from importlib.metadata.version("pytxt") with fallback to "0.0.0+dev".
     version: str = ""

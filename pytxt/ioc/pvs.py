@@ -11,18 +11,30 @@ from typing import Optional
 import caproto as ca
 from caproto.server import PVGroup, pvproperty
 
+from pytxt.api.schemas.threading import StepCMRequest
 from pytxt.handlers.acquire import handle_acquire
 from pytxt.handlers.ping import handle_ping
 from pytxt.handlers.reference import (
-    NoLastAcquireError,
     handle_clear_ref,
     handle_load_ref,
     handle_promote_ref,
     handle_save_ref,
 )
+from pytxt.handlers.threading import handle_step_cm
 from pytxt.state.app_state import AppState
 
 _BPM_MAX = 128  # waveform max_length; accommodates ~120 BPMs with headroom
+
+
+def _as_text(value) -> str:
+    """Normalize a CHAR-array CA write to a str (caproto may deliver str,
+    bytes, or a list of byte ints depending on the client encoding)."""
+    if isinstance(value, str):
+        return value.rstrip("\x00")
+    if isinstance(value, (bytes, bytearray)):
+        return bytes(value).decode("utf-8").rstrip("\x00")
+    # list/tuple/ndarray of byte ints
+    return bytes(bytearray(int(c) for c in value)).decode("utf-8").rstrip("\x00")
 
 
 class PyTxTPVGroup(PVGroup):
@@ -115,6 +127,38 @@ class PyTxTPVGroup(PVGroup):
         doc="Provenance of the loaded reference: 'promoted', 'file', or empty when none",
     )
 
+    # === STATE:CM_* (phase 4 — corrector step) ===
+    cm_step_in_flight = pvproperty(
+        value=0, dtype=int, read_only=True,
+        name="STATE:CM_STEP_IN_FLIGHT",
+        doc="1 while a CMD:STEP_CM is applying; rejects concurrent steps",
+    )
+    cm_last_status = pvproperty(
+        value="NEVER", dtype=ca.ChannelType.STRING, read_only=True,
+        name="STATE:CM_LAST_STATUS",
+        doc="Outcome of the most recent STEP_CM: NEVER, APPLIED, DRY_RUN, or REFUSED",
+    )
+    cm_last_family = pvproperty(
+        value="", dtype=ca.ChannelType.STRING, read_only=True,
+        name="STATE:CM_LAST_FAMILY",
+        doc="Corrector family of the most recent STEP_CM (HCM/VCM); empty before first",
+    )
+    cm_last_n_applied = pvproperty(
+        value=0, dtype=int, read_only=True,
+        name="STATE:CM_LAST_N_APPLIED",
+        doc="Number of correctors written by the most recent STEP_CM",
+    )
+    cm_last_n_clamped = pvproperty(
+        value=0, dtype=int, read_only=True,
+        name="STATE:CM_LAST_N_CLAMPED",
+        doc="Number of correctors clamped to their limit in the most recent STEP_CM",
+    )
+    cm_last_timestamp = pvproperty(
+        value="", dtype=ca.ChannelType.STRING, read_only=True,
+        name="STATE:CM_LAST_TIMESTAMP",
+        doc="ISO-8601 UTC timestamp of the most recent STEP_CM; empty before first",
+    )
+
     # === RESULT:BPM:* (phase 2) ===
     result_bpm_x_first_turn = pvproperty(
         value=[0.0] * _BPM_MAX, dtype=float, read_only=True,
@@ -190,6 +234,21 @@ class PyTxTPVGroup(PVGroup):
         name="CMD:SAVE_REF",
         doc="Write a basename (e.g. 'foo.mat') to save the current acquisition to the library; empty string uses a timestamp default",
     )
+    # CHAR array (not DBF_STRING) so the JSON payload can exceed the 40-char
+    # EPICS string limit; report_as_string makes it read/write as a plain string.
+    cmd_step_cm = pvproperty(
+        value="",
+        dtype=ca.ChannelType.CHAR, max_length=8192,
+        string_encoding="utf-8", report_as_string=True,
+        name="CMD:STEP_CM",
+        doc=(
+            "Write a JSON payload to apply one corrector step (identical to "
+            "POST /api/v1/cmd/step_cm): "
+            '{"family":"HCM"|"VCM","device_list":[int],"deltas":[float amps],'
+            '"expected_prior_a":[float amps],"tol_a":float,"dry_run":bool}. '
+            "Compare-and-set: refused (CA error) if any live setpoint diverges."
+        ),
+    )
 
     def __init__(
         self,
@@ -197,11 +256,13 @@ class PyTxTPVGroup(PVGroup):
         state: AppState,
         reader: Optional[object] = None,
         reference_dir: Optional[Path] = None,
+        corrector_writer: Optional[object] = None,
         **kwargs,
     ):
         self._state = state
         self._reader = reader
         self._reference_dir = reference_dir
+        self._corrector_writer = corrector_writer
         super().__init__(*args, **kwargs)
 
     @cmd_ping.putter
@@ -275,4 +336,26 @@ class PyTxTPVGroup(PVGroup):
         """
         name = value or None  # empty CA string → timestamp default
         await handle_save_ref(self._state, self._reference_dir, name)
+        return value
+
+    @cmd_step_cm.putter
+    async def cmd_step_cm(self, instance, value):
+        """CA write to CMD:STEP_CM applies one corrector step from a JSON payload.
+
+        The written string is the same JSON as the REST body (StepCMRequest), so
+        the CA and REST paths call the identical handler. If no corrector writer
+        is configured (unit-style tests), the write is a no-op. Typed exceptions
+        (CMStepInFlightError, CMPreconditionError) and a malformed payload are
+        RE-RAISED so caproto surfaces them as CA write errors — symmetric to
+        REST's 409/422. STATE:CM_LAST_* PVs confirm the outcome.
+        """
+        if self._corrector_writer is None:
+            return value
+        req = StepCMRequest.model_validate_json(_as_text(value))
+        await handle_step_cm(
+            self._state, self._corrector_writer,
+            family=req.family, device_list=req.device_list, deltas=req.deltas,
+            expected_prior_a=req.expected_prior_a, tol_a=req.tol_a,
+            dry_run=req.dry_run,
+        )
         return value

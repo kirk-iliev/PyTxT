@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock
 
 import numpy as np
 import pytest
+import caproto as ca
 from caproto.asyncio.client import Context as ClientContext
 from httpx import AsyncClient, ASGITransport
 
@@ -53,6 +54,12 @@ def _public_state(state) -> dict:
             None if state.last_diff is None
             else {"n_valid": state.last_diff.summary.n_valid}
         ),
+        # phase 4: corrector-step state
+        "cm_step_in_flight": state.cm_step_in_flight,
+        "cm_last_status": state.last_cm_step.status,
+        "cm_last_family": state.last_cm_step.family,
+        "cm_last_n_applied": state.last_cm_step.n_applied,
+        "cm_last_n_clamped": state.last_cm_step.n_clamped,
     }
 
 
@@ -79,8 +86,13 @@ async def _do_via_ca(prefix: str, cmd: str, pre_acquire: bool = False, cmd_value
             await acq_pv.write(1)
             await asyncio.sleep(0.2)
         pv, = await client.get_pvs(prefix + cmd)
-        # String-valued CMD PVs (LOAD_REF/SAVE_REF) take a name, not 1.
-        await pv.write(cmd_value)
+        # String-valued CMD PVs (LOAD_REF/SAVE_REF) take a name, not 1. Long
+        # JSON payloads (STEP_CM) exceed the 40-char DBF_STRING limit, so write
+        # them to the CHAR-array PV as a list of UTF-8 byte values.
+        if isinstance(cmd_value, str) and len(cmd_value) > 40:
+            await pv.write(cmd_value.encode("utf-8"), data_type=ca.ChannelType.CHAR)
+        else:
+            await pv.write(cmd_value)
         await asyncio.sleep(0.2)   # let listener fan-out complete
     finally:
         # Disconnect so background command-queue tasks don't outlive the test
@@ -144,6 +156,35 @@ def _make_reader(command_name: str):
     return reader
 
 
+# STEP_CM parity: an in-process fake corrector writer injected into both arms,
+# so a CA JSON write to CMD:STEP_CM and a REST POST drive the identical handler.
+_STEP_CM_PAYLOAD = {
+    "family": "HCM", "device_list": [0], "deltas": [1.0],
+    "expected_prior_a": [0.0], "tol_a": 0.05,
+}
+
+
+class _ParityFakeWriter:
+    def __init__(self):
+        self.written = None
+
+    def channels(self, family):
+        from pytxt.config.corrector_channels import CorrectorChannel
+        if family not in ("HCM", "VCM"):
+            raise ValueError(f"unknown family {family!r}")
+        return [CorrectorChannel(f"{family}{i}", 35.0, family, i) for i in range(8)]
+
+    async def read_setpoints(self, family, indices):
+        return [0.0 for _ in indices]
+
+    async def write_setpoints(self, family, indices, values_a):
+        self.written = (family, list(indices), list(values_a))
+
+
+def _make_corrector_writer(command_name: str):
+    return _ParityFakeWriter() if command_name == "step_cm" else None
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "command_name, ca_pv_suffix, rest_path, requires_acquire",
@@ -157,6 +198,8 @@ def _make_reader(command_name: str):
         # mutates no state, so parity holds trivially (per-arm dir avoids 409).
         ("load_ref", "CMD:LOAD_REF", "/api/v1/cmd/load_ref", False),
         ("save_ref", "CMD:SAVE_REF", "/api/v1/cmd/save_ref", True),
+        # Phase 4: STEP_CM carries a JSON payload (CHAR-array PV ⇄ REST body).
+        ("step_cm", "CMD:STEP_CM", "/api/v1/cmd/step_cm", False),
     ],
 )
 async def test_parity_ca_vs_rest(test_pv_prefix, tmp_path, command_name, ca_pv_suffix, rest_path, requires_acquire):
@@ -178,13 +221,18 @@ async def test_parity_ca_vs_rest(test_pv_prefix, tmp_path, command_name, ca_pv_s
         _seed_reference(rest_ref_dir, _make_state(command_name).bpm_prefixes)
     ca_value = _LOAD_REF_NAME if is_string_cmd else 1
     rest_body = {"name": _LOAD_REF_NAME} if is_string_cmd else None
+    if command_name == "step_cm":
+        import json
+        ca_value = json.dumps(_STEP_CM_PAYLOAD)
+        rest_body = _STEP_CM_PAYLOAD
 
     # --- Path 1: CA write ---
     state_ca = _make_state(command_name)
     reader_ca = _make_reader(command_name)
     ioc_ca = PyTxTIOC(prefix=test_pv_prefix, host="127.0.0.1", port=0,
                       repeater_port=0, state=state_ca, reader=reader_ca,
-                      reference_dir=ca_ref_dir)
+                      reference_dir=ca_ref_dir,
+                      corrector_writer=_make_corrector_writer(command_name))
     server_task = asyncio.create_task(ioc_ca.run())
     await ioc_ca.wait_until_running()
     try:
@@ -204,7 +252,8 @@ async def test_parity_ca_vs_rest(test_pv_prefix, tmp_path, command_name, ca_pv_s
     # --- Path 2: REST POST ---
     state_rest = _make_state(command_name)
     reader_rest = _make_reader(command_name)
-    app = create_app(state=state_rest, reference_dir=rest_ref_dir)
+    app = create_app(state=state_rest, reference_dir=rest_ref_dir,
+                     corrector_writer=_make_corrector_writer(command_name))
     if reader_rest is not None:
         app.state.bpm_reader = reader_rest
 

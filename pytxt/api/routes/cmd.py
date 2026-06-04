@@ -18,6 +18,7 @@ from pytxt.api.schemas.reference import (
     SaveRefResponse,
 )
 from pytxt.api.schemas.result import AcquireResponse
+from pytxt.api.schemas.threading import StepCMRequest, StepCMResponse
 from pytxt.domain.reference import ReferenceLoadError
 from pytxt.handlers.acquire import AcquisitionInFlightError, handle_acquire
 from pytxt.handlers.ping import handle_ping
@@ -30,6 +31,11 @@ from pytxt.handlers.reference import (
     handle_load_ref,
     handle_promote_ref,
     handle_save_ref,
+)
+from pytxt.handlers.threading import (
+    CMPreconditionError,
+    CMStepInFlightError,
+    handle_step_cm,
 )
 
 router = APIRouter(prefix="/api/v1/cmd", tags=["cmd"])
@@ -117,3 +123,31 @@ async def post_save_ref(request: Request, body: SaveRefRequest) -> SaveRefRespon
         raise HTTPException(422, str(e))
     except ReferenceExistsError as e:
         raise HTTPException(409, str(e))
+
+
+@router.post("/step_cm", response_model=StepCMResponse)
+async def post_step_cm(request: Request, body: StepCMRequest) -> StepCMResponse:
+    """Apply one incremental HCM/VCM corrector step (Phase 4).
+
+    Identical effect to a CA write of the same JSON payload to CMD:STEP_CM. The
+    compare-and-set guard (`expected_prior_a` + `tol_a`, Decision D5) refuses the
+    whole step if any live setpoint diverged — returns 409. Malformed requests
+    (bad family/index/lengths) return 422, no corrector writer 503.
+    """
+    state = request.app.state.app_state
+    writer = getattr(request.app.state, "corrector_writer", None)
+    if writer is None:
+        raise HTTPException(503, "corrector writer not configured")
+    try:
+        return await handle_step_cm(
+            state, writer,
+            family=body.family, device_list=body.device_list, deltas=body.deltas,
+            expected_prior_a=body.expected_prior_a, tol_a=body.tol_a,
+            dry_run=body.dry_run,
+        )
+    except CMStepInFlightError as e:
+        raise HTTPException(409, str(e))
+    except CMPreconditionError as e:
+        raise HTTPException(409, str(e))
+    except ValueError as e:
+        raise HTTPException(422, str(e))

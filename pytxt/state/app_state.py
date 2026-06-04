@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
 from pytxt.api.schemas.result import AcquireStatus, LastAcquireResult
+from pytxt.api.schemas.threading import LastCMStepResult
 from pytxt.domain.types import DiffResult, FirstTurnResult, ReferenceSource
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,10 @@ class AppState:
     reference_file_path: Optional[Path] = None  # always None in M2 (file backing is M3)
     reference_bpm_names: Optional[list[str]] = None
     last_diff: Optional[DiffResult] = None  # None → diff PVs NaN-filled
+
+    # === Phase 4 threading state ===
+    cm_step_in_flight: bool = False
+    last_cm_step: LastCMStepResult = field(default_factory=LastCMStepResult)
 
     # Internal: per-field listener lists (excluded from repr/init)
     _listeners: dict[str, list[ListenerFn]] = field(

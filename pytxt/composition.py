@@ -11,7 +11,9 @@ import uvicorn
 
 from pytxt.api.server import create_app
 from pytxt.ca_client.bpm_reader import BpmReader
+from pytxt.ca_client.corrector_writer import CorrectorWriter
 from pytxt.config.bpm_prefixes import load_bpm_prefixes
+from pytxt.config.corrector_channels import load_corrector_channels
 from pytxt.config.settings import Settings
 from pytxt.ioc.server import PyTxTIOC
 from pytxt.state.app_state import AppState
@@ -107,6 +109,20 @@ async def main() -> None:
         bpm_prefixes=bpm_prefixes,
     )
 
+    # Phase 4 corrector writer — OFF by default (active machine commanding is
+    # opt-in). When disabled, STEP_CM returns 503; the analysis path is unaffected.
+    corrector_writer = None
+    if settings.enable_corrector_writer:
+        hcm = load_corrector_channels(settings.hcm_channels_path, "HCM")
+        vcm = load_corrector_channels(settings.vcm_channels_path, "VCM")
+        corrector_writer = CorrectorWriter(
+            hcm_channels=hcm, vcm_channels=vcm,
+            per_pv_timeout_s=settings.corrector_io_timeout_s,
+        )
+        logger.info("Corrector writer ENABLED: %d HCM + %d VCM channels", len(hcm), len(vcm))
+    else:
+        logger.info("Corrector writer disabled (set PYTXT_ENABLE_CORRECTOR_WRITER=true to arm)")
+
     ioc = PyTxTIOC(
         prefix=settings.pv_prefix,
         host=settings.ioc_host,
@@ -115,6 +131,7 @@ async def main() -> None:
         state=state,
         reader=reader,
         reference_dir=reference_dir,
+        corrector_writer=corrector_writer,
     )
 
     api_app = create_app(
@@ -122,6 +139,7 @@ async def main() -> None:
         settings=settings,
         bpm_reader=reader,
         reference_dir=reference_dir,
+        corrector_writer=corrector_writer,
     )
     config = uvicorn.Config(
         api_app,
@@ -149,9 +167,20 @@ async def main() -> None:
         except Exception:
             logger.exception("BpmReader.start() failed — ACQUIRE will fail until reachable")
 
+    async def start_corrector_writer_after_warmup() -> None:
+        if corrector_writer is None:
+            return
+        await asyncio.sleep(1.0)
+        try:
+            await corrector_writer.start()
+            logger.info("CorrectorWriter connected")
+        except Exception:
+            logger.exception("CorrectorWriter.start() failed — STEP_CM will fail until reachable")
+
     await asyncio.gather(
         ioc.run(),
         api_server.serve(),
         heartbeat_loop(),
         start_reader_after_warmup(),
+        start_corrector_writer_after_warmup(),
     )
