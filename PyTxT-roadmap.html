@@ -569,7 +569,9 @@
       REST-only action, since a file's bytes can't be a PV), the hover tooltip gains ΔX/ΔY, and a Δrms row appears
       in the status header. A Playwright spec walks the full happy path (acquire → promote → diff → save → clear →
       load). Upload is the one capability with no CA path (design §15). Next: <strong>Phase 4 · Threading
-      workflow</strong> — the <code>srinjectoneshot</code>/<code>steppv</code> MML-wrapped operations.
+      workflow</strong> — the <code>srinjectoneshot</code>/<code>steppv</code> MML-wrapped operations are now
+      <strong>de-boxed</strong> (2026-06-01, via the <code>mml-audit</code> MCP server); a Phase 4 design spec
+      is drafted and awaiting review.
     </p>
     <div class="progress" title="Phase 3: 4 of 4 milestones complete">
       <div class="progress-fill" style="width: 100%"></div>
@@ -707,12 +709,13 @@
       <h4>Anticipated scope</h4>
       <ul>
         <li>Arm BPMs (CA writes to <code>wfr:TBT:arm</code> — well-defined)</li>
-        <li>Trigger injection — resolves the <code>srinjectoneshot</code> MML black box</li>
+        <li>Trigger injection — <code>srinjectoneshot</code> de-boxed → <code>TimInjReq</code> waveform + <code>EVG:E1:seqBusy</code> gate</li>
         <li>Port <code>FirstTurnThreading.m</code></li>
         <li>Golden-orbit subtraction (requires MML data)</li>
         <li>pySC integration: lattice, response matrix, SVD pseudo-inverse</li>
-        <li>CM step calc and apply</li>
+        <li>CM step calc and apply — <code>steppv</code> de-boxed → incremental <code>setpv</code></li>
       </ul>
+      <p style="margin-top:0.5rem"><strong>Status:</strong> both MML black boxes de-boxed 2026-06-01; design spec + decisions log drafted, awaiting review. PV detail in <code>docs/phase-4-injection-notes.md</code>.</p>
     </div>
   </details>
 
@@ -933,8 +936,9 @@
 
   <h3 style="margin-top:1rem">Next milestone — Phase 4 (Threading workflow)</h3>
   <ol>
-    <li><strong>Scope</strong> (per project plan): arm BPMs (CA writes to <code>wfr:TBT:arm</code>), trigger injection (resolves the <code>srinjectoneshot</code> MML black box), port <code>FirstTurnThreading.m</code>, golden-orbit subtraction, pySC integration (lattice, response matrix, SVD pseudo-inverse), CM step calc + apply (<code>steppv</code> black box).</li>
-    <li><strong>First step:</strong> resolve the two deferred MML-wrapped operations (<code>srinjectoneshot</code>, <code>steppv</code>) — what PVs they actually write — then write a per-phase Phase-4 design spec + M1 plan (same brainstorm → plan flow as Phase 3).</li>
+    <li><strong>Scope</strong> (per project plan): arm BPMs (CA writes to <code>wfr:TBT:arm</code>), trigger injection (<code>srinjectoneshot</code> de-boxed → <code>TimInjReq</code>), port <code>FirstTurnThreading.m</code>, golden-orbit subtraction, pySC integration (lattice, response matrix, SVD pseudo-inverse), CM step calc + apply (<code>steppv</code> de-boxed → incremental <code>setpv</code>).</li>
+    <li><strong>Done:</strong> both MML-wrapped operations de-boxed 2026-06-01 (via the <code>mml-audit</code> MCP server + live <code>caget</code>); a Phase-4 design spec (M1–M4) + decisions log are drafted — <code>docs/superpowers/specs/2026-06-01-phase-4-threading-{design,decisions}.md</code>.</li>
+    <li><strong>First step:</strong> review the drafted spec + resolve open decisions D1–D6, then write the M1 plan (same brainstorm → plan flow as Phase 3). Four control-room confirms remain (spec §9).</li>
   </ol>
 
   <h3 style="margin-top:1rem">Open questions carried forward</h3>
@@ -946,7 +950,7 @@
 
   <h3 style="margin-top:1rem">Longer view — Phases 4-6</h3>
   <ol>
-    <li><strong>Phase 4 (Threading workflow):</strong> arming + triggering BPMs; resolves the two deferred MML black boxes (<code>srinjectoneshot</code>, <code>steppv</code>); pySC integration (lattice, response matrix, SVD pseudo-inverse); port <code>FirstTurnThreading.m</code>; CM step calc and apply.</li>
+    <li><strong>Phase 4 (Threading workflow):</strong> arming + triggering BPMs (the two MML black boxes <code>srinjectoneshot</code>/<code>steppv</code> are now de-boxed); pySC integration (lattice, response matrix, SVD pseudo-inverse); port <code>FirstTurnThreading.m</code>; CM step calc and apply.</li>
     <li><strong>Phase 5 (Analysis polish):</strong> Gaussian fits on first-turn data; dispersion, kick angle, RMS metrics; full GUI feature parity with the 18-step MATLAB manual; tab-structured frontend.</li>
     <li><strong>Phase 6 (Hardening + deploy):</strong> CI pipeline, log shipping, monitoring/alerting, Phoebus screen examples, production deploy automation to appsdev2.</li>
   </ol>

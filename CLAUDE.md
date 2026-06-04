@@ -133,14 +133,19 @@ last shipped 2026-06-01). Phase 4 (threading workflow) — next. Live detail:
 - **Osprey integration shape**: does Osprey prefer to invoke services via
   HTTP/REST, via MCP, via CA directly, or all three? Until known, design
   for all three to be cheap to add.
-- **MML-wrapped operations** (`srinjectoneshot`, `steppv`): two external
-  MATLAB Middle Layer functions (not in repo) hide the injection-trigger and
-  CM-step PVs. **Key finding (see `docs/phase-4-injection-notes.md`):** in the
-  legacy GUI, firing injection is an *optional* checkbox step
-  (`enable_inject`) — the passive arm+read+analyze path (which PyTxT already
-  implements) works without it. So these are optional, safety-gated Phase-4
-  conveniences, not blockers. De-box via `type srinjectoneshot` / `camonitor`
-  on a control-room host. The BPMs latch on timing **event 48**.
+- **MML-wrapped operations** (`srinjectoneshot`, `steppv`): **DE-BOXED
+  2026-06-01** (via the `mml-audit` MCP server + live `caget` on appsdev; full
+  PV detail in `docs/phase-4-injection-notes.md` §3/§4). Firing is the
+  7-element `DBF_LONG` **`TimInjReq`** waveform `[bucket, gunBunches, mode,
+  inhibit, 0, 0, seqNum]`, gated on **`EVG:E1:seqBusy`** (wait 1→0), with fine
+  delay `B0215:EVR1-Out:UDC0:Delay-SP` and confirm `B0215:EVR1:Evt48Cnt-I`
+  (BPMs latch on timing **event 48**). ⚠️ `TimInjReq` has a *live competing
+  writer* (top-off) → the "refuse during bucket-loading" precondition is
+  mandatory. `steppv` is just incremental `setpv` → `caget(setpoint)+Δ→caput`
+  per HCM/VCM channel. Firing stays *optional* (legacy `enable_inject`
+  checkbox) and safety-gated. Phase 4 design spec + decisions log:
+  `docs/superpowers/specs/2026-06-01-phase-4-threading-{design,decisions}.md`.
+  Residual control-room confirms in spec §9.
 - **Test-IOC port isolation**: dev IOC must use `OSPREY:TEST:TXT:*`
   prefix and ports 59064/59065 per als-profiles safety rules. Production
   uses real `TxT:*`. Make this config-driven from day 1.

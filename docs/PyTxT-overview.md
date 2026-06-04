@@ -53,9 +53,11 @@ scp'd from appsdev2; refresh by re-scp'ing if upstream changes).
 The MATLAB GUI is wired into MATLAB Middle Layer (MML) and the SC toolkit:
 
 - **MML wrappers** mediate hardware: `srinjectoneshot` triggers injection,
-  `steppv` issues corrector-magnet steps. These are operational black
-  boxes whose underlying PVs are not yet enumerated. Their port is
-  deferred to phase 4.
+  `steppv` issues corrector-magnet steps. **De-boxed 2026-06-01** (via the
+  `mml-audit` MCP server + live `caget`): injection fires the 7-element
+  `TimInjReq` waveform gated on `EVG:E1:seqBusy`; `steppv` is incremental
+  `setpv` (`caget+Δ→caput` per HCM/VCM channel). Underlying PVs are now
+  enumerated in `docs/phase-4-injection-notes.md`; the Phase 4 port is spec'd.
 - **SC toolkit** (Simulated Commissioning) provides the lattice model,
   response matrices, and SVD inversion. Its Python equivalent is
   [pySC](https://pypi.org/project/accelerator-toolbox/) — the
@@ -513,8 +515,10 @@ generated 2026-05-04). Summarized here for reference:
 
 - **Osprey integration shape** — HTTP, MCP, direct CA, or all three?
   Design for all three to be cheap to add until known.
-- **MML black boxes** — `srinjectoneshot` and `steppv` hide their PV
-  contracts. Resolution deferred to phase 4.
+- ~~**MML black boxes**~~ — **RESOLVED 2026-06-01.** `srinjectoneshot`
+  (→ `TimInjReq` waveform + `EVG:E1:seqBusy` gate) and `steppv`
+  (→ incremental `setpv`) are de-boxed; PV contracts enumerated in
+  `docs/phase-4-injection-notes.md`. Carried into the Phase 4 design spec.
 - **Test-IOC port isolation** — dev uses `OSPREY:TEST:TXT:*` +
   ports 59064/59065 per als-profiles safety rules; production
   uses real `TxT:*`. Config-driven from day 1 (`PYTXT_PV_PREFIX`).
