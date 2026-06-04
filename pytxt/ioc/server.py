@@ -83,6 +83,7 @@ class PyTxTIOC:
         reader: Optional[object] = None,
         reference_dir: Optional[Path] = None,
         corrector_writer: Optional[object] = None,
+        injection_trigger: Optional[object] = None,
     ):
         self.prefix = prefix
         self.host = host
@@ -91,7 +92,7 @@ class PyTxTIOC:
         self.state = state
         self.pvgroup = PyTxTPVGroup(
             prefix=prefix, state=state, reader=reader, reference_dir=reference_dir,
-            corrector_writer=corrector_writer,
+            corrector_writer=corrector_writer, injection_trigger=injection_trigger,
         )
         self._context: Optional[Context] = None
         self._running_event = asyncio.Event()
@@ -187,6 +188,21 @@ class PyTxTIOC:
 
         self.state.subscribe("last_cm_step", _listener_last_cm_step)
 
+        inj_in_flight_pv = self.pvgroup.inject_in_flight
+
+        async def _write_inj_in_flight(value) -> None:
+            try:
+                await inj_in_flight_pv.write(int(bool(value)))
+            except Exception:
+                logger.exception("IOC write to STATE:INJ_IN_FLIGHT failed")
+
+        self.state.subscribe("inject_in_flight", _write_inj_in_flight)
+
+        async def _listener_last_inject(value) -> None:
+            await self._publish_last_inject(value)
+
+        self.state.subscribe("last_inject", _listener_last_inject)
+
     async def _publish_last_acquire(self, value: LastAcquireResult) -> None:
         """Write all PVs derived from a LastAcquireResult.
 
@@ -263,6 +279,19 @@ class PyTxTIOC:
             await self.pvgroup.cm_last_timestamp.write(ts)
         except Exception:
             logger.exception("IOC publish of STATE:CM_LAST_* failed")
+
+    async def _publish_last_inject(self, value: Any) -> None:
+        """Write the STATE:INJ_LAST_* bundle from a LastInjectResult."""
+        try:
+            await self.pvgroup.inj_last_status.write(value.status)
+            await self.pvgroup.inj_last_bucket.write(int(value.bucket))
+            await self.pvgroup.inj_last_mode.write(int(value.mode))
+            await self.pvgroup.inj_last_inhibit.write(int(value.inhibit))
+            await self.pvgroup.inj_last_seq_num.write(int(value.seq_num))
+            ts = value.timestamp.isoformat() if value.timestamp else ""
+            await self.pvgroup.inj_last_timestamp.write(ts)
+        except Exception:
+            logger.exception("IOC publish of STATE:INJ_LAST_* failed")
 
     async def _publish_diff_arrays(self, value: Any) -> None:
         """Write RESULT:BPM:{X,Y}_DIFF_FIRST_TURN from a DiffResult (or None).
@@ -355,12 +384,14 @@ class PyTxTIOC:
             except Exception:
                 logger.exception("IOC startup: failed to initialise phase-3 REF PVs")
 
-            # Push phase-4 corrector-step defaults (NEVER / empty).
+            # Push phase-4 corrector-step + injection defaults (NEVER / empty).
             try:
                 await pvgroup.cm_step_in_flight.write(int(state.cm_step_in_flight))
                 await pvgroup.cm_last_status.write(state.last_cm_step.status)
+                await pvgroup.inject_in_flight.write(int(state.inject_in_flight))
+                await pvgroup.inj_last_status.write(state.last_inject.status)
             except Exception:
-                logger.exception("IOC startup: failed to initialise phase-4 CM PVs")
+                logger.exception("IOC startup: failed to initialise phase-4 CM/INJ PVs")
 
             running_event.set()
 

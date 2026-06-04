@@ -193,3 +193,41 @@ CAS semantics.
 **Forward impact:** M4's loop controller calls `handle_step_cm` (or the writer + domain
 directly) to apply each iteration's correction. Real-magnet validation + arming the writer
 on the machine are control-room items (checklist B2).
+
+---
+
+## 2026-06-04 — M3 implementation (CMD:INJECT_ONESHOT, de-boxed)
+
+**Context:** Built M3 — the injection request math, the `InjectionTrigger` CA
+adapter, `CMD:INJECT_ONESHOT` (PV + REST + handler), state publishing, and a fake
+timing IOC. 34 new tests; full suite 358 passed.
+
+**Decisions / gap-fills / deviations:**
+- **Two-layer gun-fire gate (implements D3).** Server-level `enable_injection_trigger`
+  (off by default → 503) arms the trigger at all; *per request*, real gun fire
+  (`inhibit=0`) additionally requires `allow_gun_fire=true` → else `GunFireNotAllowedError`
+  (HTTP 403). So inhibit=0 can never fire from a casual/default payload — it takes an
+  explicit flag on top of an explicitly-enabled server. Default shot is `inhibit=1`,
+  bucket 308 (D6).
+- **Mandatory top-off precondition (injection-notes §3 finding).** The handler refuses
+  (HTTP 409) if `bucket:control:cmd == 1` unless `force=true` — `TimInjReq` has a live
+  competing writer (top-off), so the seqBusy sync alone doesn't make two writers safe.
+- **seqBusy sync is best-effort (per ReadMe_TimingSystem.m).** `sync_seq_busy` waits for a
+  1→0 cycle but a timeout is caught in the handler and logged, then the shot proceeds —
+  the sync is a robustness nicety, not a fire prerequisite.
+- **Confirm signal deferred to control room (checklist A1).** The handler echoes the
+  written `TimInjReq` seq number + timestamp as the confirmation; *which* live counter
+  (Evt48Cnt vs Evt10Cnt) reliably ticks per shot is the open A1 question, marked in code.
+- **Reused the CHAR-array JSON CMD-PV pattern** from STEP_CM for `CMD:INJECT_ONESHOT`
+  (params are scalars but JSON keeps parity trivial and the surface uniform). Mode validated
+  via a Pydantic `field_validator` so both REST and the PV reject unknown modes (422).
+- **Fake timing IOC** serves the real PV names (`TimInjReq`, `EVG:E1:seqBusy`,
+  `B0215:EVR1-Out:UDC0:Delay-SP`, `bucket:control:cmd`); seqBusy is a getter returning 1
+  then 0 so the sync exercises a real 1→0 cycle.
+
+**Spec relationship:** Implements §5.5, §6 (PV+REST parity row). `[needs-spec-update]`
+minor: the two-layer gun-fire gate (`allow_gun_fire` on top of the server enable).
+
+**Forward impact:** M4's loop controller can optionally fire each iteration via
+`handle_inject_oneshot` (`fire_each_step`). Real firing + the confirm-signal choice are
+control-room items (checklist A1/B1).

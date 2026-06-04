@@ -11,7 +11,7 @@ from typing import Optional
 import caproto as ca
 from caproto.server import PVGroup, pvproperty
 
-from pytxt.api.schemas.threading import StepCMRequest
+from pytxt.api.schemas.threading import InjectOneshotRequest, StepCMRequest
 from pytxt.handlers.acquire import handle_acquire
 from pytxt.handlers.ping import handle_ping
 from pytxt.handlers.reference import (
@@ -20,7 +20,7 @@ from pytxt.handlers.reference import (
     handle_promote_ref,
     handle_save_ref,
 )
-from pytxt.handlers.threading import handle_step_cm
+from pytxt.handlers.threading import handle_inject_oneshot, handle_step_cm
 from pytxt.state.app_state import AppState
 
 _BPM_MAX = 128  # waveform max_length; accommodates ~120 BPMs with headroom
@@ -159,6 +159,43 @@ class PyTxTPVGroup(PVGroup):
         doc="ISO-8601 UTC timestamp of the most recent STEP_CM; empty before first",
     )
 
+    # === STATE:INJ_* (phase 4 — injection one-shot) ===
+    inject_in_flight = pvproperty(
+        value=0, dtype=int, read_only=True,
+        name="STATE:INJ_IN_FLIGHT",
+        doc="1 while a CMD:INJECT_ONESHOT is firing; rejects concurrent shots",
+    )
+    inj_last_status = pvproperty(
+        value="NEVER", dtype=ca.ChannelType.STRING, read_only=True,
+        name="STATE:INJ_LAST_STATUS",
+        doc="Outcome of the most recent INJECT_ONESHOT: NEVER or FIRED",
+    )
+    inj_last_bucket = pvproperty(
+        value=0, dtype=int, read_only=True,
+        name="STATE:INJ_LAST_BUCKET",
+        doc="SR bucket of the most recent injection shot",
+    )
+    inj_last_mode = pvproperty(
+        value=0, dtype=int, read_only=True,
+        name="STATE:INJ_LAST_MODE",
+        doc="Injection mode of the most recent shot (40=SR inject, 42=bumps only)",
+    )
+    inj_last_inhibit = pvproperty(
+        value=1, dtype=int, read_only=True,
+        name="STATE:INJ_LAST_INHIBIT",
+        doc="Gun-inhibit of the most recent shot: 1=gun blocked, 0=gun fired",
+    )
+    inj_last_seq_num = pvproperty(
+        value=0, dtype=int, read_only=True,
+        name="STATE:INJ_LAST_SEQ_NUM",
+        doc="TimInjReq sequence number written by the most recent shot (echo confirm)",
+    )
+    inj_last_timestamp = pvproperty(
+        value="", dtype=ca.ChannelType.STRING, read_only=True,
+        name="STATE:INJ_LAST_TIMESTAMP",
+        doc="ISO-8601 UTC timestamp of the most recent injection shot; empty before first",
+    )
+
     # === RESULT:BPM:* (phase 2) ===
     result_bpm_x_first_turn = pvproperty(
         value=[0.0] * _BPM_MAX, dtype=float, read_only=True,
@@ -250,6 +287,21 @@ class PyTxTPVGroup(PVGroup):
         ),
     )
 
+    # CHAR array so the JSON payload can exceed the 40-char DBF_STRING limit.
+    cmd_inject_oneshot = pvproperty(
+        value="",
+        dtype=ca.ChannelType.CHAR, max_length=8192,
+        string_encoding="utf-8", report_as_string=True,
+        name="CMD:INJECT_ONESHOT",
+        doc=(
+            "Write a JSON payload to fire one injection shot (identical to "
+            "POST /api/v1/cmd/inject_oneshot): "
+            '{"bucket":int(default 308),"gun_bunches":int,"mode":int(40=SR,42=bumps),'
+            '"inhibit":0|1(default 1=gun blocked),"allow_gun_fire":bool,"force":bool}. '
+            "inhibit=0 (real gun fire) requires allow_gun_fire=true."
+        ),
+    )
+
     def __init__(
         self,
         *args,
@@ -257,12 +309,14 @@ class PyTxTPVGroup(PVGroup):
         reader: Optional[object] = None,
         reference_dir: Optional[Path] = None,
         corrector_writer: Optional[object] = None,
+        injection_trigger: Optional[object] = None,
         **kwargs,
     ):
         self._state = state
         self._reader = reader
         self._reference_dir = reference_dir
         self._corrector_writer = corrector_writer
+        self._injection_trigger = injection_trigger
         super().__init__(*args, **kwargs)
 
     @cmd_ping.putter
@@ -357,5 +411,26 @@ class PyTxTPVGroup(PVGroup):
             family=req.family, device_list=req.device_list, deltas=req.deltas,
             expected_prior_a=req.expected_prior_a, tol_a=req.tol_a,
             dry_run=req.dry_run,
+        )
+        return value
+
+    @cmd_inject_oneshot.putter
+    async def cmd_inject_oneshot(self, instance, value):
+        """CA write to CMD:INJECT_ONESHOT fires one shot from a JSON payload.
+
+        Same JSON as the REST body (InjectOneshotRequest), so CA and REST call
+        the identical handler. No-op if no injection trigger is configured. Typed
+        exceptions (GunFireNotAllowedError, InjectInFlightError,
+        InjectionPreconditionError) and a malformed payload are RE-RAISED so
+        caproto surfaces them as CA write errors — symmetric to REST's 403/409/422.
+        STATE:INJ_LAST_* PVs confirm the shot.
+        """
+        if self._injection_trigger is None:
+            return value
+        req = InjectOneshotRequest.model_validate_json(_as_text(value))
+        await handle_inject_oneshot(
+            self._state, self._injection_trigger,
+            bucket=req.bucket, gun_bunches=req.gun_bunches, mode=req.mode,
+            inhibit=req.inhibit, allow_gun_fire=req.allow_gun_fire, force=req.force,
         )
         return value

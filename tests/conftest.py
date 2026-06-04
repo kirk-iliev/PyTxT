@@ -100,3 +100,5 @@ def test_pv_prefix() -> str:
 
 # Import phase-2 fixtures so tests can use them without explicit imports.
 from tests.fixtures.fake_bpm_ioc import fake_bpm_ioc  # noqa: F401
+# Phase-4 injection-trigger fixture.
+from tests.fixtures.fake_injection_ioc import fake_injection_ioc  # noqa: F401

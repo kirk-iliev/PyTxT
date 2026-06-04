@@ -24,6 +24,7 @@ def create_app(
     bpm_reader: Optional[Any] = None,
     reference_dir: Optional[Path] = None,
     corrector_writer: Optional[Any] = None,
+    injection_trigger: Optional[Any] = None,
 ) -> FastAPI:
     """Create and configure the FastAPI app.
 
@@ -57,6 +58,7 @@ def create_app(
     app.state.bpm_reader = bpm_reader
     app.state.reference_dir = reference_dir
     app.state.corrector_writer = corrector_writer
+    app.state.injection_trigger = injection_trigger
 
     app.add_middleware(
         CORSMiddleware,

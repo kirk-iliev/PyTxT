@@ -60,6 +60,14 @@ def _public_state(state) -> dict:
         "cm_last_family": state.last_cm_step.family,
         "cm_last_n_applied": state.last_cm_step.n_applied,
         "cm_last_n_clamped": state.last_cm_step.n_clamped,
+        # phase 4: injection state
+        "inject_in_flight": state.inject_in_flight,
+        "inj_last_status": state.last_inject.status,
+        "inj_last_bucket": state.last_inject.bucket,
+        "inj_last_mode": state.last_inject.mode,
+        "inj_last_inhibit": state.last_inject.inhibit,
+        "inj_last_seq_num": state.last_inject.seq_num,
+        "inj_last_timestamp": "<set>" if state.last_inject.timestamp else None,
     }
 
 
@@ -185,6 +193,35 @@ def _make_corrector_writer(command_name: str):
     return _ParityFakeWriter() if command_name == "step_cm" else None
 
 
+# INJECT_ONESHOT parity: an in-process fake injection trigger on both arms.
+_INJECT_PAYLOAD = {"bucket": 308, "gun_bunches": 4, "mode": 40, "inhibit": 1}
+
+
+class _ParityFakeTrigger:
+    def __init__(self):
+        self.req = [57, 4, 40, 0, 0, 0, 19133]
+        self.written_req = None
+
+    async def read_bucket_control(self):
+        return 0
+
+    async def read_tim_inj_req(self):
+        return list(self.req)
+
+    async def sync_seq_busy(self, timeout_s=5.0, poll_s=0.01):
+        return None
+
+    async def write_tim_inj_req(self, req):
+        self.written_req = list(req)
+
+    async def write_fine_delay(self, counts):
+        pass
+
+
+def _make_injection_trigger(command_name: str):
+    return _ParityFakeTrigger() if command_name == "inject_oneshot" else None
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "command_name, ca_pv_suffix, rest_path, requires_acquire",
@@ -200,6 +237,7 @@ def _make_corrector_writer(command_name: str):
         ("save_ref", "CMD:SAVE_REF", "/api/v1/cmd/save_ref", True),
         # Phase 4: STEP_CM carries a JSON payload (CHAR-array PV ⇄ REST body).
         ("step_cm", "CMD:STEP_CM", "/api/v1/cmd/step_cm", False),
+        ("inject_oneshot", "CMD:INJECT_ONESHOT", "/api/v1/cmd/inject_oneshot", False),
     ],
 )
 async def test_parity_ca_vs_rest(test_pv_prefix, tmp_path, command_name, ca_pv_suffix, rest_path, requires_acquire):
@@ -225,6 +263,10 @@ async def test_parity_ca_vs_rest(test_pv_prefix, tmp_path, command_name, ca_pv_s
         import json
         ca_value = json.dumps(_STEP_CM_PAYLOAD)
         rest_body = _STEP_CM_PAYLOAD
+    elif command_name == "inject_oneshot":
+        import json
+        ca_value = json.dumps(_INJECT_PAYLOAD)
+        rest_body = _INJECT_PAYLOAD
 
     # --- Path 1: CA write ---
     state_ca = _make_state(command_name)
@@ -232,7 +274,8 @@ async def test_parity_ca_vs_rest(test_pv_prefix, tmp_path, command_name, ca_pv_s
     ioc_ca = PyTxTIOC(prefix=test_pv_prefix, host="127.0.0.1", port=0,
                       repeater_port=0, state=state_ca, reader=reader_ca,
                       reference_dir=ca_ref_dir,
-                      corrector_writer=_make_corrector_writer(command_name))
+                      corrector_writer=_make_corrector_writer(command_name),
+                      injection_trigger=_make_injection_trigger(command_name))
     server_task = asyncio.create_task(ioc_ca.run())
     await ioc_ca.wait_until_running()
     try:
@@ -253,7 +296,8 @@ async def test_parity_ca_vs_rest(test_pv_prefix, tmp_path, command_name, ca_pv_s
     state_rest = _make_state(command_name)
     reader_rest = _make_reader(command_name)
     app = create_app(state=state_rest, reference_dir=rest_ref_dir,
-                     corrector_writer=_make_corrector_writer(command_name))
+                     corrector_writer=_make_corrector_writer(command_name),
+                     injection_trigger=_make_injection_trigger(command_name))
     if reader_rest is not None:
         app.state.bpm_reader = reader_rest
 

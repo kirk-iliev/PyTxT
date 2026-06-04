@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
 from pytxt.api.schemas.result import AcquireStatus, LastAcquireResult
-from pytxt.api.schemas.threading import LastCMStepResult
+from pytxt.api.schemas.threading import LastCMStepResult, LastInjectResult
 from pytxt.domain.types import DiffResult, FirstTurnResult, ReferenceSource
 
 logger = logging.getLogger(__name__)
@@ -67,6 +67,8 @@ class AppState:
     # === Phase 4 threading state ===
     cm_step_in_flight: bool = False
     last_cm_step: LastCMStepResult = field(default_factory=LastCMStepResult)
+    inject_in_flight: bool = False
+    last_inject: LastInjectResult = field(default_factory=LastInjectResult)
 
     # Internal: per-field listener lists (excluded from repr/init)
     _listeners: dict[str, list[ListenerFn]] = field(

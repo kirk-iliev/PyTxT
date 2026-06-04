@@ -12,6 +12,7 @@ import uvicorn
 from pytxt.api.server import create_app
 from pytxt.ca_client.bpm_reader import BpmReader
 from pytxt.ca_client.corrector_writer import CorrectorWriter
+from pytxt.ca_client.injection_trigger import InjectionTrigger
 from pytxt.config.bpm_prefixes import load_bpm_prefixes
 from pytxt.config.corrector_channels import load_corrector_channels
 from pytxt.config.settings import Settings
@@ -123,6 +124,15 @@ async def main() -> None:
     else:
         logger.info("Corrector writer disabled (set PYTXT_ENABLE_CORRECTOR_WRITER=true to arm)")
 
+    # Phase 4 injection trigger — OFF by default. When disabled, INJECT_ONESHOT
+    # returns 503. Even enabled, real gun fire still needs per-request opt-in.
+    injection_trigger = None
+    if settings.enable_injection_trigger:
+        injection_trigger = InjectionTrigger(per_pv_timeout_s=settings.injection_io_timeout_s)
+        logger.warning("Injection trigger ENABLED — INJECT_ONESHOT can command the machine")
+    else:
+        logger.info("Injection trigger disabled (set PYTXT_ENABLE_INJECTION_TRIGGER=true to arm)")
+
     ioc = PyTxTIOC(
         prefix=settings.pv_prefix,
         host=settings.ioc_host,
@@ -132,6 +142,7 @@ async def main() -> None:
         reader=reader,
         reference_dir=reference_dir,
         corrector_writer=corrector_writer,
+        injection_trigger=injection_trigger,
     )
 
     api_app = create_app(
@@ -140,6 +151,7 @@ async def main() -> None:
         bpm_reader=reader,
         reference_dir=reference_dir,
         corrector_writer=corrector_writer,
+        injection_trigger=injection_trigger,
     )
     config = uvicorn.Config(
         api_app,
@@ -177,10 +189,21 @@ async def main() -> None:
         except Exception:
             logger.exception("CorrectorWriter.start() failed — STEP_CM will fail until reachable")
 
+    async def start_injection_trigger_after_warmup() -> None:
+        if injection_trigger is None:
+            return
+        await asyncio.sleep(1.0)
+        try:
+            await injection_trigger.start()
+            logger.info("InjectionTrigger connected")
+        except Exception:
+            logger.exception("InjectionTrigger.start() failed — INJECT_ONESHOT will fail until reachable")
+
     await asyncio.gather(
         ioc.run(),
         api_server.serve(),
         heartbeat_loop(),
         start_reader_after_warmup(),
         start_corrector_writer_after_warmup(),
+        start_injection_trigger_after_warmup(),
     )

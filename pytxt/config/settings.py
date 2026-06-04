@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     # STEP_CM returns 503 until explicitly enabled. Active machine commanding is
     # opt-in (north-star safety): set PYTXT_ENABLE_CORRECTOR_WRITER=true to arm.
     enable_corrector_writer: bool = False
+    # Likewise for the injection trigger — OFF by default; INJECT_ONESHOT returns
+    # 503 until PYTXT_ENABLE_INJECTION_TRIGGER=true. Even when enabled, real gun
+    # fire (inhibit=0) still requires per-request allow_gun_fire=true.
+    enable_injection_trigger: bool = False
+    injection_io_timeout_s: float = 2.0
 
     # Version is NOT env-overridable; populated at startup by composition.main()
     # from importlib.metadata.version("pytxt") with fallback to "0.0.0+dev".

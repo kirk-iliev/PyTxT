@@ -18,7 +18,12 @@ from pytxt.api.schemas.reference import (
     SaveRefResponse,
 )
 from pytxt.api.schemas.result import AcquireResponse
-from pytxt.api.schemas.threading import StepCMRequest, StepCMResponse
+from pytxt.api.schemas.threading import (
+    InjectOneshotRequest,
+    InjectOneshotResponse,
+    StepCMRequest,
+    StepCMResponse,
+)
 from pytxt.domain.reference import ReferenceLoadError
 from pytxt.handlers.acquire import AcquisitionInFlightError, handle_acquire
 from pytxt.handlers.ping import handle_ping
@@ -35,6 +40,10 @@ from pytxt.handlers.reference import (
 from pytxt.handlers.threading import (
     CMPreconditionError,
     CMStepInFlightError,
+    GunFireNotAllowedError,
+    InjectInFlightError,
+    InjectionPreconditionError,
+    handle_inject_oneshot,
     handle_step_cm,
 )
 
@@ -148,6 +157,35 @@ async def post_step_cm(request: Request, body: StepCMRequest) -> StepCMResponse:
     except CMStepInFlightError as e:
         raise HTTPException(409, str(e))
     except CMPreconditionError as e:
+        raise HTTPException(409, str(e))
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+@router.post("/inject_oneshot", response_model=InjectOneshotResponse)
+async def post_inject_oneshot(request: Request, body: InjectOneshotRequest) -> InjectOneshotResponse:
+    """Fire one injection shot (de-boxed srinjectoneshot). Phase 4.
+
+    Identical effect to a CA write of the same JSON to CMD:INJECT_ONESHOT.
+    Defaults are the safe commissioning shot (bucket 308, inhibit=1). Real gun
+    fire (inhibit=0) requires allow_gun_fire=true → else 403. Top-off active and
+    not forced → 409; another shot in flight → 409; no trigger configured → 503.
+    """
+    state = request.app.state.app_state
+    trigger = getattr(request.app.state, "injection_trigger", None)
+    if trigger is None:
+        raise HTTPException(503, "injection trigger not configured")
+    try:
+        return await handle_inject_oneshot(
+            state, trigger,
+            bucket=body.bucket, gun_bunches=body.gun_bunches, mode=body.mode,
+            inhibit=body.inhibit, allow_gun_fire=body.allow_gun_fire, force=body.force,
+        )
+    except GunFireNotAllowedError as e:
+        raise HTTPException(403, str(e))
+    except InjectInFlightError as e:
+        raise HTTPException(409, str(e))
+    except InjectionPreconditionError as e:
         raise HTTPException(409, str(e))
     except ValueError as e:
         raise HTTPException(422, str(e))
