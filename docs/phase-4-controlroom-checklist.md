@@ -15,6 +15,32 @@ Legend: 🟢 read-only (do anytime) · 🔴 active (shift + sign-off) · ⏳ blo
 
 ---
 
+## ✅ Phase 4 closeout gate — what's needed from you to close the phase
+
+**Status: implementation complete and pushed (M1–M4, 2026-06-04). Phase 4 closes
+once the items below are done and signed off.** Nothing here is a code task — it's
+all on-machine validation that can't be done at a desk. Sections A/B below give the
+exact commands and pass/fail criteria for each.
+
+**You can do A1 + A2 on any ordinary control-room visit (read-only, no beam time).
+B1–B4 need one physics shift with an operator.**
+
+- [ ] **A1 — confirm-signal capture** (read-only). `camonitor` the injection PVs through ~20 top-off cycles; confirm `EVG:E1:seqBusy` toggles 1→0 and which counter ticks 1:1 per shot. → records the confirm-signal PV, resolving the one `TODO(confirm)` in `CMD:INJECT_ONESHOT`. *(§A1)*
+- [ ] **A2 — corrector catalog confirm** (read-only). Dump `family2dev('HCM')`/`('VCM')`, diff against `pytxt/config/{hcm,vcm}_channels.txt`, confirm the SR01-HCM1 device list. → marks the catalog final. *(§A2)*
+- [ ] **B0 — pre-shift gathering** (read-only, feeds B1). Get the firing interlock/precondition list (gun permit, shutters, mode) and corrector-limit + `inhibit=1`-default sign-off. *(§B0)*
+- [ ] **B1 — one-shot fire validation** (active, `inhibit=1`, no charge). Confirm `TimInjReq` write lands, `seqBusy` sync behaves, fine-delay + confirm-signal tick, and the top-off precondition refuses correctly. *(§B1)*
+- [ ] **B2 — real-magnet `STEP_CM`** (active). Small known delta on one corrector → readback moves; verify the compare-and-set refusal (wrong `expected_prior`) and the limit clamp; restore. *(§B2)*
+- [ ] **B3 — arm on real BPMs** (active, piggyback on B1). Confirm `wfr:TBT:arm` + trigger mask + event-48 actually arm the real TBT BPMs and `armed` clears after a shot. *(§B3)*
+- [ ] **B4 — closed-loop commissioning** (active). Run `CMD:THREAD_START` in `inhibit=1` first (stored-beam bumps); then, only with explicit operator sign-off + promotion off the `OSPREY:TEST:TXT:*` test prefix, real first-turn threading with `inhibit=0`. *(§B4)*
+
+When every box above is checked, Phase 4 is operationally closed (update
+`PyTxT-roadmap.html` + `CLAUDE.md` status). *Not a closeout blocker:* generating the
+real (modeled-via-pySC or measured) response matrix — the runtime uses a cached
+artifact and a synthetic stand-in exists; that's deferred runtime work, tracked
+separately.
+
+---
+
 ## A. Read-only — do these on the next ordinary control-room visit (no shift)
 
 ### A1. 🟢⏳ Passive `camonitor` capture during top-off — confirm the injection confirm-signal

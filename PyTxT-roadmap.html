@@ -556,34 +556,37 @@
 <div class="hero">
   <div class="hero-current">
     <div class="label">Current phase</div>
-    <h2>Phase 3 · Reference trajectory — ✓ complete (M1 ✓ · M2 ✓ · M3 ✓ · M4 ✓)</h2>
+    <h2>Phase 4 · Threading workflow — ✓ implemented (M1 ✓ · M2 ✓ · M3 ✓ · M4 ✓) · awaiting control-room validation</h2>
     <p>
-      <strong>Phase 3 (reference trajectory) complete 2026-06-01.</strong> M4 (upload/download + frontend + e2e)
-      landed — closing the phase. The reference workflow is now whole across all three surfaces. <strong>Bulk file
-      transfer (REST):</strong> multipart <code>POST /api/v1/references</code> (basename-safe, no-overwrite,
-      parse-validated, streamed under a 200 MB cap → 409/413/422), <code>GET /api/v1/references/{name}</code>
-      download, and a lazy <code>GET /api/v1/result/ref/raw</code> that re-parses the loaded reference from disk to
-      serve a BPM's full TBT waveforms (404 for promoted + MATLAB-only refs). <strong>Browser UI:</strong> the
-      trajectory page switches from 2-panel (X, Y) to 4-panel (X, Y, ΔX, ΔY) when a reference is loaded, a
-      reference sidebar drives promote/load/save/upload/clear (every button a parity'd CMD except upload — the one
-      REST-only action, since a file's bytes can't be a PV), the hover tooltip gains ΔX/ΔY, and a Δrms row appears
-      in the status header. A Playwright spec walks the full happy path (acquire → promote → diff → save → clear →
-      load). Upload is the one capability with no CA path (design §15). Next: <strong>Phase 4 · Threading
-      workflow</strong> — the <code>srinjectoneshot</code>/<code>steppv</code> MML-wrapped operations are now
-      <strong>de-boxed</strong> (2026-06-01, via the <code>mml-audit</code> MCP server); a Phase 4 design spec
-      is drafted and awaiting review.
+      <strong>Phase 4 (threading) implementation complete 2026-06-04 — all four milestones built, tested, and
+      pushed.</strong> The full first-turn threading workflow is in place and exercised end-to-end against fakes/a
+      simulated ring; what remains before the phase can be <em>closed</em> is on-machine validation (a read-only
+      visit + one physics shift). <strong>M1 — analysis core + active acquisition:</strong> Tikhonov pseudo-inverse
+      + <code>calc_cm_step</code> (orbit diff → corrector step, with first-turn downstream-zeroing), a cached
+      <code>.npz</code> response-matrix artifact + loader (<strong>no pySC at runtime</strong> — D1), and the active
+      arm/trigger/wait path (<code>wfr:TBT:arm</code> + event-48 trigger). <strong>M2 — <code>CMD:STEP_CM</code>:</strong>
+      corrector apply with a compare-and-set guard (D5 — refuse if a setpoint drifted) + hardware-amp clamp, the
+      committed HCM/VCM channel catalog (96/72), behind a default-off writer. <strong>M3 — <code>CMD:INJECT_ONESHOT</code>:</strong>
+      the de-boxed <code>srinjectoneshot</code> (<code>TimInjReq</code> + <code>seqBusy</code> sync + fine delay), a
+      mandatory top-off precondition, and a two-layer gun-fire gate (D3 — <code>inhibit=1</code> default;
+      <code>inhibit=0</code> needs explicit opt-in). <strong>M4 — loop controller + UI:</strong>
+      <code>CMD:THREAD_START</code>/<code>CMD:THREAD_STOP</code> running arm→(optional fire)→read→diff→
+      <code>calc_cm_step</code>→apply with damping, a divergence guard, and an optional RMS convergence exit (D4),
+      plus a browser threading panel. Every command has identical PV + REST effect (8 commands now in the parity
+      canary). <strong>Closeout gate:</strong> the remaining on-machine steps are listed in
+      <code>docs/phase-4-controlroom-checklist.md</code> (read-only A1/A2 + active B1–B4).
     </p>
-    <div class="progress" title="Phase 3: 4 of 4 milestones complete">
+    <div class="progress" title="Phase 4: 4 of 4 milestones implemented; on-machine validation pending">
       <div class="progress-fill" style="width: 100%"></div>
     </div>
-    <div class="progress-text">M1 ✓ · M2 ✓ · M3 ✓ · M4 ✓ — Phase 3 complete</div>
+    <div class="progress-text">M1 ✓ · M2 ✓ · M3 ✓ · M4 ✓ — code complete · validation pending (see closeout gate)</div>
   </div>
 
   <div class="stats">
-    <div class="stat"><div class="num">3 / 6</div><div class="lbl">Phases complete</div></div>
-    <div class="stat"><div class="num">256 / 256</div><div class="lbl">Tests passing <span class="hint">1 CA-loopback test can flake; passes on retry</span></div></div>
-    <div class="stat"><div class="num">6</div><div class="lbl">E2E specs</div></div>
-    <div class="stat"><div class="num">35</div><div class="lbl">Unpushed commits</div></div>
+    <div class="stat"><div class="num">3 / 6</div><div class="lbl">Phases complete <span class="hint">Phase 4 code-complete; closes after on-machine validation</span></div></div>
+    <div class="stat"><div class="num">373 / 373</div><div class="lbl">Pytest passing <span class="hint">+ 10 / 10 Playwright e2e</span></div></div>
+    <div class="stat"><div class="num">10</div><div class="lbl">E2E specs</div></div>
+    <div class="stat"><div class="num">0</div><div class="lbl">Unpushed commits <span class="hint">all Phase-4 work pushed to origin/main</span></div></div>
   </div>
 </div>
 
@@ -702,20 +705,30 @@
     <summary>
       <div class="num">Phase 4</div>
       <div class="title">Threading workflow</div>
-      <div class="blurb">Arm + trigger; pySC + response matrix; CM steps.</div>
-      <div class="badges"><span class="badge badge-now">⏭ Next</span></div>
+      <div class="blurb">Arm + trigger; response matrix; CM steps; loop + UI.</div>
+      <div class="badges"><span class="badge badge-done">✓ Implemented (M1·M2·M3·M4)</span> <span class="badge badge-now">⏳ Validation pending</span></div>
     </summary>
     <div class="body">
-      <h4>Anticipated scope</h4>
+      <h4>Built (M1–M4, 2026-06-04 · 373 pytest + 10 e2e green)</h4>
       <ul>
-        <li>Arm BPMs (CA writes to <code>wfr:TBT:arm</code> — well-defined)</li>
-        <li>Trigger injection — <code>srinjectoneshot</code> de-boxed → <code>TimInjReq</code> waveform + <code>EVG:E1:seqBusy</code> gate</li>
-        <li>Port <code>FirstTurnThreading.m</code></li>
-        <li>Golden-orbit subtraction (requires MML data)</li>
-        <li>pySC integration: lattice, response matrix, SVD pseudo-inverse</li>
-        <li>CM step calc and apply — <code>steppv</code> de-boxed → incremental <code>setpv</code></li>
+        <li><strong>M1 · analysis core + active acquisition.</strong> <code>domain/threading.py</code> — Tikhonov pseudo-inverse (<code>SCgetPinv</code> equiv) + <code>calc_cm_step</code> (orbit diff → corrector step + first-turn downstream-zeroing); cached <code>.npz</code> response-matrix artifact + loader (<strong>no pySC at runtime</strong> — D1); active arm/trigger/wait in <code>BpmReader</code> (<code>wfr:TBT:arm</code> + triggerMask + event-48 + wait on <code>armed</code>).</li>
+        <li><strong>M2 · <code>CMD:STEP_CM</code>.</strong> Corrector apply with compare-and-set guard (D5) + hardware-amp clamp; committed HCM/VCM channel catalog (96/72) + loader; <code>CorrectorWriter</code> CA adapter. Writer <strong>off by default</strong> (<code>PYTXT_ENABLE_CORRECTOR_WRITER</code>).</li>
+        <li><strong>M3 · <code>CMD:INJECT_ONESHOT</code>.</strong> De-boxed <code>srinjectoneshot</code> (<code>TimInjReq</code> waveform + <code>EVG:E1:seqBusy</code> sync + fine delay); mandatory top-off precondition (<code>bucket:control:cmd</code>); two-layer gun-fire gate (D3 — default <code>inhibit=1</code>; real fire needs <code>allow_gun_fire</code>). Trigger off by default.</li>
+        <li><strong>M4 · loop controller + UI.</strong> <code>CMD:THREAD_START</code>/<code>CMD:THREAD_STOP</code> running arm→(optional fire)→read→diff→<code>calc_cm_step</code>→apply with damping gain, divergence guard, optional RMS convergence exit, <code>max_steps</code> cap (D4); browser <code>threading.html</code> panel + 4 Playwright specs.</li>
+        <li><strong>Parity:</strong> every command has identical PV + REST effect — 8 commands in the parity canary (<code>tests/integration/test_parity.py</code>).</li>
       </ul>
-      <p style="margin-top:0.5rem"><strong>Status:</strong> both MML black boxes de-boxed 2026-06-01; design spec + decisions log drafted, awaiting review. PV detail in <code>docs/phase-4-injection-notes.md</code>.</p>
+      <h4>Deferred to runtime (not blocking)</h4>
+      <ul>
+        <li><strong>pySC modeled response-matrix generation.</strong> The runtime uses a cached matrix; generating the real (modeled or measured) matrix is an offline/dev-only step. A synthetic generator stands in today so the loop is exercisable without pySC.</li>
+      </ul>
+      <h4>Closeout gate — on-machine validation (needed before Phase 4 closes)</h4>
+      <p>Implementation is done; the phase closes after on-machine validation. The exact steps required from the operator are in
+      <strong><code>docs/phase-4-controlroom-checklist.md</code></strong> (a read-only control-room visit + one physics shift):</p>
+      <ul>
+        <li><strong>🟢 Read-only (any visit, no shift):</strong> A1 passive <code>camonitor</code> during top-off → confirm the per-shot confirm-signal; A2 <code>family2dev</code> dump → finalize the corrector catalog (SR01-HCM1).</li>
+        <li><strong>🔴 Active (physics shift + sign-off):</strong> B1 fire-validation (<code>inhibit=1</code>); B2 real-magnet <code>STEP_CM</code>; B3 arm on real BPMs; B4 closed-loop commissioning (<code>inhibit=1</code> first, then gated <code>inhibit=0</code>).</li>
+      </ul>
+      <p style="margin-top:0.5rem"><strong>Decisions:</strong> D1–D6 resolved 2026-06-04 (<code>docs/superpowers/specs/2026-06-01-phase-4-threading-decisions.md</code>). De-boxed PV detail: <code>docs/phase-4-injection-notes.md</code>.</p>
     </div>
   </details>
 
@@ -928,17 +941,31 @@
 <h2 class="section">What's next</h2>
 
 <div class="next-box">
-  <h3>Immediate — Kirk</h3>
+  <h3>Immediate — Kirk (Phase 4 closeout gate)</h3>
+  <p>Phase 4 is <strong>code-complete and pushed</strong>; it closes once it's validated on the machine. Full per-step
+  instructions live in <strong><code>docs/phase-4-controlroom-checklist.md</code></strong> — summarized:</p>
   <ol>
-    <li><strong>Push the 35 unpushed commits to <code>origin/main</code>.</strong> Local <code>main</code> is ahead by the entire Phase 3 work (design spec + decision log + the four milestone plans + M1–M4 implementation/closeout) plus the M4 plan and M3-hardening fixes. Nothing on origin will conflict.</li>
-    <li><strong>Live-ring revalidation on appsdev2 (Phase 3 DoD §12).</strong> The full reference workflow has only been exercised against the synthetic reader. The phase isn't operationally done until, on the real ring: an operator loads a reference from the legacy MATLAB library and sees ΔX/ΔY populate; saves a new reference and confirms the legacy <code>TxT_GUI.mlapp</code> can load it back; and an Osprey agent round-trips list → upload → load → acquire → download. Operational follow-through.</li>
+    <li><strong>🟢 Read-only control-room visit (no beam time needed).</strong>
+      <ul>
+        <li><strong>A1 — confirm-signal capture:</strong> run <code>camonitor</code> on <code>TimInjReq</code>, <code>EVG:E1:seqBusy</code>, the delay-SP, <code>B0215:EVR1:Evt48Cnt-I</code>, <code>LI11:EVR1:Evt10Cnt-I</code> through ~20 top-off injection cycles; confirm <code>seqBusy</code> toggles 1→0 and which counter ticks 1:1 per shot. Resolves the one open <code>TODO(confirm)</code> in <code>CMD:INJECT_ONESHOT</code>.</li>
+        <li><strong>A2 — corrector catalog confirm:</strong> dump <code>family2dev('HCM')</code>/<code>('VCM')</code>, diff against the generated catalogs, confirm the SR01-HCM1 device list (counts 96/72 already match).</li>
+      </ul>
+    </li>
+    <li><strong>🔴 One physics shift + operator sign-off.</strong> On the <code>OSPREY:TEST:TXT:*</code> prefix first:
+      <ul>
+        <li><strong>B1</strong> fire one shot with <code>inhibit=1</code> (no charge) → confirm <code>TimInjReq</code> write, <code>seqBusy</code> sync, fine-delay, confirm-signal, and the top-off precondition refusal.</li>
+        <li><strong>B2</strong> apply a small known <code>CMD:STEP_CM</code> on one corrector → confirm readback moves, the compare-and-set refusal, and the limit clamp; restore.</li>
+        <li><strong>B3</strong> confirm arm/trigger/wait actually arms the real TBT BPMs (piggyback on B1).</li>
+        <li><strong>B4</strong> closed-loop <code>CMD:THREAD_START</code> in <code>inhibit=1</code>; then — only with explicit sign-off + promotion to production — real threading with <code>inhibit=0</code>.</li>
+        <li><strong>Bring to the shift:</strong> the firing interlock/precondition list (gun permit, shutters, mode) and corrector-limit sign-off (B0 pre-reqs in the checklist).</li>
+      </ul>
+    </li>
   </ol>
+  <p>When A1, A2, and B1–B4 are signed off, Phase 4 is operationally closed.</p>
 
-  <h3 style="margin-top:1rem">Next milestone — Phase 4 (Threading workflow)</h3>
+  <h3 style="margin-top:1rem">Also still open — Phase 3 live-ring revalidation</h3>
   <ol>
-    <li><strong>Scope</strong> (per project plan): arm BPMs (CA writes to <code>wfr:TBT:arm</code>), trigger injection (<code>srinjectoneshot</code> de-boxed → <code>TimInjReq</code>), port <code>FirstTurnThreading.m</code>, golden-orbit subtraction, pySC integration (lattice, response matrix, SVD pseudo-inverse), CM step calc + apply (<code>steppv</code> de-boxed → incremental <code>setpv</code>).</li>
-    <li><strong>Done:</strong> both MML-wrapped operations de-boxed 2026-06-01 (via the <code>mml-audit</code> MCP server + live <code>caget</code>); a Phase-4 design spec (M1–M4) + decisions log are drafted — <code>docs/superpowers/specs/2026-06-01-phase-4-threading-{design,decisions}.md</code>.</li>
-    <li><strong>First step:</strong> review the drafted spec + resolve open decisions D1–D6, then write the M1 plan (same brainstorm → plan flow as Phase 3). Four control-room confirms remain (spec §9).</li>
+    <li><strong>Live-ring revalidation on appsdev2 (Phase 3 DoD §12).</strong> The reference workflow has only been exercised against the synthetic reader. On the real ring: load a reference from the legacy MATLAB library and see ΔX/ΔY populate; save a new reference and confirm the legacy <code>TxT_GUI.mlapp</code> can load it back; and an Osprey agent round-trips list → upload → load → acquire → download.</li>
   </ol>
 
   <h3 style="margin-top:1rem">Open questions carried forward</h3>
@@ -950,7 +977,7 @@
 
   <h3 style="margin-top:1rem">Longer view — Phases 4-6</h3>
   <ol>
-    <li><strong>Phase 4 (Threading workflow):</strong> arming + triggering BPMs (the two MML black boxes <code>srinjectoneshot</code>/<code>steppv</code> are now de-boxed); pySC integration (lattice, response matrix, SVD pseudo-inverse); port <code>FirstTurnThreading.m</code>; CM step calc and apply.</li>
+    <li><strong>Phase 4 (Threading workflow) — implemented 2026-06-04, validation pending.</strong> Arm/trigger, <code>CMD:INJECT_ONESHOT</code>, <code>CMD:STEP_CM</code>, and the <code>CMD:THREAD_START</code>/<code>STOP</code> loop + UI are built and tested; the runtime uses a cached response matrix (pySC modeled-matrix generation is the deferred offline piece). Closes after the on-machine validation in the closeout gate above.</li>
     <li><strong>Phase 5 (Analysis polish):</strong> Gaussian fits on first-turn data; dispersion, kick angle, RMS metrics; full GUI feature parity with the 18-step MATLAB manual; tab-structured frontend.</li>
     <li><strong>Phase 6 (Hardening + deploy):</strong> CI pipeline, log shipping, monitoring/alerting, Phoebus screen examples, production deploy automation to appsdev2.</li>
   </ol>
@@ -962,6 +989,10 @@
 <h2 class="section">Recent activity <span class="hint">most recent commits</span></h2>
 
 <div class="activity">
+  <div class="commit">
+    <div class="hash">P4 ✓</div>
+    <div class="msg">2026-06-04 · <strong>Phase 4 implemented — M1–M4 built, tested, pushed (validation pending).</strong> Open decisions D1–D6 resolved, then the full threading workflow landed across four milestones. <strong>M1:</strong> <code>domain/threading.py</code> (Tikhonov pinv + <code>calc_cm_step</code> + downstream-zeroing), <code>.npz</code> response-matrix artifact + loader (no pySC at runtime — D1), synthetic generator stand-in, active arm/trigger/wait in <code>BpmReader</code>. <strong>M2:</strong> <code>CMD:STEP_CM</code> with compare-and-set guard (D5) + amp clamp, HCM/VCM catalog (96/72), <code>CorrectorWriter</code> (off by default). <strong>M3:</strong> <code>CMD:INJECT_ONESHOT</code> — de-boxed <code>srinjectoneshot</code> (<code>TimInjReq</code> + <code>seqBusy</code> + fine delay), mandatory top-off precondition, two-layer gun-fire gate (D3). <strong>M4:</strong> <code>CMD:THREAD_START</code>/<code>STOP</code> loop (damping + divergence guard + RMS convergence + max-steps — D4), browser threading panel, 4 Playwright specs. Every command has PV+REST parity (8 in the canary). 373 pytest + 10 e2e green. Commits <code>af6469e…45b55ea</code>. Closeout gate: on-machine validation (<code>docs/phase-4-controlroom-checklist.md</code>).</div>
+  </div>
   <div class="commit">
     <div class="hash">P3 ✓</div>
     <div class="msg">2026-06-01 · <strong>Phase 3 complete — M4 (upload/download + frontend + e2e) done.</strong> Closed the reference workflow across all three surfaces. <strong>REST bulk transfer:</strong> multipart <code>POST /api/v1/references</code> (basename-safe via the shared <code>_resolve_in_library</code>, no-overwrite → 409, streamed under <code>max_upload_bytes</code> 200 MB → 413, parse-then-keep-or-delete → 422), <code>GET /api/v1/references/{name}</code> download, lazy <code>GET /api/v1/result/ref/raw</code> re-parsing the loaded ref from disk (404 for promoted + MATLAB-only refs, shared detail). <code>python-multipart</code> added as a hard dep. <strong>Frontend:</strong> 2↔4-panel layout switch (X, Y, ΔX, ΔY) on <code>STATE:REF_LOADED</code>, new <code>js/reference.js</code> sidebar (promote/load/save/upload/clear — every button a parity'd CMD except upload, the one REST-only action), ΔX/ΔY hover tooltip + client-computed Δrms header row. <strong>e2e:</strong> <code>reference.spec.js</code> 7-step happy path; <code>SyntheticBpmReader</code> gained a deterministic per-call jitter so re-acquire shows a non-zero diff. 256/256 pytest + 6/6 Playwright green. Next: Phase 4 (threading workflow).</div>
