@@ -100,3 +100,52 @@ Append-only log of implementation-time decisions: choices made during coding tha
 **Spec relationship:** Resolves design §8 (D1–D6). `[needs-spec-update]` — fold these resolutions into §5.5 (M⁺ runtime contract), §6 (CM-apply units + CAS guard on `CMD:STEP_CM`), §7 (firing modes), and the §8 decision table so the spec reads as decided rather than open.
 
 **Forward impact:** M1 can proceed (runtime = cached-matrix numpy, no pySC). M2 (`CMD:STEP_CM`) implements the CAS guard from D5. M3 (`CMD:INJECT_ONESHOT`) defaults bucket 308 + `inhibit=1`. Remaining operator confirms (D6 timing check, §9 one-shot `camonitor`, SR01 HCM1 device list) are independent of these and still pending.
+
+---
+
+## 2026-06-04 — M1 implementation (domain + artifact + active acquisition)
+
+**Context:** Built M1 — `pytxt/domain/threading.py` (pinv + calc_cm_step),
+`pytxt/domain/response_matrix.py` (artifact I/O), and the active-acquisition path
+in `pytxt/ca_client/bpm_reader.py`. 28 new tests, all green; full suite 284 passed.
+
+**Decisions / gap-fills / deviations:**
+- **Loop gain lives in the loop, not the cached matrix (deviation from spec §4/§5.2).**
+  `tikhonov_pinv` defaults `damping=1.0` so the cached M⁺ is a *pure* regularized
+  inverse; the runtime loop gain (legacy `damping=0.5`) is applied at call time via
+  `calc_cm_step(..., gain=)`. Spec/legacy folded 0.5 into M⁺. Reason: keeps one cached
+  artifact reusable across gain choices and makes the D4 loop-gain knob authoritative.
+  Pass `damping=0.5` to `tikhonov_pinv` to reproduce legacy exactly.
+- **Downstream-zeroing needs s-positions → artifact carries `bpm_s`/`cm_s` (gap-fill).**
+  Spec named downstream-zeroing but not how the ordering reaches the runtime. The
+  `ResponseMatrix` artifact now stores monotone s-positions; `calc_cm_step` zeroes
+  correctors with `cm_s > s(last BPM that saw beam)`. `beam_seen_mask` is an explicit
+  arg (inferred from non-NaN dx if omitted).
+- **Artifact format = single `.npz` (gap-fill).** Spec said "cache the matrix" without
+  a format. Chose one `np.savez` archive (mplus + s-positions + name arrays + units +
+  energy + provenance) with shape-consistency validation on load (fails loudly).
+- **pySC generation deferred → synthetic generator stands in.**
+  `tools/gen_synthetic_response_matrix.py` builds a format-identical artifact from a
+  random plant so the runtime/loop are exercisable now without pySC (per D1; "lattice
+  modeling later" per Kirk). Provenance string marks synthetic matrices unmistakably.
+- **`BpmReader` gains an active path; control PVs resolve lazily (gap-fill, keeps passive
+  path intact).** Added `setup()`/`arm()`/`wait_until_ready()` porting
+  `SCexp_ALS_{setupBPMs,armBPMs,readoutBPMs}.m`. Control PVs (`wfr:TBT:arm`,
+  `:triggerMask`, `:acqCount`, `EVR:event48trig`) are resolved on first active use so
+  the existing read-only callers/tests never touch them. Trigger mask + event-48 =
+  `0b01000000`, acqCount 100000 — verbatim from legacy.
+- **`setup()` does NOT write `attenuation`/`buttonDSP` (deviation from legacy
+  setupBPMs.m).** Those change BPM gain state; deferred until an operator confirms the
+  desired attenuation policy (control-room checklist). Easy to add as a setup() kwarg.
+- **Fake IOC extended** with the four control records + a `stuck_armed` fixture option
+  (armed=1 forever) to exercise the `wait_until_ready` timeout path. Also removed three
+  pre-existing unused imports flagged by ruff while editing the file.
+
+**Spec relationship:** Implements §5.1, §5.2; the damping/gain split refines §4/§5.2
+(loop owns gain). `[needs-spec-update]` minor: note the artifact carries s-positions and
+that damping defaults to 1.0 in the generator.
+
+**Forward impact:** M2 (`CMD:STEP_CM`) and M4 (loop controller) consume `calc_cm_step`
++ `ResponseMatrix` directly. Real-machine arm validation + the attenuation policy are
+control-room items (checklist B3). Real modeled/measured matrix generation (pySC) remains
+the one deferred M1-adjacent piece.

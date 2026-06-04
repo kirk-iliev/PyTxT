@@ -18,12 +18,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from dataclasses import dataclass
-from typing import Iterator
 
 import numpy as np
-import pytest
 import pytest_asyncio
-from caproto import ChannelType
 from caproto.asyncio.server import Context
 from caproto.server import PVGroup, pvproperty
 
@@ -58,8 +55,13 @@ def _synthesize_waveforms(bpm_index: int) -> tuple[np.ndarray, np.ndarray, np.nd
     return x_nm, y_nm, sum_au
 
 
-def _make_bpm_group(prefix: str, bpm_index: int) -> PVGroup:
-    """Build a PVGroup serving the four TBT PVs for one BPM."""
+def _make_bpm_group(prefix: str, bpm_index: int, armed_value: int = 0) -> PVGroup:
+    """Build a PVGroup serving the TBT data + Phase-4 control PVs for one BPM.
+
+    `armed_value` sets the wfr:TBT:armed readback: 0 (default) = data ready,
+    so the active-acquisition wait returns immediately; 1 = BPM stays armed
+    (used to exercise the wait_until_ready timeout path).
+    """
     x_nm, y_nm, sum_au = _synthesize_waveforms(bpm_index)
 
     class FakeBPM(PVGroup):
@@ -76,9 +78,14 @@ def _make_bpm_group(prefix: str, bpm_index: int) -> PVGroup:
             name="wfr:TBT:c3", max_length=_SAMPLES,
         )
         armed = pvproperty(
-            value=0, dtype=int, read_only=True,
+            value=armed_value, dtype=int, read_only=True,
             name="wfr:TBT:armed",
         )
+        # Phase-4 active-acquisition control PVs (writable; setup/arm target these).
+        arm = pvproperty(value=0, dtype=int, name="wfr:TBT:arm")
+        trigger_mask = pvproperty(value=0, dtype=int, name="wfr:TBT:triggerMask")
+        acq_count = pvproperty(value=0, dtype=int, name="wfr:TBT:acqCount")
+        event48trig = pvproperty(value=0, dtype=int, name="EVR:event48trig")
 
     # The prefix in caproto's PVGroup gets prepended to each pvproperty name.
     # We want SR01C:BPM1:wfr:TBT:c0, so prefix = "SR01C:BPM1:"
@@ -169,11 +176,15 @@ async def fake_bpm_ioc(request) -> FakeBpmIoc:
           async getters sleep _SLOW_DELAY_S_DEFAULT seconds before returning.
           PVs resolve on connect; the delay surfaces only on read. Used to
           exercise BpmReader._read_one's per-PV wait_for timeout path.
+        - "stuck_armed" (list[str], optional) — these prefixes report
+          wfr:TBT:armed = 1 permanently, so BpmReader.wait_until_ready never
+          sees them disarm. Exercises the active-acquisition timeout path.
     """
     param = request.param if hasattr(request, "param") else 1
 
     offline_set: set[str] = set()
     slow_set: set[str] = set()
+    stuck_armed_set: set[str] = set()
     if isinstance(param, int):
         prefixes = [f"FAKE:BPM{i+1}" for i in range(param)]
     elif isinstance(param, list):
@@ -189,12 +200,14 @@ async def fake_bpm_ioc(request) -> FakeBpmIoc:
             raise ValueError("fake_bpm_ioc dict param needs 'n' or 'prefixes'")
         offline_set = set(param.get("offline", []))
         slow_set = set(param.get("slow", []))
+        stuck_armed_set = set(param.get("stuck_armed", []))
     else:
         raise TypeError(
             f"fake_bpm_ioc: unsupported param type {type(param).__name__}"
         )
 
-    # Build PVGroups: offline prefixes get no PVs; slow prefixes get delayed reads.
+    # Build PVGroups: offline prefixes get no PVs; slow prefixes get delayed reads;
+    # stuck_armed prefixes report armed=1 forever.
     groups = []
     for i, p in enumerate(prefixes):
         if p in offline_set:
@@ -202,7 +215,7 @@ async def fake_bpm_ioc(request) -> FakeBpmIoc:
         if p in slow_set:
             groups.append(_make_slow_bpm_group(p, i, _SLOW_DELAY_S_DEFAULT))
         else:
-            groups.append(_make_bpm_group(p, i))
+            groups.append(_make_bpm_group(p, i, armed_value=1 if p in stuck_armed_set else 0))
     pvdb: dict = {}
     for g in groups:
         pvdb.update(g.pvdb)
