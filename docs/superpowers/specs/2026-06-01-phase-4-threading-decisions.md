@@ -80,3 +80,23 @@ Append-only log of implementation-time decisions: choices made during coding tha
 **Spec relationship:** Implements design §5.3.
 
 **Forward impact:** One residual — `local_maxsp` errors "Sector 1, HCM1 missing" yet the count is 96 with dev1-8×12. Confirm the SR01 device list via a read-only `family2dev('HCM')` dump before committing `config/hcm_channels.txt`. `[needs operator input]`
+
+---
+
+## 2026-06-04 — D1–D6 resolved (Kirk)
+
+**Context:** Open design decisions from the 2026-06-01 pre-implementation entry, ratified before M1 starts.
+
+**Decision:** All six closed:
+- **D1 (M⁺ runtime source): RESOLVED — cache an offline-generated matrix; pySC has zero runtime footprint.** pySC is a **dev-only/offline** tool that generates the matrix to a file; it is never in the deployed app, container, or runtime requirements. The runtime thread loop is a pure numpy matmul against the cached matrix. *How the matrix is generated (modeled via pySC vs. measured empirically) is deferred* — the lattice-modeling decision is not needed yet; only the runtime contract (load a cached file, no pySC) is locked.
+- **D2 (units): RESOLVED — fold amps↔kick into the offline M⁺.** Cached matrix maps BPM-mm → corrector-amps directly; runtime CM-apply is `caget(setpoint_A) + delta_A → clamp → caput`, no energy-dependent conversion in the hot path.
+- **D3 (firing mode): RESOLVED — default `inhibit=1`, with `inhibit=0` (real gun fire) a first-class supported path behind operator sign-off + prefix promotion.** The gun-fire capability is explicitly wanted, not deferred; it is gated, not omitted.
+- **D4 (loop termination): RESOLVED — `max_steps` (hard cap) + divergence guard (bail if RMS worsens) + optional RMS-convergence early-exit.**
+- **D5 (retry safety): RESOLVED — Option B, expected-prior-setpoint guard (compare-and-set).** `CMD:STEP_CM` carries the expected current setpoint per channel; the handler applies the incremental delta only if the live readback matches within tolerance, else refuses loudly. Stateless (survives IOC restart) and guards against *all* competing writers (top-off, operators, other agents), not just self-retry — the live-competing-writer hazard from the injection notes is the deciding factor. A step-id *may* additionally be carried for dedup/logging ergonomics, but CAS is the safety mechanism.
+- **D6 (bucket default): RESOLVED — default bucket 308** (the value the legacy TxT GUI uses; PyTxT is its port). The bucket-1 calls in `bpm_check_tbt.m`/`gettune_kicker.m` are *different* tools (BPM-check, tune meas.), not the threading workflow, and the live `caget` values (57/260) were just top-off in flight — neither is a counter-argument to 308. Residual: a one-line operator confirmation that 308 still matches current TBT-BPM timing (folds into the §9 control-room confirms), not an open choice.
+
+**Why:** D1 keeps the deployed app small and dependency-light (pySC is heavy); the generation-method choice is genuinely separable and not yet needed. D2 makes the runtime CM-apply trivial and unit-safe. D3 keeps the dangerous path available but un-fireable by accident. D5 Option B beats the step-id ledger because the real hazard is competing writers, which only compare-and-set catches, and it's stateless. D6 had no real ambiguity once the bucket-1 sources were identified as unrelated tools.
+
+**Spec relationship:** Resolves design §8 (D1–D6). `[needs-spec-update]` — fold these resolutions into §5.5 (M⁺ runtime contract), §6 (CM-apply units + CAS guard on `CMD:STEP_CM`), §7 (firing modes), and the §8 decision table so the spec reads as decided rather than open.
+
+**Forward impact:** M1 can proceed (runtime = cached-matrix numpy, no pySC). M2 (`CMD:STEP_CM`) implements the CAS guard from D5. M3 (`CMD:INJECT_ONESHOT`) defaults bucket 308 + `inhibit=1`. Remaining operator confirms (D6 timing check, §9 one-shot `camonitor`, SR01 HCM1 device list) are independent of these and still pending.

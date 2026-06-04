@@ -97,10 +97,10 @@ Upgrade the read path from passive to active:
 - **Residual to confirm** (read-only `family2dev` dump): the SR01-HCM1 device-list quirk (§ injection-notes §7).
 
 ### 5.4 `CMD:STEP_CM` (corrector apply)
-- Params `{family: HCM|VCM, deltas: float[], device_list, dry_run}`. Handler: per channel `caget(setpoint_A) + Δ_A → clamp [−max,+max] → caput`. Confirm via `STATE:CM_LAST_APPLIED` readback. Idempotent only in the trivial sense (incremental writes are *not* idempotent — see Decision D5 on retry safety).
+- Params `{family: HCM|VCM, deltas: float[], device_list, expected_prior_A: float[], tol_A: float, dry_run}`. Handler: per channel **compare-and-set (Decision D5)** — `caget(setpoint_A)`; if `|readback − expected_prior_A| > tol_A` **refuse loudly** (a competing writer or stale delta), else `setpoint_A + Δ_A → clamp [−max,+max] → caput`. This makes the non-idempotent incremental write safe under agent retry *and* guards against top-off/operator/other-agent writes. Confirm via `STATE:CM_LAST_APPLIED` readback. (A step-id may additionally ride along for dedup/logging, but the CAS guard is the safety mechanism.)
 
 ### 5.5 `CMD:INJECT_ONESHOT` (optional firing)
-- Params `{bucket, gun_bunches, mode, inhibit}`. Handler (from de-boxed `srinjectoneshot`):
+- Params `{bucket, gun_bunches, mode, inhibit}`. Defaults: `bucket=308` (Decision D6), `inhibit=1` (Decision D3). Handler (from de-boxed `srinjectoneshot`):
   1. **Precondition** (mandatory, new finding): refuse if bucket-loading/top-off active (`bucket:control:cmd == 1`) unless explicitly overridden — `TimInjReq` has a live competing writer.
   2. Read `TimInjReq` (DBF_LONG×7), bump seq#, set `[bucket, gunBunches, mode, inhibit]`.
   3. Sync: wait `EVG:E1:seqBusy` 1→0.
@@ -142,14 +142,16 @@ Upgrade the read path from passive to active:
 
 ---
 
-## 8. Open design decisions (to resolve in review → logged in decisions file)
+## 8. Design decisions (RESOLVED 2026-06-04 — see decisions log)
 
-- **D1 — `M⁺` runtime source:** cache an offline-generated matrix (recommended; no runtime pySC) vs. integrate pySC at runtime. *Recommendation: cache.*
-- **D2 — units convention:** fold amps↔kick into the offline `M⁺` so runtime is hardware-amps end-to-end (recommended) vs. port `amp2k`/`k2amp` to runtime. *Recommendation: fold into M⁺.*
-- **D3 — firing mode:** `inhibit=1` and real threading are *different modes* (correction to an earlier conflation). `inhibit=1` = bumps on stored beam, no first turn → commissioning/measurement only. `inhibit=0` = gun fires → the injected first turn that threading actually steers. *Recommendation: `CMD:INJECT_ONESHOT` defaults to `inhibit=1`; commission the whole pipeline in `inhibit=1`; real threading uses `inhibit=0` behind explicit operator sign-off + test→prod prefix promotion.*
-- **D4 — loop termination:** keep legacy fixed `max_steps=6` vs. add an RMS-convergence/divergence stop. *Recommendation: max_steps + divergence guard + optional convergence early-exit.*
-- **D5 — retry safety:** incremental CM steps are not idempotent; define the retry contract (e.g. each CMD carries an expected-prior-setpoint or a step-id to reject double-apply).
-- **D6 — bucket default:** 308 (legacy TxT) vs 1 (`bpm_check_tbt`). *Needs operator input.*
+All six closed by Kirk on 2026-06-04. Resolutions below are now binding on the components above.
+
+- **D1 — `M⁺` runtime source: RESOLVED — cache an offline-generated matrix; pySC has zero runtime footprint.** pySC lives only in a dev-only/offline generator tool, never in the deployed app/container/requirements; the runtime loop is a pure numpy matmul against the cached file. *How* the matrix is generated (modeled via pySC vs. measured empirically) is deferred — only the runtime contract (load a cached artifact, no pySC) is locked here.
+- **D2 — units convention: RESOLVED — fold amps↔kick into the offline `M⁺`.** Cached matrix maps BPM-mm → corrector-amps; runtime CM-apply is `caget(setpoint_A) + Δ_A → clamp → caput`, no energy-dependent conversion in the hot path.
+- **D3 — firing mode: RESOLVED — default `inhibit=1`; `inhibit=0` (real gun fire) is a supported first-class path behind operator sign-off + test→prod prefix promotion.** The gun-fire capability is explicitly wanted, gated rather than omitted. `inhibit=1` (stored-beam bumps, no first turn) is the commission/measurement default; real first-turn threading uses `inhibit=0`.
+- **D4 — loop termination: RESOLVED — `max_steps` (hard cap) + divergence guard (bail if RMS worsens) + optional RMS-convergence early-exit.**
+- **D5 — retry safety: RESOLVED — Option B, expected-prior-setpoint guard (compare-and-set).** `CMD:STEP_CM` carries the expected current setpoint per channel; the handler applies the incremental delta only if the live readback matches within tolerance, else refuses loudly. Chosen over a step-id ledger because it is stateless (survives IOC restart) and guards against *all* competing writers (top-off, operators, other agents), which is the deciding hazard. A step-id may additionally ride along for dedup/logging, but CAS is the safety mechanism.
+- **D6 — bucket default: RESOLVED — bucket 308** (the value the legacy TxT GUI, which PyTxT ports, uses). The bucket-1 calls in `bpm_check_tbt`/`gettune_kicker` are unrelated tools, not the threading workflow. Residual: a one-line operator confirmation that 308 still matches current TBT-BPM timing (folds into §9), not an open choice.
 
 ---
 
