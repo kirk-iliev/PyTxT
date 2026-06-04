@@ -1,6 +1,6 @@
 # PyTxT — Overview
 
-**Last refreshed:** 2026-06-01 · **Phase:** 3 (reference trajectory) **complete** (M1–M4); Phase 4 (threading workflow) next · **Live status:** [`PyTxT-roadmap.html`](../PyTxT-roadmap.html)
+**Last refreshed:** 2026-06-01 · **Phase:** 3 (reference trajectory) **complete** (M1–M4); Phase 4 (threading workflow) next · **Live status:** [`PyTxT-roadmap.html`](PyTxT-roadmap.html)
 
 This is the canonical "what is this thing?" document for PyTxT. Read it
 top-to-bottom and you should be able to answer: what PyTxT does, where
@@ -15,7 +15,7 @@ topic when you need more depth.
 
 PyTxT is a **turn-by-turn (TBT) beam-analysis service** for the
 Advanced Light Source (ALS) injection chain. It is a port of the MATLAB
-GUI `TxT_GUI.mlapp` (see [`TxT_GUI_manual.pdf`](../TxT_GUI_manual.pdf))
+GUI `TxT_GUI.mlapp` (see [`TxT_GUI_manual.pdf`](TxT_GUI_manual.pdf))
 that operators use during storage-ring injection startup. The MATLAB
 original arms the BPM electronics, fires injection, reads the turn-by-turn
 waveforms back out of every BPM around the ring, and lets the operator
@@ -447,7 +447,7 @@ reference *by name* from the library has full CA parity via `CMD:LOAD_REF`.
 
 ## 8. The operator workflow (from the MATLAB manual)
 
-The 18-step workflow defined in [`TxT_GUI_manual.pdf`](../TxT_GUI_manual.pdf)
+The 18-step workflow defined in [`TxT_GUI_manual.pdf`](TxT_GUI_manual.pdf)
 is the feature-parity target. Mapped to PyTxT phases:
 
 | Step | Workflow action | Delivered by |
@@ -490,7 +490,7 @@ behind it.
 - **Phases 4–6** — not started. See §10.
 
 The single-source-of-truth live tracker is
-[`PyTxT-roadmap.html`](../PyTxT-roadmap.html) — open it in a browser
+[`PyTxT-roadmap.html`](PyTxT-roadmap.html) — open it in a browser
 for the interactive view (clickable phase cards, what's-next list,
 recent activity).
 
@@ -499,7 +499,7 @@ recent activity).
 ## 10. Roadmap
 
 The phased delivery plan is locked in
-[`PyTxT-project-plan.html`](../PyTxT-project-plan.html) (PI-owned;
+[`PyTxT-project-plan.html`](PyTxT-project-plan.html) (PI-owned;
 generated 2026-05-04). Summarized here for reference:
 
 | Phase | Theme | What it adds | Spec / plan |
@@ -530,9 +530,9 @@ generated 2026-05-04). Summarized here for reference:
 | You want to know… | Read this |
 |---|---|
 | The north-star principles in their canonical form | [`CLAUDE.md`](../CLAUDE.md) |
-| Locked scope / phased delivery / reference-material pointers | [`PyTxT-project-plan.html`](../PyTxT-project-plan.html) |
-| Live status, recent commits, what's next | [`PyTxT-roadmap.html`](../PyTxT-roadmap.html) |
-| The 18-step operator workflow (feature-parity target) | [`TxT_GUI_manual.pdf`](../TxT_GUI_manual.pdf) |
+| Locked scope / phased delivery / reference-material pointers | [`PyTxT-project-plan.html`](PyTxT-project-plan.html) |
+| Live status, recent commits, what's next | [`PyTxT-roadmap.html`](PyTxT-roadmap.html) |
+| The 18-step operator workflow (feature-parity target) | [`TxT_GUI_manual.pdf`](TxT_GUI_manual.pdf) |
 | Per-phase design rationale | `docs/superpowers/specs/*-design.md` |
 | Per-phase implementation plans | `docs/superpowers/plans/*.md` |
 | Gap-filling decisions taken during implementation | `docs/superpowers/specs/*-decisions.md` |

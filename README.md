@@ -6,7 +6,7 @@ Turn-by-turn beam analysis service for the ALS injection chain. Python backend +
 
 **[`docs/PyTxT-overview.md`](docs/PyTxT-overview.md)** — the canonical end-to-end overview: what PyTxT does, where it came from, how it sits in the ALS machine, the full architecture, the live PV + REST surfaces, status, and roadmap. Start there.
 
-For the principles + stack reference, see [`CLAUDE.md`](CLAUDE.md). For live phase status, open [`PyTxT-roadmap.html`](PyTxT-roadmap.html) in a browser.
+For the principles + stack reference, see [`CLAUDE.md`](CLAUDE.md). For live phase status, open [`docs/PyTxT-roadmap.html`](docs/PyTxT-roadmap.html) in a browser.
 
 ## Current phase
 

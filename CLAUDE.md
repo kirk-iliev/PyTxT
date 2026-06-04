@@ -92,13 +92,15 @@ docker-compose. Deploy target: appsdev2, port 8008.
 - `legacy/TxT_GUI/` — original MATLAB GUI (.mlapp, unpacked .m sources)
 - `legacy/automated_startup/` — `SCexp_ALS_*.m` operational glue
   (reference for porting hardware interactions); plus lattice files
-- `PyTxT-project-plan.html` — locked scope, phased delivery (owner: PI).
+- `docs/PyTxT-project-plan.html` — locked scope, phased delivery (owner: PI).
   Read for "what we're building" and "in scope vs. out of scope"
-- `PyTxT-roadmap.html` — live status dashboard; refresh after every
+- `docs/PyTxT-roadmap.html` — live status dashboard; refresh after every
   milestone / phase completion or major architectural change
-- `orientation.md` — short stub pointing at the overview
-- `TxT_GUI_manual.pdf` — the 18-step user workflow that defines feature
+- `docs/orientation.md` — short stub pointing at the overview
+- `docs/TxT_GUI_manual.pdf` — the 18-step user workflow that defines feature
   parity
+- `docs/archive/` — superseded point-in-time HTML snapshots (codebase tour,
+  phase-2 checkpoint); kept for history, not maintained
 - `docs/superpowers/specs/` — per-phase design specs (created via the
   brainstorming → writing-plans flow). Each spec has a paired
   `<spec-name>-decisions.md` log; see below.
@@ -132,7 +134,7 @@ and pushed (M1 analysis core + active acquisition · M2 `CMD:STEP_CM` · M3
 + 10 Playwright green, 8 commands with PV+REST parity, no pySC at runtime.
 **Not closed yet** — closes after the control-room validation gate in
 `docs/phase-4-controlroom-checklist.md` (read-only A1/A2 + active B1–B4). Live
-detail: `PyTxT-roadmap.html`; end-to-end picture: `docs/PyTxT-overview.md`.
+detail: `docs/PyTxT-roadmap.html`; end-to-end picture: `docs/PyTxT-overview.md`.
 
 ## Open architectural questions to resolve as we go
 
