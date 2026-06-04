@@ -396,3 +396,36 @@ canvas {
   border-color: var(--accent, #0b5fff);
   color: #fff;
 }
+
+/* --- Threading controls (phase 4) --- */
+.thread-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem 1.4rem;
+  margin: 0.8rem 0;
+  align-items: center;
+}
+.thread-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--fg-dim, #aab);
+}
+.thread-controls label.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+.thread-controls input[type="number"] {
+  width: 7rem;
+  padding: 0.3rem 0.4rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--fg);
+  border: 1px solid #3a3a42;
+  border-radius: 4px;
+  font: inherit;
+}
+#threadMsg {
+  margin-left: 0.6rem;
+}
