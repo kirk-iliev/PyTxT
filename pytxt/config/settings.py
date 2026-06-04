@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     # fire (inhibit=0) still requires per-request allow_gun_fire=true.
     enable_injection_trigger: bool = False
     injection_io_timeout_s: float = 2.0
+    # Cached response-matrix artifact (.npz) for the threading loop. If unset or
+    # absent, THREAD_START returns 503. Generate via tools/ (synthetic) or the
+    # offline modeled generator.
+    response_matrix_path: str = "data/response_matrix/synthetic.npz"
 
     # Version is NOT env-overridable; populated at startup by composition.main()
     # from importlib.metadata.version("pytxt") with fallback to "0.0.0+dev".

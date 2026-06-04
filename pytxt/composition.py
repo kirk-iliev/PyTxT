@@ -6,6 +6,7 @@ import logging
 import os
 import time
 from importlib.metadata import PackageNotFoundError, version as pkg_version
+from pathlib import Path
 
 import uvicorn
 
@@ -16,6 +17,7 @@ from pytxt.ca_client.injection_trigger import InjectionTrigger
 from pytxt.config.bpm_prefixes import load_bpm_prefixes
 from pytxt.config.corrector_channels import load_corrector_channels
 from pytxt.config.settings import Settings
+from pytxt.domain.response_matrix import ResponseMatrixError, load_response_matrix
 from pytxt.ioc.server import PyTxTIOC
 from pytxt.state.app_state import AppState
 
@@ -133,6 +135,23 @@ async def main() -> None:
     else:
         logger.info("Injection trigger disabled (set PYTXT_ENABLE_INJECTION_TRIGGER=true to arm)")
 
+    # Phase 4 response matrix — load the cached artifact if present (THREAD_START
+    # returns 503 without one). Absent/corrupt is non-fatal: log and continue.
+    response_matrix = None
+    rm_path = Path(settings.response_matrix_path)
+    if rm_path.exists():
+        try:
+            response_matrix = load_response_matrix(rm_path)
+            logger.info(
+                "Response matrix loaded: %s (%d HCM + %d VCM, %d BPMs) — %s",
+                rm_path, response_matrix.n_hcm, response_matrix.n_vcm,
+                response_matrix.n_bpms, response_matrix.provenance,
+            )
+        except ResponseMatrixError:
+            logger.exception("Failed to load response matrix %s — THREAD_START disabled", rm_path)
+    else:
+        logger.info("No response matrix at %s — THREAD_START disabled until generated", rm_path)
+
     ioc = PyTxTIOC(
         prefix=settings.pv_prefix,
         host=settings.ioc_host,
@@ -143,6 +162,7 @@ async def main() -> None:
         reference_dir=reference_dir,
         corrector_writer=corrector_writer,
         injection_trigger=injection_trigger,
+        response_matrix=response_matrix,
     )
 
     api_app = create_app(
@@ -152,6 +172,7 @@ async def main() -> None:
         reference_dir=reference_dir,
         corrector_writer=corrector_writer,
         injection_trigger=injection_trigger,
+        response_matrix=response_matrix,
     )
     config = uvicorn.Config(
         api_app,

@@ -11,7 +11,11 @@ from typing import Optional
 import caproto as ca
 from caproto.server import PVGroup, pvproperty
 
-from pytxt.api.schemas.threading import InjectOneshotRequest, StepCMRequest
+from pytxt.api.schemas.threading import (
+    InjectOneshotRequest,
+    StepCMRequest,
+    ThreadStartRequest,
+)
 from pytxt.handlers.acquire import handle_acquire
 from pytxt.handlers.ping import handle_ping
 from pytxt.handlers.reference import (
@@ -20,7 +24,12 @@ from pytxt.handlers.reference import (
     handle_promote_ref,
     handle_save_ref,
 )
-from pytxt.handlers.threading import handle_inject_oneshot, handle_step_cm
+from pytxt.handlers.threading import (
+    handle_inject_oneshot,
+    handle_step_cm,
+    handle_thread_start,
+    handle_thread_stop,
+)
 from pytxt.state.app_state import AppState
 
 _BPM_MAX = 128  # waveform max_length; accommodates ~120 BPMs with headroom
@@ -196,6 +205,28 @@ class PyTxTPVGroup(PVGroup):
         doc="ISO-8601 UTC timestamp of the most recent injection shot; empty before first",
     )
 
+    # === STATE:THREAD_* / RESULT:THREAD_* (phase 4 — threading loop) ===
+    thread_running = pvproperty(
+        value=0, dtype=int, read_only=True,
+        name="STATE:THREAD_RUNNING",
+        doc="1 while a threading run is active",
+    )
+    thread_status = pvproperty(
+        value="NEVER", dtype=ca.ChannelType.STRING, read_only=True,
+        name="STATE:THREAD_STATUS",
+        doc="Threading run status: NEVER, RUNNING, CONVERGED, DIVERGED, STOPPED, MAX_STEPS, FAILED",
+    )
+    thread_iteration = pvproperty(
+        value=0, dtype=int, read_only=True,
+        name="STATE:THREAD_ITERATION",
+        doc="Current/last threading iteration number",
+    )
+    thread_last_rms = pvproperty(
+        value=0.0, dtype=float, read_only=True,
+        name="RESULT:THREAD_RMS",
+        doc="Combined orbit-deviation RMS (mm) at the latest threading iteration",
+    )
+
     # === RESULT:BPM:* (phase 2) ===
     result_bpm_x_first_turn = pvproperty(
         value=[0.0] * _BPM_MAX, dtype=float, read_only=True,
@@ -302,6 +333,25 @@ class PyTxTPVGroup(PVGroup):
         ),
     )
 
+    cmd_thread_start = pvproperty(
+        value="",
+        dtype=ca.ChannelType.CHAR, max_length=8192,
+        string_encoding="utf-8", report_as_string=True,
+        name="CMD:THREAD_START",
+        doc=(
+            "Write a JSON payload to run the first-turn threading loop (identical "
+            "to POST /api/v1/cmd/thread_start): "
+            '{"max_steps":int,"gain":float,"fire_each_step":bool,"conv_rms_mm":float|null,'
+            '"dry_run":bool,"bucket":int,"inhibit":0|1,"allow_gun_fire":bool}. '
+            "Blocks until the run completes (converged/diverged/stopped/max_steps)."
+        ),
+    )
+    cmd_thread_stop = pvproperty(
+        value=0, dtype=int,
+        name="CMD:THREAD_STOP",
+        doc="Write any value to request the active threading run to stop (trigger only)",
+    )
+
     def __init__(
         self,
         *args,
@@ -310,6 +360,7 @@ class PyTxTPVGroup(PVGroup):
         reference_dir: Optional[Path] = None,
         corrector_writer: Optional[object] = None,
         injection_trigger: Optional[object] = None,
+        response_matrix: Optional[object] = None,
         **kwargs,
     ):
         self._state = state
@@ -317,6 +368,7 @@ class PyTxTPVGroup(PVGroup):
         self._reference_dir = reference_dir
         self._corrector_writer = corrector_writer
         self._injection_trigger = injection_trigger
+        self._response_matrix = response_matrix
         super().__init__(*args, **kwargs)
 
     @cmd_ping.putter
@@ -433,4 +485,35 @@ class PyTxTPVGroup(PVGroup):
             bucket=req.bucket, gun_bunches=req.gun_bunches, mode=req.mode,
             inhibit=req.inhibit, allow_gun_fire=req.allow_gun_fire, force=req.force,
         )
+        return value
+
+    @cmd_thread_start.putter
+    async def cmd_thread_start(self, instance, value):
+        """CA write to CMD:THREAD_START runs the threading loop from a JSON payload.
+
+        Same JSON as the REST body (ThreadStartRequest), so CA and REST call the
+        identical handler. No-op if no reader is configured. Typed exceptions
+        (ThreadInFlightError, ThreadNoReferenceError, ThreadConfigError) are
+        RE-RAISED so caproto surfaces them as CA write errors — symmetric to
+        REST's 409/422/503. STATE:THREAD_* PVs report progress.
+        """
+        if self._reader is None:
+            return value
+        req = ThreadStartRequest.model_validate_json(_as_text(value))
+        await handle_thread_start(
+            self._state,
+            reader=self._reader, response_matrix=self._response_matrix,
+            corrector_writer=self._corrector_writer,
+            injection_trigger=self._injection_trigger,
+            max_steps=req.max_steps, gain=req.gain,
+            fire_each_step=req.fire_each_step, conv_rms_mm=req.conv_rms_mm,
+            dry_run=req.dry_run, bucket=req.bucket, inhibit=req.inhibit,
+            allow_gun_fire=req.allow_gun_fire,
+        )
+        return value
+
+    @cmd_thread_stop.putter
+    async def cmd_thread_stop(self, instance, value):
+        """CA write to CMD:THREAD_STOP requests the active run to stop (idempotent)."""
+        await handle_thread_stop(self._state)
         return value

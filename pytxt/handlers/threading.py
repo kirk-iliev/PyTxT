@@ -11,19 +11,30 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+import math
+
 from pytxt.api.schemas.threading import (
     CMChannelResult,
     InjectOneshotResponse,
     LastCMStepResult,
     LastInjectResult,
     StepCMResponse,
+    ThreadStartResponse,
+    ThreadStateResult,
+    ThreadStopResponse,
 )
 from pytxt.ca_client.injection_trigger import SeqBusyTimeoutError
 from pytxt.domain.correctors import plan_cm_step
 from pytxt.domain.injection import build_tim_inj_req, fine_delay_counts
+from pytxt.domain.threading import calc_cm_step, orbit_rms_mm
+from pytxt.handlers.acquire import handle_acquire
 from pytxt.state.app_state import AppState
 
 logger = logging.getLogger(__name__)
+
+# A run is declared DIVERGED if the orbit RMS grows by more than this fraction
+# over the previous iteration (the divergence guard, Decision D4).
+_DIVERGENCE_EPS = 0.05
 
 
 class CMStepInFlightError(RuntimeError):
@@ -226,3 +237,158 @@ async def handle_inject_oneshot(
         )
     finally:
         await state.update(inject_in_flight=False)
+
+
+# --- CMD:THREAD_START / CMD:THREAD_STOP (first-turn threading loop) ---------
+
+
+class ThreadInFlightError(RuntimeError):
+    """Raised when CMD:THREAD_START is issued while a run is already active."""
+
+
+class ThreadConfigError(Exception):
+    """Raised when a dependency for threading is missing (matrix / writer /
+    trigger) — mapped to HTTP 503."""
+
+
+class ThreadNoReferenceError(Exception):
+    """Raised when threading is started with no reference (R0) loaded — the
+    diff has nothing to steer toward. Mapped to HTTP 422."""
+
+
+async def _apply_cm_deltas(writer: object, family: str, dphi) -> None:
+    """Apply per-corrector incremental deltas for one family within the loop.
+
+    The loop just read these setpoints, so it passes the readbacks as the
+    compare-and-set expected_prior (it owns the magnets for the run) — the guard
+    can't refuse its own reads. Clamping still applies via plan_cm_step.
+    """
+    if dphi.size == 0:
+        return
+    indices = list(range(dphi.size))
+    chans = writer.channels(family)
+    names = [chans[i].name for i in indices]
+    max_abs = [chans[i].max_abs_amps for i in indices]
+    readbacks = await writer.read_setpoints(family, indices)
+    plan = plan_cm_step(names, readbacks, [float(v) for v in dphi],
+                        readbacks, max_abs, tol_a=math.inf)
+    await writer.write_setpoints(family, indices, [c.new_value_a for c in plan.channels])
+
+
+async def handle_thread_start(
+    state: AppState,
+    *,
+    reader: object,
+    response_matrix: object,
+    corrector_writer: object | None = None,
+    injection_trigger: object | None = None,
+    max_steps: int = 6,
+    gain: float = 0.5,
+    fire_each_step: bool = False,
+    conv_rms_mm: float | None = None,
+    dry_run: bool = False,
+    bucket: int = 308,
+    inhibit: int = 1,
+    allow_gun_fire: bool = False,
+) -> ThreadStartResponse:
+    """Run the first-turn threading loop to completion (blocking, like ACQUIRE).
+
+    Per iteration: optional fire -> arm/read (via handle_acquire) -> diff ->
+    measure RMS -> convergence/divergence check -> calc_cm_step -> apply. Stops on
+    convergence (conv_rms_mm), divergence (RMS grows), max_steps, or a concurrent
+    CMD:THREAD_STOP. `dry_run` measures + computes but writes/fires nothing.
+
+    Raises:
+        ThreadInFlightError: a run is already active (-> 409).
+        ThreadConfigError: missing matrix/writer/trigger dependency (-> 503).
+        ThreadNoReferenceError: no reference loaded (-> 422).
+    """
+    if state.thread_running:
+        raise ThreadInFlightError("a threading run is already active")
+    if response_matrix is None:
+        raise ThreadConfigError("no response matrix loaded; cannot thread")
+    if not state.reference_loaded:
+        raise ThreadNoReferenceError("no reference (R0) loaded; load one before threading")
+    if not dry_run and corrector_writer is None:
+        raise ThreadConfigError("corrector writer required for a live (non-dry-run) threading run")
+    if fire_each_step and not dry_run and injection_trigger is None:
+        raise ThreadConfigError("injection trigger required for fire_each_step")
+
+    def _now():
+        return datetime.now(timezone.utc)
+
+    await state.update(
+        thread_running=True, thread_stop_requested=False,
+        thread_state=ThreadStateResult(status="RUNNING", dry_run=dry_run, timestamp=_now()),
+    )
+
+    rms_history: list[float] = []
+    status = "MAX_STEPS"
+    iterations = 0
+    final_rms = float("nan")
+    rms_prev = math.inf
+    try:
+        for i in range(max_steps):
+            if state.thread_stop_requested:
+                status = "STOPPED"
+                break
+
+            if fire_each_step and not dry_run:
+                await handle_inject_oneshot(
+                    state, injection_trigger, bucket=bucket, inhibit=inhibit,
+                    allow_gun_fire=allow_gun_fire,
+                )
+
+            await handle_acquire(state, reader)  # populates state.last_diff
+            diff = state.last_diff
+            if diff is None:
+                status = "FAILED"
+                break
+
+            rms = orbit_rms_mm(diff.dx, diff.dy)
+            iterations = i + 1
+            final_rms = rms
+            rms_history.append(rms)
+            await state.update(
+                thread_state=ThreadStateResult(
+                    status="RUNNING", iteration=iterations, last_rms_mm=rms,
+                    dry_run=dry_run, timestamp=_now(),
+                ),
+            )
+
+            if conv_rms_mm is not None and not math.isnan(rms) and rms <= conv_rms_mm:
+                status = "CONVERGED"
+                break
+            if not math.isnan(rms) and rms > rms_prev * (1.0 + _DIVERGENCE_EPS):
+                status = "DIVERGED"
+                break
+            rms_prev = rms
+
+            step = calc_cm_step(diff.dx, diff.dy, response_matrix, gain=gain)
+            if not dry_run:
+                await _apply_cm_deltas(corrector_writer, "HCM", step.dphi_hcm)
+                await _apply_cm_deltas(corrector_writer, "VCM", step.dphi_vcm)
+
+        await state.update(
+            thread_state=ThreadStateResult(
+                status=status, iteration=iterations, last_rms_mm=final_rms,
+                final_rms_mm=final_rms, dry_run=dry_run, timestamp=_now(),
+            ),
+        )
+        return ThreadStartResponse(
+            status=status, iterations=iterations, final_rms_mm=final_rms,
+            rms_history_mm=rms_history, dry_run=dry_run, timestamp=_now(),
+        )
+    finally:
+        await state.update(thread_running=False)
+
+
+async def handle_thread_stop(state: AppState) -> ThreadStopResponse:
+    """Request the active threading run to stop after its current iteration.
+
+    Idempotent: sets the cooperative stop flag (the loop checks it each
+    iteration). Safe to call when nothing is running — the flag resets on the
+    next THREAD_START.
+    """
+    await state.update(thread_stop_requested=True)
+    return ThreadStopResponse(stop_requested=True)

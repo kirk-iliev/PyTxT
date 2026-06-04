@@ -23,6 +23,9 @@ from pytxt.api.schemas.threading import (
     InjectOneshotResponse,
     StepCMRequest,
     StepCMResponse,
+    ThreadStartRequest,
+    ThreadStartResponse,
+    ThreadStopResponse,
 )
 from pytxt.domain.reference import ReferenceLoadError
 from pytxt.handlers.acquire import AcquisitionInFlightError, handle_acquire
@@ -43,8 +46,13 @@ from pytxt.handlers.threading import (
     GunFireNotAllowedError,
     InjectInFlightError,
     InjectionPreconditionError,
+    ThreadConfigError,
+    ThreadInFlightError,
+    ThreadNoReferenceError,
     handle_inject_oneshot,
     handle_step_cm,
+    handle_thread_start,
+    handle_thread_stop,
 )
 
 router = APIRouter(prefix="/api/v1/cmd", tags=["cmd"])
@@ -189,3 +197,39 @@ async def post_inject_oneshot(request: Request, body: InjectOneshotRequest) -> I
         raise HTTPException(409, str(e))
     except ValueError as e:
         raise HTTPException(422, str(e))
+
+
+@router.post("/thread_start", response_model=ThreadStartResponse)
+async def post_thread_start(request: Request, body: ThreadStartRequest) -> ThreadStartResponse:
+    """Run the first-turn threading loop to completion (blocking). Phase 4.
+
+    Identical effect to a CA write of the same JSON to CMD:THREAD_START. Needs a
+    loaded response matrix (else 503), a loaded reference (else 422), and a
+    corrector writer for live (non-dry-run) runs. A run already active → 409.
+    """
+    state = request.app.state.app_state
+    try:
+        return await handle_thread_start(
+            state,
+            reader=getattr(request.app.state, "bpm_reader", None),
+            response_matrix=getattr(request.app.state, "response_matrix", None),
+            corrector_writer=getattr(request.app.state, "corrector_writer", None),
+            injection_trigger=getattr(request.app.state, "injection_trigger", None),
+            max_steps=body.max_steps, gain=body.gain,
+            fire_each_step=body.fire_each_step, conv_rms_mm=body.conv_rms_mm,
+            dry_run=body.dry_run, bucket=body.bucket, inhibit=body.inhibit,
+            allow_gun_fire=body.allow_gun_fire,
+        )
+    except ThreadInFlightError as e:
+        raise HTTPException(409, str(e))
+    except ThreadNoReferenceError as e:
+        raise HTTPException(422, str(e))
+    except ThreadConfigError as e:
+        raise HTTPException(503, str(e))
+
+
+@router.post("/thread_stop", response_model=ThreadStopResponse)
+async def post_thread_stop(request: Request) -> ThreadStopResponse:
+    """Request the active threading run to stop. Body: ``{}``. Identical effect
+    to a CA write to CMD:THREAD_STOP. Idempotent."""
+    return await handle_thread_stop(request.app.state.app_state)

@@ -25,6 +25,7 @@ def create_app(
     reference_dir: Optional[Path] = None,
     corrector_writer: Optional[Any] = None,
     injection_trigger: Optional[Any] = None,
+    response_matrix: Optional[Any] = None,
 ) -> FastAPI:
     """Create and configure the FastAPI app.
 
@@ -59,6 +60,7 @@ def create_app(
     app.state.reference_dir = reference_dir
     app.state.corrector_writer = corrector_writer
     app.state.injection_trigger = injection_trigger
+    app.state.response_matrix = response_matrix
 
     app.add_middleware(
         CORSMiddleware,

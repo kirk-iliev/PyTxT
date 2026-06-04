@@ -231,3 +231,42 @@ minor: the two-layer gun-fire gate (`allow_gun_fire` on top of the server enable
 **Forward impact:** M4's loop controller can optionally fire each iteration via
 `handle_inject_oneshot` (`fire_each_step`). Real firing + the confirm-signal choice are
 control-room items (checklist A1/B1).
+
+---
+
+## 2026-06-04 — M4a implementation (threading loop controller)
+
+**Context:** Built the agent-callable half of M4 — `CMD:THREAD_START`/`THREAD_STOP`
+orchestrating the full loop. 13 loop tests + 2 parity rows; full suite 373 passed.
+(Browser panel + e2e = M4b, separate.)
+
+**Decisions / gap-fills / deviations:**
+- **THREAD_START runs the loop to completion synchronously (blocking), like ACQUIRE
+  (gap-fill).** The spec implied a start/stop pair with background execution; instead the
+  command blocks for the whole run and returns the terminal result. Reason: parity stays
+  deterministic (compare final state), and it matches the existing blocking-command model
+  (handle_acquire blocks for the read). `CMD:THREAD_STOP` is a *cooperative* stop — it sets
+  `thread_stop_requested`, which the loop (async, yields between iterations) checks at the
+  top of each iteration, so a concurrent STOP from another client halts it.
+- **The loop reuses handle_acquire for read+diff** (not a bespoke read path) — so it
+  inherits Phase-2/3 extraction + the reference diff for free; the iteration's `dR` is
+  exactly `state.last_diff`. Requires a reference (R0) loaded → else `ThreadNoReferenceError`
+  (422).
+- **Divergence guard = RMS grew >5% over the previous iteration** (`_DIVERGENCE_EPS`);
+  convergence = optional `conv_rms_mm` early-exit; plus the `max_steps` cap (D4 — all three).
+- **Apply within the loop passes readbacks as the compare-and-set expected_prior** (the loop
+  owns the magnets for the run, so its own reads can't be refused) with `tol_a=inf`; clamping
+  still applies. Assumes the response-matrix corrector order == catalog family-index order.
+- **Response matrix injected from a cached artifact** (`settings.response_matrix_path`,
+  default `data/response_matrix/synthetic.npz`); absent/corrupt → `response_matrix=None` →
+  THREAD_START 503. No new safety gate needed beyond the corrector-writer/injection-trigger
+  enables already required for live runs.
+- **Closed-loop tested via a `SimulatedRing` double** (reader+writer sharing
+  `orbit = initial - plant @ cm`) — proves the loop actually converges, the divergence guard
+  trips, and dry-run writes nothing. Real closed-loop commissioning is checklist B4.
+
+**Spec relationship:** Implements §5.6, §6 (two more parity rows). `[needs-spec-update]`
+minor: THREAD_START is blocking + STOP is cooperative (not background task + cancel).
+
+**Forward impact:** M4b = browser threading panel + Playwright e2e (the human-facing half;
+north-star #1 makes it secondary to this agent-callable controller, now done).

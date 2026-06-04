@@ -24,6 +24,19 @@ import numpy as np
 from pytxt.domain.types import CMStep, ResponseMatrix
 
 
+def orbit_rms_mm(dx: np.ndarray, dy: np.ndarray) -> float:
+    """Combined X/Y orbit-deviation RMS (mm), NaN-aware.
+
+    The scalar the threading loop minimizes: sqrt(mean over all valid BPM
+    readings of dx^2 and dy^2). Returns NaN if no BPM reading is valid.
+    """
+    stacked = np.concatenate([np.asarray(dx, float), np.asarray(dy, float)])
+    valid = stacked[~np.isnan(stacked)]
+    if valid.size == 0:
+        return float("nan")
+    return float(np.sqrt(np.mean(valid**2)))
+
+
 def tikhonov_pinv(
     rm: np.ndarray,
     alpha: float = 1.0,

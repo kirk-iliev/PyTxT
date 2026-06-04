@@ -84,6 +84,7 @@ class PyTxTIOC:
         reference_dir: Optional[Path] = None,
         corrector_writer: Optional[object] = None,
         injection_trigger: Optional[object] = None,
+        response_matrix: Optional[object] = None,
     ):
         self.prefix = prefix
         self.host = host
@@ -93,6 +94,7 @@ class PyTxTIOC:
         self.pvgroup = PyTxTPVGroup(
             prefix=prefix, state=state, reader=reader, reference_dir=reference_dir,
             corrector_writer=corrector_writer, injection_trigger=injection_trigger,
+            response_matrix=response_matrix,
         )
         self._context: Optional[Context] = None
         self._running_event = asyncio.Event()
@@ -203,6 +205,21 @@ class PyTxTIOC:
 
         self.state.subscribe("last_inject", _listener_last_inject)
 
+        thread_running_pv = self.pvgroup.thread_running
+
+        async def _write_thread_running(value) -> None:
+            try:
+                await thread_running_pv.write(int(bool(value)))
+            except Exception:
+                logger.exception("IOC write to STATE:THREAD_RUNNING failed")
+
+        self.state.subscribe("thread_running", _write_thread_running)
+
+        async def _listener_thread_state(value) -> None:
+            await self._publish_thread_state(value)
+
+        self.state.subscribe("thread_state", _listener_thread_state)
+
     async def _publish_last_acquire(self, value: LastAcquireResult) -> None:
         """Write all PVs derived from a LastAcquireResult.
 
@@ -279,6 +296,19 @@ class PyTxTIOC:
             await self.pvgroup.cm_last_timestamp.write(ts)
         except Exception:
             logger.exception("IOC publish of STATE:CM_LAST_* failed")
+
+    async def _publish_thread_state(self, value: Any) -> None:
+        """Write the STATE:THREAD_* / RESULT:THREAD_RMS bundle from a
+        ThreadStateResult (fires each iteration + on completion)."""
+        try:
+            await self.pvgroup.thread_status.write(value.status)
+            await self.pvgroup.thread_iteration.write(int(value.iteration))
+            rms = value.last_rms_mm
+            await self.pvgroup.thread_last_rms.write(
+                float(rms) if rms == rms else math.nan  # pass NaN through
+            )
+        except Exception:
+            logger.exception("IOC publish of STATE:THREAD_* failed")
 
     async def _publish_last_inject(self, value: Any) -> None:
         """Write the STATE:INJ_LAST_* bundle from a LastInjectResult."""
@@ -390,8 +420,10 @@ class PyTxTIOC:
                 await pvgroup.cm_last_status.write(state.last_cm_step.status)
                 await pvgroup.inject_in_flight.write(int(state.inject_in_flight))
                 await pvgroup.inj_last_status.write(state.last_inject.status)
+                await pvgroup.thread_running.write(int(state.thread_running))
+                await pvgroup.thread_status.write(state.thread_state.status)
             except Exception:
-                logger.exception("IOC startup: failed to initialise phase-4 CM/INJ PVs")
+                logger.exception("IOC startup: failed to initialise phase-4 CM/INJ/THREAD PVs")
 
             running_event.set()
 

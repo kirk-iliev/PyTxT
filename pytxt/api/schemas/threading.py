@@ -123,3 +123,64 @@ class LastInjectResult(BaseModel):
     inhibit: int = 1
     seq_num: int = 0
     timestamp: datetime | None = None
+
+
+# --- Threading loop controller (CMD:THREAD_START / CMD:THREAD_STOP) ---------
+
+# Terminal status of a threading run.
+ThreadStatus = Literal[
+    "NEVER", "RUNNING", "CONVERGED", "DIVERGED", "STOPPED", "MAX_STEPS", "FAILED"
+]
+
+
+class ThreadStartRequest(BaseModel):
+    """Body for POST /api/v1/cmd/thread_start and the JSON payload for
+    CMD:THREAD_START.
+
+    Runs the first-turn threading loop to completion (blocking, like ACQUIRE):
+    per iteration arm → optional fire → read → diff → calc_cm_step → apply, with
+    damping `gain`, a divergence guard, and an optional RMS convergence exit
+    (Decision D4). A reference (R0) must be loaded. `dry_run` measures and
+    computes but writes no correctors and fires nothing.
+    """
+    max_steps: int = Field(default=6, ge=1, le=100, description="Hard iteration cap")
+    gain: float = Field(default=0.5, gt=0.0, le=1.0, description="Loop damping (legacy 0.5)")
+    fire_each_step: bool = Field(
+        default=False, description="Fire an injection shot before each read"
+    )
+    conv_rms_mm: float | None = Field(
+        default=None, ge=0.0,
+        description="Stop early once combined orbit RMS (mm) falls to/below this",
+    )
+    dry_run: bool = Field(
+        default=False, description="Measure + compute only; write no correctors, fire nothing"
+    )
+    # Forwarded to the per-step injection shot when fire_each_step is true.
+    bucket: int = Field(default=308, ge=1, le=328)
+    inhibit: int = Field(default=1, ge=0, le=1)
+    allow_gun_fire: bool = Field(default=False)
+
+
+class ThreadStartResponse(BaseModel):
+    """Response when a threading run completes."""
+    status: ThreadStatus
+    iterations: int
+    final_rms_mm: float
+    rms_history_mm: list[float]
+    dry_run: bool
+    timestamp: datetime
+
+
+class ThreadStopResponse(BaseModel):
+    stop_requested: bool
+
+
+class ThreadStateResult(BaseModel):
+    """Threading progress/summary. Stored in AppState.thread_state and mirrored
+    to STATE:THREAD_* PVs. `iteration`/`last_rms_mm` update live during a run."""
+    status: ThreadStatus = "NEVER"
+    iteration: int = 0
+    last_rms_mm: float = 0.0
+    final_rms_mm: float = 0.0
+    dry_run: bool = False
+    timestamp: datetime | None = None

@@ -68,6 +68,12 @@ def _public_state(state) -> dict:
         "inj_last_inhibit": state.last_inject.inhibit,
         "inj_last_seq_num": state.last_inject.seq_num,
         "inj_last_timestamp": "<set>" if state.last_inject.timestamp else None,
+        # phase 4: threading state
+        "thread_running": state.thread_running,
+        "thread_stop_requested": state.thread_stop_requested,
+        "thread_status": state.thread_state.status,
+        "thread_iteration": state.thread_state.iteration,
+        "thread_final_rms": round(state.thread_state.final_rms_mm, 6),
     }
 
 
@@ -140,6 +146,8 @@ def _seed_reference(reference_dir, prefixes):
 
 
 def _bpms_for(command_name: str) -> list[str]:
+    if command_name == "thread_start":
+        return list(_THREAD_BPMS)
     if command_name not in _NEEDS_BPMS:
         return []
     # LOAD/SAVE need ≥2 BPMs: scipy.io.savemat squeezes a single-BPM R0 from
@@ -152,8 +160,19 @@ def _bpms_for(command_name: str) -> list[str]:
 
 def _make_state(command_name: str):
     from pytxt.state.app_state import AppState
-    return AppState(version="0.1.0", started_at=time.time(),
-                    bpm_prefixes=_bpms_for(command_name))
+    state = AppState(version="0.1.0", started_at=time.time(),
+                     bpm_prefixes=_bpms_for(command_name))
+    if command_name == "thread_start":
+        # Zeroed reference so handle_acquire's diff == live orbit.
+        from pytxt.domain.types import FirstTurnResult
+        n = len(_THREAD_BPMS)
+        state.reference_loaded = True
+        state.reference_first_turn = FirstTurnResult(
+            x_first_turn=np.zeros(n), y_first_turn=np.zeros(n),
+            sum_first_turn=np.full(n, np.nan), injection_turn=np.full(n, -1, np.int32),
+            failed_bpm_names=[],
+        )
+    return state
 
 
 def _make_reader(command_name: str):
@@ -222,6 +241,34 @@ def _make_injection_trigger(command_name: str):
     return _ParityFakeTrigger() if command_name == "inject_oneshot" else None
 
 
+# THREAD_START parity: a deterministic fixed-orbit reader + a 2-BPM matrix +
+# a zeroed reference on both arms; dry_run keeps it from writing/firing.
+_THREAD_PAYLOAD = {"max_steps": 2, "dry_run": True}
+_THREAD_BPMS = ["A", "B"]
+
+
+def _make_response_matrix(command_name: str):
+    if command_name != "thread_start":
+        return None
+    from pytxt.domain.threading import tikhonov_pinv
+    from pytxt.domain.types import ResponseMatrix
+    plant = np.eye(4)
+    return ResponseMatrix(
+        mplus=tikhonov_pinv(plant, alpha=0.01, damping=1.0),
+        bpm_names=["A", "B"], hcm_names=["H0", "H1"], vcm_names=["V0", "V1"],
+        bpm_s=np.array([0.0, 1.0]), cm_s=np.full(4, -1.0),
+        units="mm->amp", energy_gev=1.9, provenance="parity",
+    )
+
+
+def _make_thread_reader(command_name: str):
+    if command_name != "thread_start":
+        return None
+    reader = AsyncMock()
+    reader.read_all.return_value = {p: _fake_raw(p) for p in _THREAD_BPMS}
+    return reader
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "command_name, ca_pv_suffix, rest_path, requires_acquire",
@@ -238,6 +285,8 @@ def _make_injection_trigger(command_name: str):
         # Phase 4: STEP_CM carries a JSON payload (CHAR-array PV ⇄ REST body).
         ("step_cm", "CMD:STEP_CM", "/api/v1/cmd/step_cm", False),
         ("inject_oneshot", "CMD:INJECT_ONESHOT", "/api/v1/cmd/inject_oneshot", False),
+        ("thread_start", "CMD:THREAD_START", "/api/v1/cmd/thread_start", False),
+        ("thread_stop", "CMD:THREAD_STOP", "/api/v1/cmd/thread_stop", False),
     ],
 )
 async def test_parity_ca_vs_rest(test_pv_prefix, tmp_path, command_name, ca_pv_suffix, rest_path, requires_acquire):
@@ -267,15 +316,20 @@ async def test_parity_ca_vs_rest(test_pv_prefix, tmp_path, command_name, ca_pv_s
         import json
         ca_value = json.dumps(_INJECT_PAYLOAD)
         rest_body = _INJECT_PAYLOAD
+    elif command_name == "thread_start":
+        import json
+        ca_value = json.dumps(_THREAD_PAYLOAD)
+        rest_body = _THREAD_PAYLOAD
 
     # --- Path 1: CA write ---
     state_ca = _make_state(command_name)
-    reader_ca = _make_reader(command_name)
+    reader_ca = _make_reader(command_name) or _make_thread_reader(command_name)
     ioc_ca = PyTxTIOC(prefix=test_pv_prefix, host="127.0.0.1", port=0,
                       repeater_port=0, state=state_ca, reader=reader_ca,
                       reference_dir=ca_ref_dir,
                       corrector_writer=_make_corrector_writer(command_name),
-                      injection_trigger=_make_injection_trigger(command_name))
+                      injection_trigger=_make_injection_trigger(command_name),
+                      response_matrix=_make_response_matrix(command_name))
     server_task = asyncio.create_task(ioc_ca.run())
     await ioc_ca.wait_until_running()
     try:
@@ -294,10 +348,11 @@ async def test_parity_ca_vs_rest(test_pv_prefix, tmp_path, command_name, ca_pv_s
 
     # --- Path 2: REST POST ---
     state_rest = _make_state(command_name)
-    reader_rest = _make_reader(command_name)
+    reader_rest = _make_reader(command_name) or _make_thread_reader(command_name)
     app = create_app(state=state_rest, reference_dir=rest_ref_dir,
                      corrector_writer=_make_corrector_writer(command_name),
-                     injection_trigger=_make_injection_trigger(command_name))
+                     injection_trigger=_make_injection_trigger(command_name),
+                     response_matrix=_make_response_matrix(command_name))
     if reader_rest is not None:
         app.state.bpm_reader = reader_rest
 
