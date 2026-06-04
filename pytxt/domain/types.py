@@ -86,3 +86,59 @@ class DiffResult:
     dx: np.ndarray
     dy: np.ndarray
     summary: DiffSummary
+
+
+@dataclass(frozen=True)
+class ResponseMatrix:
+    """A cached pseudo-inverse response matrix (Phase 4, Decision D1/D2).
+
+    `mplus` maps a stacked orbit-deviation vector dR = [dx; dy] (length
+    2*n_bpms, **mm**) to a corrector-step vector dphi (length n_hcm+n_vcm,
+    **hardware amps**) — the amps↔kick unit convention is folded in at
+    generation time (D2), so the runtime never converts. Corrector order is
+    **all HCM first, then all VCM** (matching the legacy `calcCMstep` split).
+
+    Generated offline (modeled via pySC, or measured) and loaded from a
+    cached artifact; pySC is never imported at runtime (D1). `bpm_s`/`cm_s`
+    carry monotone s-positions (m) used only for first-turn downstream-zeroing
+    — the one threading-specific nuance (you cannot steer beam past where it
+    was lost).
+    """
+    mplus: np.ndarray                # (n_hcm+n_vcm, 2*n_bpms) float64, mm -> amp
+    bpm_names: list[str]             # length n_bpms, defines dR ordering
+    hcm_names: list[str]             # length n_hcm
+    vcm_names: list[str]             # length n_vcm
+    bpm_s: np.ndarray                # (n_bpms,) float64, s-position (m)
+    cm_s: np.ndarray                 # (n_hcm+n_vcm,) float64, s-position (m)
+    units: str                       # e.g. "mm->amp"
+    energy_gev: float                # operating energy the matrix was built for
+    provenance: str                  # how/when generated (lattice file, tool, date)
+
+    @property
+    def n_bpms(self) -> int:
+        return len(self.bpm_names)
+
+    @property
+    def n_hcm(self) -> int:
+        return len(self.hcm_names)
+
+    @property
+    def n_vcm(self) -> int:
+        return len(self.vcm_names)
+
+
+@dataclass(frozen=True)
+class CMStep:
+    """Result of one threading correction step (Phase 4).
+
+    `dphi_hcm`/`dphi_vcm` are incremental corrector deltas in **hardware amps**
+    (already gain-scaled and downstream-zeroed), aligned with the matrix's
+    `hcm_names`/`vcm_names`. They are the deltas to *add* to the present
+    setpoints (the apply layer does caget+delta->clamp->caput).
+    """
+    dphi_hcm: np.ndarray             # (n_hcm,) float64, amps
+    dphi_vcm: np.ndarray             # (n_vcm,) float64, amps
+    hcm_names: list[str]
+    vcm_names: list[str]
+    last_seen_bpm_index: int         # last BPM index that saw beam; -1 if none
+    n_zeroed: int                    # correctors zeroed by downstream-zeroing

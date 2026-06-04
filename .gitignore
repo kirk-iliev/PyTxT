@@ -32,6 +32,10 @@ docker/.env.prod
 # Saved/uploaded .mat files are operator data, not source.
 data/references/
 
+# Generated response-matrix artifacts (Phase 4). Modeled/measured or synthetic
+# .npz caches are build products, not source — regenerate via tools/.
+data/response_matrix/
+
 # Node (for Playwright e2e)
 node_modules/
 tests/e2e/test-results/
