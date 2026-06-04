@@ -125,8 +125,14 @@ template at the top of each log when adding entries.
 ## Status
 
 Phases 1–3 **complete** (skeleton/IOC → read path → reference trajectory, the
-last shipped 2026-06-01). Phase 4 (threading workflow) — next. Live detail:
-`PyTxT-roadmap.html`; end-to-end picture: `docs/PyTxT-overview.md`.
+last shipped 2026-06-01). Phase 4 (threading workflow) — **implemented
+2026-06-04, pending on-machine validation.** All four milestones built, tested,
+and pushed (M1 analysis core + active acquisition · M2 `CMD:STEP_CM` · M3
+`CMD:INJECT_ONESHOT` · M4 threading loop controller + browser panel); 373 pytest
++ 10 Playwright green, 8 commands with PV+REST parity, no pySC at runtime.
+**Not closed yet** — closes after the control-room validation gate in
+`docs/phase-4-controlroom-checklist.md` (read-only A1/A2 + active B1–B4). Live
+detail: `PyTxT-roadmap.html`; end-to-end picture: `docs/PyTxT-overview.md`.
 
 ## Open architectural questions to resolve as we go
 
