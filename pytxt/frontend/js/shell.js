@@ -22,7 +22,7 @@
   const TABS = [
     { label: 'Dashboard',   href: '/',                ready: true,  match: ['/', '/index.html'] },
     { label: 'Trajectory',  href: '/trajectory.html', ready: true },
-    { label: 'Correctors',  href: '/correctors.html', ready: false },
+    { label: 'Correctors',  href: '/correctors.html', ready: true },
     { label: 'Injection',   href: '/injection.html',  ready: false },
     { label: 'Threading',   href: '/threading.html',  ready: true },
     { label: 'Diagnostics', href: '/diagnostics.html', ready: true },

@@ -527,6 +527,48 @@ canvas {
   background: var(--canvas-bg);
 }
 
+/* Correctors panel (U3) */
+.cm-catalog { font-family: var(--monospace); font-size: var(--fs-xs); color: var(--fg-muted); }
+.cm-side { display: flex; flex-direction: column; gap: var(--space-4); }
+.cm-form {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+}
+.cm-form label {
+  display: flex; flex-direction: column; gap: 0.25rem;
+  font-size: var(--fs-sm); color: var(--fg-muted);
+}
+.cm-form select, .cm-form input {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  font: inherit; font-family: var(--monospace);
+}
+.cm-limit { margin-top: var(--space-2); font-family: var(--monospace); font-size: var(--fs-sm); color: var(--fg-dim); }
+.cm-result { margin-top: var(--space-3); overflow-x: auto; }
+.cm-result-table { width: 100%; border-collapse: collapse; font-family: var(--monospace); font-size: var(--fs-sm); }
+.cm-result-table th {
+  text-align: right; color: var(--fg-muted); font-weight: 600;
+  padding: 0.3rem 0.5rem; border-bottom: 1px solid var(--border);
+}
+.cm-result-table th:first-child, .cm-result-table td:first-child { text-align: left; }
+.cm-result-table td { text-align: right; padding: 0.3rem 0.5rem; }
+.cm-clamp { color: var(--warn); }
+.cm-danger {
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--danger);
+  background: var(--danger-soft);
+  border-radius: var(--radius-sm);
+  color: var(--danger);
+  font-size: var(--fs-sm);
+}
+.cm-msg { font-family: var(--monospace); font-size: 0.85em; color: var(--fg-muted); }
+.cm-deferred { color: var(--fg-muted); font-size: var(--fs-sm); margin: 0; }
+.cm-deferred a { color: var(--accent); }
+
 /* 6. ────────────────────────── Page: threading ─────────────────────── */
 .thread-controls {
   display: flex; flex-wrap: wrap;

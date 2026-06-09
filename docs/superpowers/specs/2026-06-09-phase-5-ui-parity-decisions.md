@@ -132,3 +132,17 @@ Append-only log of implementation-time decisions: choices made during coding tha
 **Spec relationship:** Implements §4 row 5 + §6 raw-TBT; resolves D2 (keep hand-rolled canvas — plot.js *is* hand-rolled, no charting lib) and D3 (client-side decimation).
 
 **Forward impact:** U3 (bar chart) + U5 (RMS history) should reuse/extend `plot.js`. If a third consumer needs hover hit-testing, consider unifying with the trajectory renderer then — not before.
+
+## 2026-06-09 — U3: synthetic corrector writer + catalog endpoint (backend added); bar chart → U5
+
+**Context:** U3 — Correctors panel (manual `CMD:STEP_CM` with the D5 compare-and-set guard).
+
+**Decision (a) — U3 DID add backend (spec §1 said U0–U5 wouldn't):** The spec assumed U3 was pure frontend because the STEP_CM *backend* was built+tested in Phase 4. But that was tested against a pytest fake-writer fixture; the **dev server has no corrector writer** in synthetic mode (`corrector_writer=None` → 503), and the real `CorrectorWriter` does live EPICS I/O. So the panel couldn't function in dev or Playwright. Added **`SyntheticCorrectorWriter`** (in-memory setpoints, mirrors the writer interface, seeded to a small per-index pattern), wired in `composition.py` under `PYTXT_USE_SYNTHETIC_READER=1`, alongside a read-only **`GET /api/v1/config/correctors`** catalog endpoint (names + limits; also serves agent discoverability). `[spec §1 amended in spirit]` — U3/U4 need a synthetic active-command backend to be demoable; the "frontend-only" claim held only for U1/U2/U5-display.
+
+**Decision (b) — preview reads current via dry-run with tol=∞:** The handler runs the CAS check even on dry-run, and there's no setpoint-read endpoint. So "Preview" sends `dry_run=true, expected_prior_a=[0], tol_a=1e12` — the inflated tolerance disables the guard so the dry-run returns the live `readback_a` (current setpoint) without writing. Apply then uses that readback as `expected_prior_a` with the real tol (0.05), so a competing writer between preview and apply trips the CAS (409 → "REFUSED"). No new read endpoint needed; the guard is demonstrated, not bypassed.
+
+**Decision (c) — CM-step bar chart deferred to U5:** Manual step 16 ("plot the corrector step") plots the *response-matrix-computed* step vector — which is produced by the threading loop (Mplus·dR), and the matrix is deferred. There's no multi-corrector computed step to plot in U3 (the manual panel applies one device). So the bar chart moves to U5 (threading), where a real step vector exists, and `plot.js` gains a `bars()` mode there. U3 shows the per-channel result as a table instead. `[deviates from §4 row 16 / §7 U3]`
+
+**Spec relationship:** Implements §4 rows 11/12/17 + §6.2 apply panel; defers row 16 to U5; amends §1's no-backend claim.
+
+**Forward impact:** U4 (injection) will need the same treatment — a **synthetic injection trigger** so `INJECT_ONESHOT` is demoable in dev (currently `injection_trigger=None` → 503). Plan for it. The catalog endpoint + synthetic writer are reusable by U5's threading commissioning UI.

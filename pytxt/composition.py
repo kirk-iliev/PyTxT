@@ -115,7 +115,16 @@ async def main() -> None:
     # Phase 4 corrector writer — OFF by default (active machine commanding is
     # opt-in). When disabled, STEP_CM returns 503; the analysis path is unaffected.
     corrector_writer = None
-    if settings.enable_corrector_writer:
+    if os.environ.get("PYTXT_USE_SYNTHETIC_READER") == "1":
+        from pytxt.ca_client.synthetic_corrector_writer import SyntheticCorrectorWriter
+        hcm = load_corrector_channels(settings.hcm_channels_path, "HCM")
+        vcm = load_corrector_channels(settings.vcm_channels_path, "VCM")
+        corrector_writer = SyntheticCorrectorWriter(hcm_channels=hcm, vcm_channels=vcm)
+        logger.info(
+            "PYTXT_USE_SYNTHETIC_READER=1 — using SyntheticCorrectorWriter "
+            "(%d HCM + %d VCM, in-memory setpoints)", len(hcm), len(vcm)
+        )
+    elif settings.enable_corrector_writer:
         hcm = load_corrector_channels(settings.hcm_channels_path, "HCM")
         vcm = load_corrector_channels(settings.vcm_channels_path, "VCM")
         corrector_writer = CorrectorWriter(

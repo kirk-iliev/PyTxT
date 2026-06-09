@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request
 
 from pytxt.api.schemas.reference import DiffSummary, ReferenceStatus
 from pytxt.api.schemas.state import StateSnapshot
+from pytxt.config.corrector_channels import load_corrector_channels
 
 router = APIRouter(prefix="/api/v1", tags=["state"])
 
@@ -53,3 +54,28 @@ async def get_config(request: Request) -> dict:
     settings = request.app.state.settings
     prefix = settings.pv_prefix if settings else "OSPREY:TEST:TXT:"
     return {"pv_prefix": prefix}
+
+
+@router.get("/config/correctors")
+async def get_corrector_catalog(request: Request) -> dict:
+    """The HCM/VCM corrector catalog: per-family ordered device list with each
+    channel's name and |setpoint| limit (amps). The index is the 0-based family
+    index used by CMD:STEP_CM and the response matrix. Read-only, no machine I/O
+    — drives the Correctors panel's device picker and is discoverable by agents.
+    """
+    # Prefer the writer's already-loaded channels; fall back to the catalog
+    # files so the endpoint works even when no corrector writer is configured.
+    writer = getattr(request.app.state, "corrector_writer", None)
+    settings = request.app.state.settings
+    out: dict[str, list[dict]] = {}
+    for family in ("HCM", "VCM"):
+        if writer is not None:
+            chans = writer.channels(family)
+        else:
+            path = settings.hcm_channels_path if family == "HCM" else settings.vcm_channels_path
+            chans = load_corrector_channels(path, family)
+        out[family] = [
+            {"index": i, "name": c.name, "max_abs_a": c.max_abs_amps}
+            for i, c in enumerate(chans)
+        ]
+    return out
