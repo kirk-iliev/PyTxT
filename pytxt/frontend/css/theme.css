@@ -351,8 +351,10 @@ h1, h2, h3 { font-weight: 600; }
 }
 
 .canvas-wrap { position: relative; }
+/* Top-right corner: the bespoke trajectory renderer draws its Y-tick labels
+   at the top-left, so the panel label lives on the right to avoid overlap. */
 .canvas-wrap .axis-label {
-  position: absolute; top: 4px; left: 8px;
+  position: absolute; top: 4px; right: 8px;
   font-family: var(--monospace);
   font-size: 0.78em; color: var(--fg-dim);
   pointer-events: none;
@@ -491,6 +493,38 @@ canvas {
 }
 .ref-dialog-actions button.primary {
   background: var(--accent); border-color: var(--accent); color: #fff;
+}
+
+/* Raw turn-by-turn viewer (U2) */
+.tbt-panel .panel__toolbar { flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+.tbt-select {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  font-size: var(--fs-sm); color: var(--fg-muted);
+}
+.tbt-select select {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.5rem;
+  font: inherit;
+  font-family: var(--monospace);
+}
+.tbt-panel .meta { color: var(--fg-muted); font-family: var(--monospace); font-size: 0.85em; }
+.tbt-grid { display: flex; flex-direction: column; gap: var(--space-3); }
+.tbt-cell { position: relative; }
+.tbt-cell-label {
+  font-family: var(--monospace);
+  font-size: var(--fs-xs);
+  color: var(--fg-muted);
+  margin-bottom: 0.2rem;
+}
+.tbt-canvas {
+  display: block; width: 100%;
+  height: clamp(150px, 18vh, 300px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--canvas-bg);
 }
 
 /* 6. ────────────────────────── Page: threading ─────────────────────── */

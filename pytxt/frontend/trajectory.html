@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PyTxT — Trajectory</title>
-  <link rel="stylesheet" href="/css/theme.css?v=9">
+  <link rel="stylesheet" href="/css/theme.css?v=10">
 </head>
 <body>
   <main class="app-main">
@@ -58,6 +58,25 @@
       </div>
     </section>
 
+    <!-- U2 — raw turn-by-turn signal (manual step 5): Sum / Horizontal / Vertical -->
+    <section class="panel tbt-panel">
+      <div class="panel__head">
+        <h2 class="panel__title">Raw turn-by-turn signal</h2>
+        <div class="panel__toolbar">
+          <label class="tbt-select">BPM
+            <select id="tbtBpmSelect"></select>
+          </label>
+          <button type="button" id="tbtRefreshBtn" class="btn" title="Re-fetch current BPM">↻</button>
+          <span id="tbtMeta" class="meta" role="status"></span>
+        </div>
+      </div>
+      <div class="tbt-grid">
+        <div class="tbt-cell"><div class="tbt-cell-label">Sum (AU)</div><canvas id="tbtSum" class="tbt-canvas"></canvas></div>
+        <div class="tbt-cell"><div class="tbt-cell-label">Horizontal — X (mm)</div><canvas id="tbtX" class="tbt-canvas"></canvas></div>
+        <div class="tbt-cell"><div class="tbt-cell-label">Vertical — Y (mm)</div><canvas id="tbtY" class="tbt-canvas"></canvas></div>
+      </div>
+    </section>
+
     <div class="ref-dialog" id="loadRefDialog" hidden>
       <div class="ref-dialog-box">
         <h3>Load reference from library</h3>
@@ -87,7 +106,9 @@
 
   <script src="/js/shell.js"></script>
   <script src="/js/connection.js"></script>
+  <script src="/js/plot.js"></script>
   <script src="/js/trajectory.js"></script>
   <script src="/js/reference.js"></script>
+  <script src="/js/tbt.js"></script>
 </body>
 </html>

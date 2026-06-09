@@ -116,3 +116,19 @@ Append-only log of implementation-time decisions: choices made during coding tha
 **Spec relationship:** Implements §6.1 dashboard + §5 IA (Diagnostics now `ready:true`). Fills a gap the spec left implicit (where connection-status wiring lives).
 
 **Forward impact:** New pages get the connection indicator for free via the shell. The PV-derived-coverage pattern is reusable; if a future tile needs `n_aligned` semantics that differ from "finite on both planes," revisit.
+
+## 2026-06-09 — U2: shared plot.js built; trajectory.js kept bespoke; min/max decimation
+
+**Context:** U2 — raw TBT viewer (`tbt.js` + the `Raw turn-by-turn signal` panel on the Trajectory page), and the deferred-from-U0 shared plot-canvas extraction.
+
+**Decision (a) — new shared renderer, trajectory.js left as-is:** Built `js/plot.js` as a general DPI-aware line renderer and used it for the new viewer. Did **not** migrate the Phase-2 `trajectory.js` renderer onto it. The two have genuinely different jobs: trajectory is value-vs-BPM-index with sector ticks and is tightly coupled to mouse hit-testing for the pin/hover tooltip; plot.js is value-vs-sample with label gutters and envelope decimation. Forcing one renderer to do both would add conditionals for little gain and real regression risk on the polished trajectory page. So "extract the shared module" (U0 deferral) is satisfied by *building the reusable renderer for new consumers*, not by rewriting the working one. The U0 log predicted this option.
+
+**Decision (b) — DPI-aware sizing + gutters fix the overlap by design:** plot.js sizes the backing store to `clientSize × devicePixelRatio` (crisp on 4K) and reserves a left gutter (Y labels) + bottom strip (X labels) so axis text never overlaps the trace. For the *existing* trajectory canvases (still bespoke), the axis-label overlap was fixed minimally by moving the HTML `.axis-label` from top-left to top-right, away from that renderer's left-aligned Y-ticks.
+
+**Decision (c) — min/max-per-column decimation:** 100k samples are decimated to one vertical {min,max} envelope bar per pixel column (resolves open decision **D3** → client-side decimation, first cut). Preserves spikes/envelope, renders fast, no server change. Sparse arrays (≤ 2×width) fall back to a plain polyline.
+
+**Decision (d) — X axis = sample index:** the waveforms are 100k raw samples, so the X axis is labeled `sample` (0..99999), not "turn" (the MATLAB GUI's "index of turn" is a processed view; raw is per-sample). Synthetic reader emits step functions, so dev screenshots look flat-with-a-step — real beam data oscillates.
+
+**Spec relationship:** Implements §4 row 5 + §6 raw-TBT; resolves D2 (keep hand-rolled canvas — plot.js *is* hand-rolled, no charting lib) and D3 (client-side decimation).
+
+**Forward impact:** U3 (bar chart) + U5 (RMS history) should reuse/extend `plot.js`. If a third consumer needs hover hit-testing, consider unifying with the trajectory renderer then — not before.
