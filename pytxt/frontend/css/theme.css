@@ -343,9 +343,12 @@ h1, h2, h3 { font-weight: 600; }
 .panel-grid { display: grid; gap: 0.6rem; }
 .panel-grid.panels-2 { grid-template-columns: 1fr; }
 .panel-grid.panels-2 .diff-panel { display: none; }
-/* 2 columns when two ~28rem plots fit; auto-collapses to 1 (stacked) when
-   not. min(28rem,100%) keeps a single narrow column from overflowing. */
-.panel-grid.panels-4 { grid-template-columns: repeat(auto-fit, minmax(min(28rem, 100%), 1fr)); }
+/* Stacked (1 col) by default for narrow viewports; a balanced 2x2 once
+   there's room. Explicit 2-col (not auto-fit) so 4 plots never land 3+1. */
+.panel-grid.panels-4 { grid-template-columns: 1fr; }
+@media (min-width: 64rem) {
+  .panel-grid.panels-4 { grid-template-columns: 1fr 1fr; }
+}
 
 .canvas-wrap { position: relative; }
 .canvas-wrap .axis-label {
