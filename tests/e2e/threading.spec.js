@@ -3,36 +3,35 @@ const { test, expect } = require('@playwright/test');
 test.describe('PyTxT threading page', () => {
   test('panel loads and subscribes to live STATE:THREAD_* PVs', async ({ page }) => {
     await page.goto('/threading.html');
-
-    // Status comes from the live IOC PV (STATE:THREAD_STATUS), proving the WS
-    // subscription is wired. Before any run it reads NEVER.
-    const status = page.locator('#threadStatus');
-    await expect(status).not.toHaveText('—', { timeout: 4000 });
-    await expect(status).toHaveText('NEVER');
-
-    await expect(page.locator('#threadRunning')).toHaveText('no');
+    // Status comes from the live IOC PV — proves the WS subscription is wired.
+    // (Value may be NEVER or a terminal status if a prior run touched the
+    // shared dev server; we only assert it left the placeholder.)
+    await expect(page.locator('#threadStatus')).not.toHaveText('—', { timeout: 4000 });
     await expect(page.locator('#threadStartBtn')).toBeVisible();
     await expect(page.locator('#dryRun')).toBeChecked();
   });
 
-  test('Start surfaces the backend response (round-trip)', async ({ page }) => {
-    await page.goto('/threading.html');
-    await expect(page.locator('#threadStatus')).toHaveText('NEVER', { timeout: 4000 });
+  test('a dry run renders outcome, RMS history, and the corrector-step bars (U5)', async ({ page }) => {
+    // Set up R0 so the loop has a reference (acquire + promote via REST).
+    await page.request.post('/api/v1/cmd/acquire', { data: {} });
+    await page.request.post('/api/v1/cmd/promote_ref', { data: {} });
 
+    await page.goto('/threading.html');
+    await page.locator('#maxSteps').fill('8');
     await page.locator('#threadStartBtn').click();
 
-    // The dev app runs with the synthetic reader and no response matrix /
-    // reference loaded, so thread_start returns an error — the UI shows it.
-    // Either way the message updates from empty, proving the full POST round-trip.
-    const msg = page.locator('#threadMsg');
-    await expect(msg).not.toHaveText('', { timeout: 4000 });
-    await expect(msg).toContainText(/error|CONVERGED|MAX_STEPS|STOPPED|DIVERGED/);
+    // Outcome pill leaves the placeholder and shows a terminal status.
+    await expect(page.locator('#threadResultPill')).not.toHaveText('no run yet', { timeout: 8000 });
+    await expect(page.locator('#threadResultPill'))
+      .toContainText(/CONVERGED|DIVERGED|MAX_STEPS|STOPPED|FAILED/);
+    // The corrector-step bars got data (HCM count in the meta).
+    await expect(page.locator('#threadStepMeta')).toContainText('HCM', { timeout: 8000 });
+    // Status message round-trips the response.
+    await expect(page.locator('#threadMsg')).toContainText('RMS');
   });
 
   test('Stop requests a stop via the command endpoint', async ({ page }) => {
     await page.goto('/threading.html');
-    await expect(page.locator('#threadStatus')).toHaveText('NEVER', { timeout: 4000 });
-
     await page.locator('#threadStopBtn').click();
     await expect(page.locator('#threadMsg')).toHaveText('stop requested', { timeout: 3000 });
   });

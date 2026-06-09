@@ -69,6 +69,22 @@ class DiffSummary:
     n_valid: int
 
 
+@dataclass(frozen=True)
+class AnalysisResult:
+    """First-turn trajectory analysis (Phase 5 / U6). Single-shot, NaN-aware
+    metrics computed on each ACQUIRE: orbit excursion (RMS / max-abs per plane)
+    and beam transmission (how many BPMs saw beam, how far the first turn
+    reached). Mirrored to RESULT:ANALYSIS:* PVs."""
+    x_rms_mm: float
+    y_rms_mm: float
+    x_max_abs_mm: float
+    y_max_abs_mm: float
+    n_live_bpms: int
+    n_bpms: int
+    reach_index: int   # 0-based index of the last BPM that saw beam; -1 if none
+    reach_name: str
+
+
 class ReferenceSource(str, enum.Enum):
     """Provenance of the currently-loaded reference trajectory."""
     NONE = ""

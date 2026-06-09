@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PyTxT — Correctors</title>
+  <link rel="stylesheet" href="/css/theme.css?v=14">
+</head>
+<body>
+  <main class="app-main">
+    <div>
+      <h1 class="page-title">Correctors</h1>
+      <p class="page-subtitle">Manual HCM/VCM corrector step — compare-and-set guarded, clamped to limits.</p>
+    </div>
+
+    <div class="card-grid card-grid--2">
+      <!-- Apply corrector step -->
+      <section class="panel" aria-labelledby="cm-apply">
+        <div class="panel__head">
+          <h2 id="cm-apply" class="panel__title">Apply corrector step</h2>
+          <span class="cm-catalog" id="cmCatalog">—</span>
+        </div>
+
+        <div class="cm-form">
+          <label>Family
+            <select id="cmFamily">
+              <option value="HCM">HCM (horizontal)</option>
+              <option value="VCM">VCM (vertical)</option>
+            </select>
+          </label>
+          <label>Device
+            <select id="cmDevice"></select>
+          </label>
+          <label>Δ (amps)
+            <input type="number" id="cmDelta" value="0.010" step="0.001">
+          </label>
+          <label>Tolerance (A)
+            <input type="number" id="cmTol" value="0.05" min="0" step="0.01">
+          </label>
+        </div>
+        <div class="cm-limit" id="cmLimit"></div>
+
+        <!-- preview / apply result -->
+        <div class="cm-result" id="cmResult" hidden>
+          <table class="cm-result-table">
+            <thead><tr><th>Channel</th><th>Current (A)</th><th>Δ</th><th>→ New (A)</th><th>Clamp</th></tr></thead>
+            <tbody id="cmResultBody"></tbody>
+          </table>
+        </div>
+
+        <div class="cm-danger" id="cmDanger" hidden>
+          ⚠ Apply writes a live corrector setpoint. Guarded by compare-and-set against the previewed value.
+        </div>
+
+        <div class="actions" style="margin-top: var(--space-3);">
+          <button type="button" id="cmPreviewBtn" class="btn">Preview (dry-run)</button>
+          <button type="button" id="cmApplyBtn" class="btn btn--danger" disabled>‼ Apply step</button>
+          <span id="cmMsg" class="cm-msg" role="status"></span>
+        </div>
+      </section>
+
+      <!-- Last corrector step + SV spectrum -->
+      <div class="cm-side">
+        <section class="panel" aria-labelledby="cm-last">
+          <div class="panel__head">
+            <h2 id="cm-last" class="panel__title">Last corrector step</h2>
+            <span class="state-pill" id="cmLastStatus" data-tone="idle">NEVER</span>
+          </div>
+          <div class="readout-grid">
+            <div class="readout"><span class="readout__label">Family</span>   <span class="readout__value" id="cmLastFamily">—</span></div>
+            <div class="readout"><span class="readout__label">Applied</span>  <span class="readout__value" id="cmLastApplied">—</span></div>
+            <div class="readout"><span class="readout__label">Clamped</span>  <span class="readout__value" id="cmLastClamped">—</span></div>
+            <div class="readout"><span class="readout__label">When</span>     <span class="readout__value" id="cmLastTime">—</span></div>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="cm-sv">
+          <div class="panel__head"><h2 id="cm-sv" class="panel__title">SV spectrum</h2></div>
+          <p class="cm-deferred">
+            Singular-value spectrum and the response-matrix correction step
+            (manual steps 13–16) arrive with response-matrix generation — the
+            runtime uses a cached M⁺. The automated correction loop lives on the
+            <a href="/threading.html">Threading</a> tab.
+          </p>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/shell.js"></script>
+  <script src="/js/connection.js"></script>
+  <script src="/js/correctors.js"></script>
+</body>
+</html>

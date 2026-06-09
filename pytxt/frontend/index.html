@@ -4,45 +4,85 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PyTxT</title>
-  <link rel="stylesheet" href="/css/theme.css?v=1">
+  <link rel="stylesheet" href="/css/theme.css?v=14">
 </head>
 <body>
-  <header class="app-header">
-    <h1 class="app-title">PyTxT</h1>
-    <nav class="app-nav">
-      <a href="/" class="active">Ping</a>
-      <a href="/trajectory.html">Trajectory</a>
-      <a href="/threading.html">Threading</a>
-    </nav>
-    <div class="connection-status" id="connectionStatus" data-state="connecting">
-      <span class="dot"></span>
-      <span class="label" id="connectionStatusLabel">connecting…</span>
-    </div>
-  </header>
-
   <main class="app-main">
-    <section class="state-panel" aria-labelledby="state-heading">
-      <h2 id="state-heading" class="visually-hidden">Application state</h2>
-      <div class="state-grid">
-        <div class="state-row"><span class="state-label">Version</span>             <span class="state-value" id="version">—</span></div>
-        <div class="state-row"><span class="state-label">Heartbeat</span>           <span class="state-value" id="heartbeat">—</span></div>
-        <div class="state-row"><span class="state-label">Uptime</span>              <span class="state-value" id="uptime">—</span></div>
-        <div class="state-row"><span class="state-label">Last ping</span>           <span class="state-value" id="lastPingAt">—</span></div>
-        <div class="state-row"><span class="state-label">Ping count</span>          <span class="state-value" id="pingCount">—</span></div>
-      </div>
+    <div>
+      <h1 class="page-title">Dashboard</h1>
+      <p class="page-subtitle">Turn-by-turn beam analysis for the ALS injection chain.</p>
+    </div>
 
+    <div class="card-grid card-grid--2">
+      <!-- Machine / liveness -->
+      <section class="panel" aria-labelledby="dash-machine">
+        <div class="panel__head"><h2 id="dash-machine" class="panel__title">Machine / liveness</h2></div>
+        <div class="readout-grid">
+          <div class="readout"><span class="readout__label">Heartbeat</span> <span class="readout__value" id="heartbeat">—</span></div>
+          <div class="readout"><span class="readout__label">Uptime</span>    <span class="readout__value" id="dashUptime">—</span></div>
+          <div class="readout"><span class="readout__label">Version</span>   <span class="readout__value" id="dashVersion">—</span></div>
+          <div class="readout"><span class="readout__label">IOC prefix</span><span class="readout__value" id="dashPrefix">—</span></div>
+        </div>
+      </section>
+
+      <!-- Last acquisition -->
+      <section class="panel" aria-labelledby="dash-acq">
+        <div class="panel__head">
+          <h2 id="dash-acq" class="panel__title">Last acquisition</h2>
+          <span class="state-pill" id="dashAcqStatus" data-tone="idle">NEVER</span>
+        </div>
+        <div class="readout-grid">
+          <div class="readout"><span class="readout__label">BPMs</span>      <span class="readout__value" id="dashAcqBpms">— ok · — fail</span></div>
+          <div class="readout"><span class="readout__label">Inj turn</span>  <span class="readout__value" id="dashInjTurn">—</span></div>
+          <div class="readout"><span class="readout__label">When</span>      <span class="readout__value" id="dashAcqWhen">—</span></div>
+          <div class="readout"><span class="readout__label">Failed</span>    <span class="readout__value" id="dashAcqFailed" data-tone="idle">—</span></div>
+        </div>
+      </section>
+
+      <!-- Reference -->
+      <section class="panel" aria-labelledby="dash-ref">
+        <div class="panel__head">
+          <h2 id="dash-ref" class="panel__title">Reference</h2>
+          <span class="state-pill" id="dashRefStatus" data-tone="idle">none</span>
+        </div>
+        <div class="readout-grid">
+          <div class="readout"><span class="readout__label">Name</span>     <span class="readout__value" id="dashRefName">—</span></div>
+          <div class="readout"><span class="readout__label">Source</span>   <span class="readout__value" id="dashRefSource">—</span></div>
+          <div class="readout"><span class="readout__label">Δ rms (mm)</span><span class="readout__value" id="dashRefRms">—</span></div>
+          <div class="readout"><span class="readout__label">Coverage</span> <span class="readout__value" id="dashRefCoverage">—</span></div>
+        </div>
+      </section>
+
+      <!-- Threading loop -->
+      <section class="panel" aria-labelledby="dash-thread">
+        <div class="panel__head">
+          <h2 id="dash-thread" class="panel__title">Threading loop</h2>
+          <span class="state-pill" id="dashThreadStatus" data-tone="idle">NEVER</span>
+        </div>
+        <div class="readout-grid">
+          <div class="readout"><span class="readout__label">Iteration</span> <span class="readout__value" id="dashThreadIter">—</span></div>
+          <div class="readout"><span class="readout__label">Orbit RMS</span> <span class="readout__value" id="dashThreadRms">—</span></div>
+        </div>
+        <div class="actions actions--right" style="margin-top: var(--space-3);">
+          <a class="btn" href="/threading.html">Open Threading →</a>
+        </div>
+      </section>
+    </div>
+
+    <!-- Quick actions -->
+    <section class="panel" aria-labelledby="dash-actions">
+      <div class="panel__head"><h2 id="dash-actions" class="panel__title">Quick actions</h2></div>
       <div class="actions">
-        <button type="button" id="pingButton" class="primary">Ping</button>
+        <button type="button" id="dashAcquireBtn" class="btn btn--primary">▶ Acquire</button>
+        <a class="btn" href="/trajectory.html">Open Trajectory →</a>
+        <a class="btn" href="/diagnostics.html">Diagnostics →</a>
+        <span id="dashAcquireMeta" class="readout__label" style="font-family: var(--monospace);"></span>
       </div>
-    </section>
-
-    <section class="log-panel" aria-labelledby="log-heading">
-      <h2 id="log-heading" class="log-heading">Event log</h2>
-      <ul class="log-list" id="eventLog" aria-live="polite"></ul>
     </section>
   </main>
 
+  <script src="/js/shell.js"></script>
   <script src="/js/connection.js"></script>
-  <script src="/js/app.js"></script>
+  <script src="/js/dashboard.js"></script>
 </body>
 </html>

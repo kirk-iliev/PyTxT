@@ -111,3 +111,43 @@ def load_response_matrix(path: Path) -> ResponseMatrix:
         energy_gev=float(npz["energy_gev"]),
         provenance=str(npz["provenance"]),
     )
+
+
+def build_synthetic_response_matrix(
+    n_bpms: int = 120,
+    n_hcm: int = 96,
+    n_vcm: int = 72,
+    seed: int = 0,
+    energy_gev: float = 1.9,
+) -> ResponseMatrix:
+    """Build a synthetic ResponseMatrix from a random, well-conditioned plant.
+
+    A stand-in for the real offline generator (modeled via pySC / measured —
+    deferred per Decision D1), so the threading path can run end-to-end without
+    pySC. Provenance is marked SYNTHETIC so it can't be mistaken for a real one.
+    Used by `tools/gen_synthetic_response_matrix.py` and, in synthetic dev mode,
+    built in-memory at composition time sized to the live BPM/corrector counts.
+    """
+    # Local import avoids any import-order coupling with the threading module.
+    from pytxt.domain.threading import tikhonov_pinv
+
+    rng = np.random.default_rng(seed)
+    n_cm = n_hcm + n_vcm
+    bpm_s = np.sort(rng.uniform(0, 200, size=n_bpms))
+    cm_s = np.sort(rng.uniform(0, 200, size=n_cm))
+    plant = rng.standard_normal((2 * n_bpms, n_cm)) * 0.1   # mm per amp
+    mplus = tikhonov_pinv(plant, alpha=1.0, n_sv_cut=0, damping=1.0)
+    return ResponseMatrix(
+        mplus=mplus,
+        bpm_names=[f"SR{i // 8 + 1:02d}C:BPM{i % 8 + 1}" for i in range(n_bpms)],
+        hcm_names=[f"HCM{i + 1}" for i in range(n_hcm)],
+        vcm_names=[f"VCM{i + 1}" for i in range(n_vcm)],
+        bpm_s=bpm_s,
+        cm_s=cm_s,
+        units="mm->amp",
+        energy_gev=energy_gev,
+        provenance=(
+            "SYNTHETIC (build_synthetic_response_matrix) — random plant, "
+            "NOT a modeled or measured matrix; for dev/test only"
+        ),
+    )

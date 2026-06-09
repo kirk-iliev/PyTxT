@@ -115,7 +115,16 @@ async def main() -> None:
     # Phase 4 corrector writer — OFF by default (active machine commanding is
     # opt-in). When disabled, STEP_CM returns 503; the analysis path is unaffected.
     corrector_writer = None
-    if settings.enable_corrector_writer:
+    if os.environ.get("PYTXT_USE_SYNTHETIC_READER") == "1":
+        from pytxt.ca_client.synthetic_corrector_writer import SyntheticCorrectorWriter
+        hcm = load_corrector_channels(settings.hcm_channels_path, "HCM")
+        vcm = load_corrector_channels(settings.vcm_channels_path, "VCM")
+        corrector_writer = SyntheticCorrectorWriter(hcm_channels=hcm, vcm_channels=vcm)
+        logger.info(
+            "PYTXT_USE_SYNTHETIC_READER=1 — using SyntheticCorrectorWriter "
+            "(%d HCM + %d VCM, in-memory setpoints)", len(hcm), len(vcm)
+        )
+    elif settings.enable_corrector_writer:
         hcm = load_corrector_channels(settings.hcm_channels_path, "HCM")
         vcm = load_corrector_channels(settings.vcm_channels_path, "VCM")
         corrector_writer = CorrectorWriter(
@@ -129,7 +138,13 @@ async def main() -> None:
     # Phase 4 injection trigger — OFF by default. When disabled, INJECT_ONESHOT
     # returns 503. Even enabled, real gun fire still needs per-request opt-in.
     injection_trigger = None
-    if settings.enable_injection_trigger:
+    if os.environ.get("PYTXT_USE_SYNTHETIC_READER") == "1":
+        from pytxt.ca_client.synthetic_injection_trigger import SyntheticInjectionTrigger
+        injection_trigger = SyntheticInjectionTrigger()
+        logger.info(
+            "PYTXT_USE_SYNTHETIC_READER=1 — using SyntheticInjectionTrigger (in-memory)"
+        )
+    elif settings.enable_injection_trigger:
         injection_trigger = InjectionTrigger(per_pv_timeout_s=settings.injection_io_timeout_s)
         logger.warning("Injection trigger ENABLED — INJECT_ONESHOT can command the machine")
     else:
@@ -139,7 +154,20 @@ async def main() -> None:
     # returns 503 without one). Absent/corrupt is non-fatal: log and continue.
     response_matrix = None
     rm_path = Path(settings.response_matrix_path)
-    if rm_path.exists():
+    if os.environ.get("PYTXT_USE_SYNTHETIC_READER") == "1":
+        # Build the matrix in-memory, sized to the live synthetic dims (no file
+        # dependency), so THREAD_START works in dev + e2e out of the box.
+        from pytxt.domain.response_matrix import build_synthetic_response_matrix
+        n_hcm = len(corrector_writer.channels("HCM")) if corrector_writer else 96
+        n_vcm = len(corrector_writer.channels("VCM")) if corrector_writer else 72
+        response_matrix = build_synthetic_response_matrix(
+            n_bpms=len(bpm_prefixes), n_hcm=n_hcm, n_vcm=n_vcm,
+        )
+        logger.info(
+            "PYTXT_USE_SYNTHETIC_READER=1 — built in-memory synthetic response "
+            "matrix (%d BPMs, %d HCM + %d VCM)", len(bpm_prefixes), n_hcm, n_vcm
+        )
+    elif rm_path.exists():
         try:
             response_matrix = load_response_matrix(rm_path)
             logger.info(

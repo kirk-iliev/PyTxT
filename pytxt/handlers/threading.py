@@ -327,6 +327,7 @@ async def handle_thread_start(
     iterations = 0
     final_rms = float("nan")
     rms_prev = math.inf
+    last_step = None   # most recent calc_cm_step, surfaced for the step bar chart
     try:
         for i in range(max_steps):
             if state.thread_stop_requested:
@@ -365,6 +366,7 @@ async def handle_thread_start(
             rms_prev = rms
 
             step = calc_cm_step(diff.dx, diff.dy, response_matrix, gain=gain)
+            last_step = step
             if not dry_run:
                 await _apply_cm_deltas(corrector_writer, "HCM", step.dphi_hcm)
                 await _apply_cm_deltas(corrector_writer, "VCM", step.dphi_vcm)
@@ -377,7 +379,10 @@ async def handle_thread_start(
         )
         return ThreadStartResponse(
             status=status, iterations=iterations, final_rms_mm=final_rms,
-            rms_history_mm=rms_history, dry_run=dry_run, timestamp=_now(),
+            rms_history_mm=rms_history,
+            step_hcm_a=last_step.dphi_hcm.tolist() if last_step is not None else [],
+            step_vcm_a=last_step.dphi_vcm.tolist() if last_step is not None else [],
+            dry_run=dry_run, timestamp=_now(),
         )
     finally:
         await state.update(thread_running=False)

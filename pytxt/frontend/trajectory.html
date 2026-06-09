@@ -4,24 +4,29 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PyTxT — Trajectory</title>
-  <link rel="stylesheet" href="/css/theme.css?v=3">
+  <link rel="stylesheet" href="/css/theme.css?v=14">
 </head>
 <body>
-  <header class="app-header">
-    <h1 class="app-title">PyTxT — Trajectory</h1>
-    <nav class="app-nav">
-      <a href="/">Ping</a>
-      <a href="/trajectory.html" class="active">Trajectory</a>
-      <a href="/threading.html">Threading</a>
-    </nav>
-    <div class="connection-status" id="connectionStatus" data-state="connecting">
-      <span class="dot"></span>
-      <span class="label" id="connectionStatusLabel">connecting…</span>
-    </div>
-  </header>
-
   <main class="app-main">
-    <section class="trajectory-panel">
+    <div>
+      <h1 class="page-title">Trajectory</h1>
+      <p class="page-subtitle">First-turn positions, reference comparison, and shot-to-shot deviation.</p>
+    </div>
+
+    <!-- U6 — first-turn analysis strip (live RESULT:ANALYSIS:* PVs) -->
+    <section class="panel analysis-panel" aria-labelledby="analysis-heading">
+      <div class="panel__head"><h2 id="analysis-heading" class="panel__title">First-turn analysis</h2></div>
+      <div class="analysis-strip">
+        <div class="readout"><span class="readout__label">X rms</span><span class="readout__value" id="anXRms">—</span></div>
+        <div class="readout"><span class="readout__label">Y rms</span><span class="readout__value" id="anYRms">—</span></div>
+        <div class="readout"><span class="readout__label">X max</span><span class="readout__value" id="anXMax">—</span></div>
+        <div class="readout"><span class="readout__label">Y max</span><span class="readout__value" id="anYMax">—</span></div>
+        <div class="readout"><span class="readout__label">Live BPMs</span><span class="readout__value" id="anLive">—</span></div>
+        <div class="readout"><span class="readout__label">First-turn reach</span><span class="readout__value" id="anReach">—</span></div>
+      </div>
+    </section>
+
+    <section class="panel trajectory-panel">
       <div class="trajectory-header">
         <span id="trajectoryStatus">No acquisition yet</span>
         <span id="trajectoryDiffRms" class="diff-rms" hidden></span>
@@ -31,19 +36,19 @@
         <div class="panel-grid panels-2" id="panelGrid">
           <div class="canvas-wrap">
             <div class="axis-label">X (mm)</div>
-            <canvas id="canvasX" width="800" height="190" aria-label="X position vs BPM index"></canvas>
+            <canvas id="canvasX" width="1000" height="280" aria-label="X position vs BPM index"></canvas>
           </div>
           <div class="canvas-wrap">
             <div class="axis-label">Y (mm)</div>
-            <canvas id="canvasY" width="800" height="190" aria-label="Y position vs BPM index"></canvas>
+            <canvas id="canvasY" width="1000" height="280" aria-label="Y position vs BPM index"></canvas>
           </div>
           <div class="canvas-wrap diff-panel">
             <div class="axis-label">ΔX (mm)</div>
-            <canvas id="canvasDX" width="800" height="190" aria-label="X deviation from reference vs BPM index"></canvas>
+            <canvas id="canvasDX" width="1000" height="280" aria-label="X deviation from reference vs BPM index"></canvas>
           </div>
           <div class="canvas-wrap diff-panel">
             <div class="axis-label">ΔY (mm)</div>
-            <canvas id="canvasDY" width="800" height="190" aria-label="Y deviation from reference vs BPM index"></canvas>
+            <canvas id="canvasDY" width="1000" height="280" aria-label="Y deviation from reference vs BPM index"></canvas>
           </div>
         </div>
         <aside class="reference-sidebar" id="referenceSidebar">
@@ -61,8 +66,27 @@
         </aside>
       </div>
       <div class="actions">
-        <button type="button" id="acquireButton" class="primary">▶ Acquire</button>
+        <button type="button" id="acquireButton" class="btn btn--primary">▶ Acquire</button>
         <span id="acquireMeta" class="meta"></span>
+      </div>
+    </section>
+
+    <!-- U2 — raw turn-by-turn signal (manual step 5): Sum / Horizontal / Vertical -->
+    <section class="panel tbt-panel">
+      <div class="panel__head">
+        <h2 class="panel__title">Raw turn-by-turn signal</h2>
+        <div class="panel__toolbar">
+          <label class="tbt-select">BPM
+            <select id="tbtBpmSelect"></select>
+          </label>
+          <button type="button" id="tbtRefreshBtn" class="btn" title="Re-fetch current BPM">↻</button>
+          <span id="tbtMeta" class="meta" role="status"></span>
+        </div>
+      </div>
+      <div class="tbt-grid">
+        <div class="tbt-cell"><div class="tbt-cell-label">Sum (AU)</div><canvas id="tbtSum" class="tbt-canvas"></canvas></div>
+        <div class="tbt-cell"><div class="tbt-cell-label">Horizontal — X (mm)</div><canvas id="tbtX" class="tbt-canvas"></canvas></div>
+        <div class="tbt-cell"><div class="tbt-cell-label">Vertical — Y (mm)</div><canvas id="tbtY" class="tbt-canvas"></canvas></div>
       </div>
     </section>
 
@@ -93,8 +117,12 @@
     </div>
   </main>
 
+  <script src="/js/shell.js"></script>
   <script src="/js/connection.js"></script>
+  <script src="/js/plot.js"></script>
   <script src="/js/trajectory.js"></script>
   <script src="/js/reference.js"></script>
+  <script src="/js/tbt.js"></script>
+  <script src="/js/analysis.js"></script>
 </body>
 </html>

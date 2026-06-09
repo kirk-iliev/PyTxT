@@ -17,6 +17,7 @@ from pytxt.api.schemas.result import (
     AcquireStatus,
     LastAcquireResult,
 )
+from pytxt.domain.analysis import analyze_first_turn
 from pytxt.domain.first_turn_extract import extract_first_turn
 from pytxt.domain.reference import compute_diff, summarize_diff
 from pytxt.domain.types import DiffResult, RawBPM
@@ -108,10 +109,13 @@ async def handle_acquire(state: AppState, reader: _ReaderProtocol) -> AcquireRes
                                  "publishing first-turn with last_diff=None")
                 diff = None
 
+        analysis = analyze_first_turn(first_turn, state.bpm_prefixes)
+
         await state.update(
             last_acquire=last,
             last_acquire_raws=successful_raws,
             last_diff=diff,            # None when no ref → IOC NaN-fills
+            last_analysis=analysis,
         )
 
         return AcquireResponse(

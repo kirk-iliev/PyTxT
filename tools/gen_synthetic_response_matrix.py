@@ -20,47 +20,10 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import numpy as np
+from pytxt.domain.response_matrix import build_synthetic_response_matrix, save_response_matrix
 
-from pytxt.domain.response_matrix import save_response_matrix
-from pytxt.domain.threading import tikhonov_pinv
-from pytxt.domain.types import ResponseMatrix
-
-
-def build_synthetic(
-    n_bpms: int = 120,
-    n_hcm: int = 96,
-    n_vcm: int = 72,
-    seed: int = 0,
-    energy_gev: float = 1.9,
-) -> ResponseMatrix:
-    """Build a synthetic ResponseMatrix with realistic ALS-scale dimensions."""
-    rng = np.random.default_rng(seed)
-    n_cm = n_hcm + n_vcm
-
-    # Synthetic plant: corrector kicks (amps) -> orbit (mm). Give it a smooth
-    # s-dependent structure so downstream-zeroing has something monotone to act
-    # on, plus noise for conditioning.
-    bpm_s = np.sort(rng.uniform(0, 200, size=n_bpms))
-    cm_s = np.sort(rng.uniform(0, 200, size=n_cm))
-    plant = rng.standard_normal((2 * n_bpms, n_cm)) * 0.1   # mm per amp, plausible
-
-    mplus = tikhonov_pinv(plant, alpha=1.0, n_sv_cut=0, damping=1.0)
-
-    return ResponseMatrix(
-        mplus=mplus,
-        bpm_names=[f"SR{i // 8 + 1:02d}C:BPM{i % 8 + 1}" for i in range(n_bpms)],
-        hcm_names=[f"HCM{i + 1}" for i in range(n_hcm)],
-        vcm_names=[f"VCM{i + 1}" for i in range(n_vcm)],
-        bpm_s=bpm_s,
-        cm_s=cm_s,
-        units="mm->amp",
-        energy_gev=energy_gev,
-        provenance=(
-            "SYNTHETIC (tools/gen_synthetic_response_matrix.py) — random plant, "
-            "NOT a modeled or measured matrix; for dev/test only"
-        ),
-    )
+# Re-export under the historical name for any callers/tests.
+build_synthetic = build_synthetic_response_matrix
 
 
 def main() -> None:

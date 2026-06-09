@@ -4,31 +4,26 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PyTxT — Threading</title>
-  <link rel="stylesheet" href="/css/theme.css?v=3">
+  <link rel="stylesheet" href="/css/theme.css?v=14">
 </head>
 <body>
-  <header class="app-header">
-    <h1 class="app-title">PyTxT — Threading</h1>
-    <nav class="app-nav">
-      <a href="/">Ping</a>
-      <a href="/trajectory.html">Trajectory</a>
-      <a href="/threading.html" class="active">Threading</a>
-    </nav>
-    <div class="connection-status" id="connectionStatus" data-state="connecting">
-      <span class="dot"></span>
-      <span class="label" id="connectionStatusLabel">connecting…</span>
-    </div>
-  </header>
-
   <main class="app-main">
-    <section class="state-panel" aria-labelledby="thread-heading">
-      <h2 id="thread-heading" class="visually-hidden">First-turn threading</h2>
+    <div>
+      <h1 class="page-title">Threading</h1>
+      <p class="page-subtitle">First-turn closed-loop correction (response-matrix inverse → corrector steps).</p>
+    </div>
 
-      <div class="state-grid">
-        <div class="state-row"><span class="state-label">Status</span>     <span class="state-value" id="threadStatus">—</span></div>
-        <div class="state-row"><span class="state-label">Running</span>    <span class="state-value" id="threadRunning">—</span></div>
-        <div class="state-row"><span class="state-label">Iteration</span>  <span class="state-value" id="threadIteration">—</span></div>
-        <div class="state-row"><span class="state-label">Orbit RMS</span>  <span class="state-value" id="threadRms">—</span></div>
+    <section class="panel" aria-labelledby="thread-heading">
+      <div class="panel__head">
+        <h2 id="thread-heading" class="panel__title">Loop state</h2>
+        <span class="state-pill" id="threadPill" data-tone="idle">NEVER</span>
+      </div>
+
+      <div class="readout-grid">
+        <div class="readout"><span class="readout__label">Status</span>    <span class="readout__value" id="threadStatus">—</span></div>
+        <div class="readout"><span class="readout__label">Running</span>   <span class="readout__value" id="threadRunning">—</span></div>
+        <div class="readout"><span class="readout__label">Iteration</span> <span class="readout__value" id="threadIteration">—</span></div>
+        <div class="readout"><span class="readout__label">Orbit RMS</span> <span class="readout__value" id="threadRms">—</span></div>
       </div>
 
       <form class="thread-controls" id="threadControls">
@@ -40,19 +35,48 @@
       </form>
 
       <div class="actions">
-        <button type="button" id="threadStartBtn" class="primary">▶ Start threading</button>
-        <button type="button" id="threadStopBtn">■ Stop</button>
+        <button type="button" id="threadStartBtn" class="btn btn--primary">▶ Start threading</button>
+        <button type="button" id="threadStopBtn" class="btn">■ Stop</button>
         <span id="threadMsg" class="meta" role="status"></span>
       </div>
     </section>
 
-    <section class="log-panel" aria-labelledby="thread-log-heading">
-      <h2 id="thread-log-heading" class="log-heading">Event log</h2>
+    <!-- U5 — run observability: RMS history + outcome guidance -->
+    <section class="panel" aria-labelledby="thread-result">
+      <div class="panel__head">
+        <h2 id="thread-result" class="panel__title">Run result</h2>
+        <span class="state-pill" id="threadResultPill" data-tone="idle">no run yet</span>
+      </div>
+      <div class="thread-guidance" id="threadGuidance">Run the loop to see per-iteration RMS and outcome guidance.</div>
+      <div class="thread-rms-wrap">
+        <div class="tbt-cell-label">Orbit RMS per iteration (mm)</div>
+        <canvas id="threadRmsCanvas" class="thread-canvas"></canvas>
+      </div>
+    </section>
+
+    <!-- U5 — last computed corrector step (manual step 16) -->
+    <section class="panel" aria-labelledby="thread-step">
+      <div class="panel__head">
+        <h2 id="thread-step" class="panel__title">Corrector step (last computed)</h2>
+        <span id="threadStepMeta" class="meta"></span>
+      </div>
+      <div class="thread-step-grid">
+        <div class="tbt-cell"><div class="tbt-cell-label">HCM Δ (A)</div><canvas id="threadStepHcm" class="thread-canvas"></canvas></div>
+        <div class="tbt-cell"><div class="tbt-cell-label">VCM Δ (A)</div><canvas id="threadStepVcm" class="thread-canvas"></canvas></div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="thread-log-heading">
+      <div class="panel__head">
+        <h2 id="thread-log-heading" class="panel__title">Event log</h2>
+      </div>
       <ul class="log-list" id="eventLog" aria-live="polite"></ul>
     </section>
   </main>
 
+  <script src="/js/shell.js"></script>
   <script src="/js/connection.js"></script>
+  <script src="/js/plot.js"></script>
   <script src="/js/threading.js"></script>
 </body>
 </html>
