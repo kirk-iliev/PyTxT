@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PyTxT — Injection</title>
+  <link rel="stylesheet" href="/css/theme.css?v=12">
+</head>
+<body>
+  <main class="app-main">
+    <div>
+      <h1 class="page-title">Injection</h1>
+      <p class="page-subtitle">Fire one injection shot (de-boxed srinjectoneshot). Gun fire is gated and explicit.</p>
+    </div>
+
+    <div class="card-grid card-grid--2">
+      <!-- Fire panel -->
+      <section class="panel inj-panel" id="injPanel" aria-labelledby="inj-fire">
+        <div class="panel__head"><h2 id="inj-fire" class="panel__title">Fire one shot</h2></div>
+
+        <label class="inj-mode-label">Gun mode
+          <select id="injInhibit">
+            <option value="1">Inhibit gun — bumps only, no charge (safe)</option>
+            <option value="0">Fire gun — real injection</option>
+          </select>
+        </label>
+
+        <div class="inj-gun-warn" id="injGunWarn" hidden>
+          ⚠ Gun fire (inhibit=0) injects real charge into the ring. This requires explicit opt-in.
+          <label class="inj-allow"><input type="checkbox" id="injAllow"> I understand — allow gun fire</label>
+        </div>
+
+        <div class="inj-form">
+          <label>Bucket <input type="number" id="injBucket" value="308" min="1" max="328"></label>
+          <label>Gun bunches <input type="number" id="injGunBunches" value="4" min="1" max="16"></label>
+          <label>Mode
+            <select id="injMode">
+              <option value="40">40 — SR injection</option>
+              <option value="42">42 — bumps only</option>
+            </select>
+          </label>
+          <label class="inj-force"><input type="checkbox" id="injForce"> Force (bypass top-off precondition)</label>
+        </div>
+
+        <div class="actions" style="margin-top: var(--space-4);">
+          <button type="button" id="injFireBtn" class="btn btn--primary">▶ Fire (bumps only)</button>
+          <span id="injMsg" class="inj-msg" role="status"></span>
+        </div>
+      </section>
+
+      <!-- Last shot -->
+      <section class="panel" aria-labelledby="inj-last">
+        <div class="panel__head">
+          <h2 id="inj-last" class="panel__title">Last shot</h2>
+          <span class="state-pill" id="injLastStatus" data-tone="idle">NEVER</span>
+        </div>
+        <div class="readout-grid">
+          <div class="readout"><span class="readout__label">Bucket</span>  <span class="readout__value" id="injLastBucket">—</span></div>
+          <div class="readout"><span class="readout__label">Mode</span>    <span class="readout__value" id="injLastMode">—</span></div>
+          <div class="readout"><span class="readout__label">Gun</span>     <span class="readout__value" id="injLastInhibit">—</span></div>
+          <div class="readout"><span class="readout__label">Seq num</span> <span class="readout__value" id="injLastSeq">—</span></div>
+          <div class="readout"><span class="readout__label">When</span>    <span class="readout__value" id="injLastTime">—</span></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/js/shell.js"></script>
+  <script src="/js/connection.js"></script>
+  <script src="/js/injection.js"></script>
+</body>
+</html>

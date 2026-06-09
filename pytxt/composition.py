@@ -138,7 +138,13 @@ async def main() -> None:
     # Phase 4 injection trigger — OFF by default. When disabled, INJECT_ONESHOT
     # returns 503. Even enabled, real gun fire still needs per-request opt-in.
     injection_trigger = None
-    if settings.enable_injection_trigger:
+    if os.environ.get("PYTXT_USE_SYNTHETIC_READER") == "1":
+        from pytxt.ca_client.synthetic_injection_trigger import SyntheticInjectionTrigger
+        injection_trigger = SyntheticInjectionTrigger()
+        logger.info(
+            "PYTXT_USE_SYNTHETIC_READER=1 — using SyntheticInjectionTrigger (in-memory)"
+        )
+    elif settings.enable_injection_trigger:
         injection_trigger = InjectionTrigger(per_pv_timeout_s=settings.injection_io_timeout_s)
         logger.warning("Injection trigger ENABLED — INJECT_ONESHOT can command the machine")
     else:

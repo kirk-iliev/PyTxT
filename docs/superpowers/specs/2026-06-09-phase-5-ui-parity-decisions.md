@@ -146,3 +146,17 @@ Append-only log of implementation-time decisions: choices made during coding tha
 **Spec relationship:** Implements §4 rows 11/12/17 + §6.2 apply panel; defers row 16 to U5; amends §1's no-backend claim.
 
 **Forward impact:** U4 (injection) will need the same treatment — a **synthetic injection trigger** so `INJECT_ONESHOT` is demoable in dev (currently `injection_trigger=None` → 503). Plan for it. The catalog endpoint + synthetic writer are reusable by U5's threading commissioning UI.
+
+## 2026-06-09 — U4: synthetic injection trigger; gun-fire guard is the demoable safety
+
+**Context:** U4 — Injection panel (safety-gated `CMD:INJECT_ONESHOT`).
+
+**Decision (a) — synthetic injection trigger (backend, as predicted in U3 log):** Added `SyntheticInjectionTrigger` (in-memory TimInjReq + fine-delay, mirrors the trigger interface), wired in `composition.py` under `PYTXT_USE_SYNTHETIC_READER=1`. Without it `INJECT_ONESHOT` is 503 in dev. `read_bucket_control()` returns 0 (top-off inactive → shots allowed); `sync_seq_busy()` is instant; seqNum increments across shots.
+
+**Decision (b) — gun-fire guard is the headline demoable safety; precondition 409 isn't:** The `inhibit=0 → allow_gun_fire` guard (403) is enforced in the handler *before* any trigger call, so it's fully demoable and is the UI's central safety story — gun-fire mode turns the whole panel danger, requires an explicit opt-in checkbox, and only then enables a red FIRE GUN button. The top-off precondition refusal (409) needs `bucket:control:cmd=1`, which the synthetic trigger hardcodes to 0; demoing it would need a toggle endpoint, deferred (it's unit-tested in pytest). Force checkbox is wired but moot in dev.
+
+**Decision (c) — all six nav tabs now live:** With Injection shipped, no tabs remain disabled; `shell.spec.js` updated (the "disabled tab" test became "all six live").
+
+**Spec relationship:** Implements §4 "+ Injection firing" row + §6.3. Confirms the U3-logged prediction that U4 needs synthetic backend.
+
+**Forward impact:** U5 (threading commissioning) reuses both synthetic active backends (corrector writer + injection trigger) — the loop fires per-step shots and steps correctors. The 409 precondition + real-hardware paths remain control-room validation (Phase-4 checklist B1).

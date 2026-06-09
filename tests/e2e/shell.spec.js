@@ -2,8 +2,8 @@ const { test, expect } = require('@playwright/test');
 
 // Phase 5 / U0 — the shared application shell + tab navigation.
 
-const LIVE_TABS = ['Dashboard', 'Trajectory', 'Correctors', 'Threading', 'Diagnostics'];
-const DISABLED_TABS = ['Injection'];
+const LIVE_TABS = ['Dashboard', 'Trajectory', 'Correctors', 'Injection', 'Threading', 'Diagnostics'];
+const DISABLED_TABS = [];
 
 test.describe('app shell', () => {
   test('header + 6-tab nav render on every live page', async ({ page }) => {
@@ -36,12 +36,10 @@ test.describe('app shell', () => {
     }
   });
 
-  test('disabled tabs are not navigable', async ({ page }) => {
+  test('all six tabs are live (none disabled)', async ({ page }) => {
     await page.goto('/');
-    const injection = page.locator('.nav-tab.is-disabled:has-text("Injection")');
-    await expect(injection).toHaveAttribute('aria-disabled', 'true');
-    // Rendered as <span>, so it carries no href to navigate to.
-    await expect(injection).toHaveJSProperty('tagName', 'SPAN');
+    await expect(page.locator('.nav-tab.is-disabled')).toHaveCount(0);
+    await expect(page.locator('a.nav-tab')).toHaveCount(6);
   });
 
   test('clicking a live tab navigates', async ({ page }) => {
