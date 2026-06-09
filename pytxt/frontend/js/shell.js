@@ -25,7 +25,7 @@
     { label: 'Correctors',  href: '/correctors.html', ready: false },
     { label: 'Injection',   href: '/injection.html',  ready: false },
     { label: 'Threading',   href: '/threading.html',  ready: true },
-    { label: 'Diagnostics', href: '/diagnostics.html', ready: false },
+    { label: 'Diagnostics', href: '/diagnostics.html', ready: true },
   ];
 
   const SOON_TITLE = 'Coming in a later Phase-5 milestone';
@@ -68,4 +68,18 @@
 
   // Inject synchronously so subsequent page scripts find the header elements.
   document.body.insertAdjacentHTML('afterbegin', headerHtml());
+
+  // The connection indicator is part of the shell, so the shell owns its
+  // wiring. Deferred to DOMContentLoaded so connection.js (a later <script>)
+  // has defined window.connection by the time this runs. Page scripts may
+  // also wire it; setting the same dataset/text is idempotent.
+  document.addEventListener('DOMContentLoaded', () => {
+    if (!window.connection || !window.connection.onStatusChange) return;
+    const statusEl = document.getElementById('connectionStatus');
+    const labelEl = document.getElementById('connectionStatusLabel');
+    window.connection.onStatusChange((s) => {
+      if (statusEl) statusEl.dataset.state = s;
+      if (labelEl) labelEl.textContent = s === 'connecting' ? 'connecting…' : s;
+    });
+  });
 })();

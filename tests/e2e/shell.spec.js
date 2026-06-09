@@ -2,8 +2,8 @@ const { test, expect } = require('@playwright/test');
 
 // Phase 5 / U0 — the shared application shell + tab navigation.
 
-const LIVE_TABS = ['Dashboard', 'Trajectory', 'Threading'];
-const DISABLED_TABS = ['Correctors', 'Injection', 'Diagnostics'];
+const LIVE_TABS = ['Dashboard', 'Trajectory', 'Threading', 'Diagnostics'];
+const DISABLED_TABS = ['Correctors', 'Injection'];
 
 test.describe('app shell', () => {
   test('header + 6-tab nav render on every live page', async ({ page }) => {

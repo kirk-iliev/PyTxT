@@ -2,7 +2,7 @@ const { test, expect } = require('@playwright/test');
 
 test.describe('PyTxT ping flow', () => {
   test('clicking Ping increments ping count via full round-trip', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/diagnostics.html');
 
     // Wait for initial state to load
     const pingCountEl = page.locator('#pingCount');
@@ -21,7 +21,7 @@ test.describe('PyTxT ping flow', () => {
   });
 
   test('multiple pings accumulate', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/diagnostics.html');
     const pingCountEl = page.locator('#pingCount');
     await expect(pingCountEl).not.toHaveText('—', { timeout: 3000 });
 

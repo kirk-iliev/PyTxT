@@ -100,3 +100,19 @@ Append-only log of implementation-time decisions: choices made during coding tha
 **Spec relationship:** Defers part of §6/§7 U0 scope to U2. Spec text still lists `plot-canvas` under U0 components — treat U2 as its delivery point. `[needs-spec-update]` minor: move `plot-canvas` bullet from U0 to U2 if tidying.
 
 **Forward impact:** U2 owns the extraction; it should refactor `trajectory.js` onto the shared module at that point (or consciously keep them separate and log why).
+
+## 2026-06-09 — U1: fully PV-driven dashboard (no REST poll); shell owns connection status
+
+**Context:** U1 — dashboard home (`index.html` + `dashboard.js`) and the new Diagnostics page.
+
+**Decision (a) — no polling:** The dashboard derives Δrms and reference coverage **client-side from the diff waveform PVs** (`RESULT:BPM:{X,Y}_DIFF_FIRST_TURN`) + `RESULT:BPM:NAMES`, rather than polling `GET /api/v1/state` for `last_diff`/`reference.n_aligned`. Coverage = count of indices finite on both planes, over `NAMES.length`. So every dashboard tile is live over the WS/PV bridge with zero REST polling (north-star #2/#3).
+
+**Decision (b) — shell owns the connection indicator:** Moved connection-status wiring out of per-page scripts and into `shell.js` (deferred to `DOMContentLoaded` so `window.connection` exists). The indicator is part of the shell chrome, so the shell should own it — otherwise every new page must remember to wire it (which `dashboard.js` initially didn't, breaking the smoke spec). Existing page scripts still wire it too; the writes are idempotent. Cleanup of the now-redundant per-page wiring is deferred (low value, non-zero risk).
+
+**Decision (c) — Ping/health → Diagnostics:** Per spec §5, the old `/` "Ping" content moved to a new `/diagnostics.html` (reusing `app.js` verbatim for ping/health + a `diagnostics.js` raw-`/state` inspector + API-discovery links). `ping.spec.js` repointed from `/` to `/diagnostics.html`.
+
+**Why coverage shows 12/128 in dev:** synthetic reader emits 12 BPMs; the IOC pads waveform PVs to 128. Real machine → ~120. Display artifact, not a bug.
+
+**Spec relationship:** Implements §6.1 dashboard + §5 IA (Diagnostics now `ready:true`). Fills a gap the spec left implicit (where connection-status wiring lives).
+
+**Forward impact:** New pages get the connection indicator for free via the shell. The PV-derived-coverage pattern is reusable; if a future tile needs `n_aligned` semantics that differ from "finite on both planes," revisit.

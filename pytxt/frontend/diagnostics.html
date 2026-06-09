@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PyTxT — Diagnostics</title>
+  <link rel="stylesheet" href="/css/theme.css?v=5">
+</head>
+<body>
+  <main class="app-main">
+    <div>
+      <h1 class="page-title">Diagnostics</h1>
+      <p class="page-subtitle">Liveness, ping, raw state snapshot, and API discovery.</p>
+    </div>
+
+    <div class="card-grid card-grid--2">
+      <!-- Health + ping (reuses app.js; IDs must match) -->
+      <section class="panel" aria-labelledby="diag-health">
+        <div class="panel__head"><h2 id="diag-health" class="panel__title">System health</h2></div>
+        <div class="readout-grid">
+          <div class="readout"><span class="readout__label">Version</span>   <span class="readout__value" id="version">—</span></div>
+          <div class="readout"><span class="readout__label">Heartbeat</span> <span class="readout__value" id="heartbeat">—</span></div>
+          <div class="readout"><span class="readout__label">Uptime</span>    <span class="readout__value" id="uptime">—</span></div>
+          <div class="readout"><span class="readout__label">Last ping</span> <span class="readout__value" id="lastPingAt">—</span></div>
+          <div class="readout"><span class="readout__label">Ping count</span><span class="readout__value" id="pingCount">—</span></div>
+        </div>
+        <div class="actions actions--right" style="margin-top: var(--space-4);">
+          <button type="button" id="pingButton" class="btn btn--primary">Ping</button>
+        </div>
+      </section>
+
+      <!-- Event log -->
+      <section class="panel" aria-labelledby="diag-log">
+        <div class="panel__head"><h2 id="diag-log" class="panel__title">Event log</h2></div>
+        <ul class="log-list" id="eventLog" aria-live="polite"></ul>
+      </section>
+    </div>
+
+    <!-- State inspector -->
+    <section class="panel" aria-labelledby="diag-state">
+      <div class="panel__head">
+        <h2 id="diag-state" class="panel__title">State snapshot</h2>
+        <div class="panel__toolbar">
+          <button type="button" id="stateRefreshBtn" class="btn">Refresh</button>
+        </div>
+      </div>
+      <pre id="stateDump" style="margin:0; max-height:24rem; overflow:auto; font-family:var(--monospace); font-size:var(--fs-xs); color:var(--fg-muted); white-space:pre-wrap;">GET /api/v1/state — click Refresh</pre>
+    </section>
+
+    <!-- API discovery -->
+    <section class="panel" aria-labelledby="diag-api">
+      <div class="panel__head"><h2 id="diag-api" class="panel__title">API discovery</h2></div>
+      <div class="actions">
+        <a class="btn" href="/docs" target="_blank" rel="noopener">OpenAPI (Swagger) ↗</a>
+        <a class="btn" href="/openapi.json" target="_blank" rel="noopener">openapi.json ↗</a>
+        <a class="btn" href="/api/v1/state" target="_blank" rel="noopener">/api/v1/state ↗</a>
+      </div>
+    </section>
+  </main>
+
+  <script src="/js/shell.js"></script>
+  <script src="/js/connection.js"></script>
+  <script src="/js/app.js"></script>
+  <script src="/js/diagnostics.js"></script>
+</body>
+</html>
