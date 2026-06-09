@@ -335,13 +335,17 @@ h1, h2, h3 { font-weight: 600; }
 }
 .trajectory-header .diff-rms[hidden] { display: none; }
 
-.trajectory-body { display: flex; gap: 0.8rem; align-items: flex-start; }
-.trajectory-body .panel-grid { flex: 1; min-width: 0; }
+/* Plots + sidebar reflow: on narrow viewports the sidebar wraps below the
+   plots (which reclaim full width) instead of squeezing them. */
+.trajectory-body { display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: flex-start; }
+.trajectory-body .panel-grid { flex: 1 1 30rem; min-width: 0; }
 
 .panel-grid { display: grid; gap: 0.6rem; }
 .panel-grid.panels-2 { grid-template-columns: 1fr; }
 .panel-grid.panels-2 .diff-panel { display: none; }
-.panel-grid.panels-4 { grid-template-columns: 1fr 1fr; }
+/* 2 columns when two ~28rem plots fit; auto-collapses to 1 (stacked) when
+   not. min(28rem,100%) keeps a single narrow column from overflowing. */
+.panel-grid.panels-4 { grid-template-columns: repeat(auto-fit, minmax(min(28rem, 100%), 1fr)); }
 
 .canvas-wrap { position: relative; }
 .canvas-wrap .axis-label {
