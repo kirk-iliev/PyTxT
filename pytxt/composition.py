@@ -154,7 +154,20 @@ async def main() -> None:
     # returns 503 without one). Absent/corrupt is non-fatal: log and continue.
     response_matrix = None
     rm_path = Path(settings.response_matrix_path)
-    if rm_path.exists():
+    if os.environ.get("PYTXT_USE_SYNTHETIC_READER") == "1":
+        # Build the matrix in-memory, sized to the live synthetic dims (no file
+        # dependency), so THREAD_START works in dev + e2e out of the box.
+        from pytxt.domain.response_matrix import build_synthetic_response_matrix
+        n_hcm = len(corrector_writer.channels("HCM")) if corrector_writer else 96
+        n_vcm = len(corrector_writer.channels("VCM")) if corrector_writer else 72
+        response_matrix = build_synthetic_response_matrix(
+            n_bpms=len(bpm_prefixes), n_hcm=n_hcm, n_vcm=n_vcm,
+        )
+        logger.info(
+            "PYTXT_USE_SYNTHETIC_READER=1 — built in-memory synthetic response "
+            "matrix (%d BPMs, %d HCM + %d VCM)", len(bpm_prefixes), n_hcm, n_vcm
+        )
+    elif rm_path.exists():
         try:
             response_matrix = load_response_matrix(rm_path)
             logger.info(

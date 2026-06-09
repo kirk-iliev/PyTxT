@@ -614,6 +614,28 @@ canvas {
 }
 #threadMsg { margin-left: 0.6rem; }
 
+/* Threading observability (U5) */
+.thread-guidance {
+  font-size: var(--fs-sm); color: var(--fg-muted);
+  margin-bottom: var(--space-3); line-height: 1.5;
+}
+.thread-canvas {
+  display: block; width: 100%;
+  height: clamp(140px, 16vh, 240px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--canvas-bg);
+}
+.thread-rms-wrap { margin-top: var(--space-2); }
+.thread-step-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+@media (min-width: 64rem) {
+  .thread-step-grid { grid-template-columns: 1fr 1fr; }
+}
+
 /* 7. ────────────────────────────── Utilities ───────────────────────── */
 .visually-hidden {
   position: absolute; width: 1px; height: 1px;

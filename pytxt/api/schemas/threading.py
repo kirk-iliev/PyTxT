@@ -167,6 +167,10 @@ class ThreadStartResponse(BaseModel):
     iterations: int
     final_rms_mm: float
     rms_history_mm: list[float]
+    # Last computed corrector step (incremental amps), for the step bar chart
+    # (manual step 16). Empty if the run ended before any step was computed.
+    step_hcm_a: list[float] = Field(default_factory=list)
+    step_vcm_a: list[float] = Field(default_factory=list)
     dry_run: bool
     timestamp: datetime
 

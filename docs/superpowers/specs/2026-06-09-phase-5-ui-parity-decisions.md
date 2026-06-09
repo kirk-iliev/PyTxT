@@ -160,3 +160,17 @@ Append-only log of implementation-time decisions: choices made during coding tha
 **Spec relationship:** Implements §4 "+ Injection firing" row + §6.3. Confirms the U3-logged prediction that U4 needs synthetic backend.
 
 **Forward impact:** U5 (threading commissioning) reuses both synthetic active backends (corrector writer + injection trigger) — the loop fires per-step shots and steps correctors. The 409 precondition + real-hardware paths remain control-room validation (Phase-4 checklist B1).
+
+## 2026-06-09 — U5: threading observability; step exposed in response; in-memory synthetic matrix
+
+**Context:** U5 — threading run observability (RMS history, outcome guidance, corrector-step bars), the last UI-display milestone.
+
+**Decision (a) — surface the corrector step via ThreadStartResponse:** Added `step_hcm_a` / `step_vcm_a` (the last computed `dphi`) to `ThreadStartResponse`. The loop computes the step internally but never exposed it. Safe vs. the keystone parity test because that test compares **state diffs** (`_public_state`), not response bodies. This is the data for the U3-deferred bar chart — `plot.js` gained a `bars()` mode (zero-baseline, symmetric range, DPI-aware). Resolves the U3 deferral.
+
+**Decision (b) — in-memory synthetic matrix, sized to live dims:** THREAD_START needs a response matrix (else 503). `data/` is gitignored, so a generated `.npz` wouldn't reach e2e/CI, and a fixed-dim artifact wouldn't match the 12-BPM synthetic reader. So `build_synthetic_response_matrix()` moved from the tool into `pytxt/domain/response_matrix.py` (shared; the tool re-exports it), and composition builds it **in-memory** in synthetic mode sized to `len(bpm_prefixes)` × catalog counts. No file dependency; dims always match; THREAD_START works in dev/e2e out of the box.
+
+**Decision (c) — dev loop diverges (demonstrates guidance, not convergence):** The synthetic BPM reader is *not* a closed loop — it doesn't respond to corrector writes — so applied steps don't change the next acquire, and the jitter makes RMS grow → DIVERGED at iteration 2. That's fine and arguably better for the demo: it exercises the divergence-guidance UI (the realistic operator scenario). True convergence on beam is control-room validation (Phase-4 checklist B4); making the synthetic reader a real closed loop was out of scope.
+
+**Spec relationship:** Implements §4 rows 15/16/18 + §6 U5; closes the U3-deferred bar chart.
+
+**Forward impact:** Only U6 (analysis polish — Gaussian fits / dispersion / kick / orbit-RMS metrics, the one new-domain-math milestone) remains. All five UI-display milestones (U0–U5) are done; the full agent surface is unchanged. `plot.js` now has line + bars; U6 metrics can reuse it.

@@ -172,5 +172,74 @@
     }
   }
 
-  window.plot = { draw };
+  /**
+   * Vertical bar chart from a zero baseline (range symmetric around 0 so ± bars
+   * read fairly). For the corrector-step plot (manual step 16). DPI-aware, same
+   * gutter convention as draw().
+   */
+  function bars(canvas, opts) {
+    const values = (opts.values || []).map((v) => (Number.isFinite(v) ? v : 0));
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth || 600;
+    const cssH = canvas.clientHeight || 140;
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    const bg = cssVar(canvas, '--canvas-bg', '#0a0a0a');
+    const grid = cssVar(canvas, '--canvas-grid', '#2a2a2a');
+    const muted = cssVar(canvas, '--fg-dim', '#6f757c');
+    const mono = cssVar(canvas, '--monospace', 'ui-monospace, Menlo, monospace');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, cssW, cssH);
+
+    const px0 = GUTTER_L, py0 = PAD_T;
+    const pw = Math.max(1, cssW - GUTTER_L - PAD_R);
+    const ph = Math.max(1, cssH - PAD_T - GUTTER_B);
+
+    if (!values.length) {
+      ctx.fillStyle = muted; ctx.font = `12px ${mono}`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(opts.empty || 'no step', px0 + pw / 2, py0 + ph / 2);
+      return;
+    }
+
+    const m = Math.max(...values.map(Math.abs), 1e-9);
+    const hi = m, lo = -m;
+    const yOf = (v) => py0 + ph * (1 - (v - lo) / (hi - lo));
+    const zeroY = yOf(0);
+
+    ctx.strokeStyle = grid; ctx.lineWidth = 1;
+    ctx.strokeRect(px0 + 0.5, py0 + 0.5, pw, ph);
+    ctx.beginPath(); ctx.moveTo(px0, zeroY); ctx.lineTo(px0 + pw, zeroY); ctx.stroke();
+
+    const n = values.length;
+    const slot = pw / n;
+    const bw = Math.max(1, Math.min(slot * 0.8, 14));
+    ctx.fillStyle = opts.color || '#4f8cff';
+    for (let i = 0; i < n; i++) {
+      const v = values[i];
+      const x = px0 + i * slot + (slot - bw) / 2;
+      const y = yOf(v);
+      ctx.fillRect(x, Math.min(y, zeroY), bw, Math.abs(y - zeroY) || 1);
+    }
+
+    // axis labels
+    ctx.fillStyle = muted; ctx.font = `10px ${mono}`;
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
+    ctx.fillText(fmtTick(hi), px0 - 6, yOf(hi));
+    ctx.fillText('0', px0 - 6, zeroY);
+    ctx.fillText(fmtTick(lo), px0 - 6, yOf(lo));
+    if (opts.yUnit) {
+      ctx.save(); ctx.translate(11, py0 + ph / 2); ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = 'center'; ctx.fillText(opts.yUnit, 0, 0); ctx.restore();
+    }
+    ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+    ctx.fillText('0', px0, cssH - 5);
+    ctx.textAlign = 'right'; ctx.fillText(String(n - 1), px0 + pw, cssH - 5);
+    if (opts.xLabel) { ctx.textAlign = 'center'; ctx.fillText(opts.xLabel, px0 + pw / 2, cssH - 5); }
+  }
+
+  window.plot = { draw, bars };
 })();
