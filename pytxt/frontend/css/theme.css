@@ -64,8 +64,9 @@
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-2: 0 6px 24px rgba(0, 0, 0, 0.5);
 
-  /* Layout */
-  --content-max: 1200px;
+  /* Layout — fluid container: grows with the viewport, capped on ultrawides
+     so content stays a comfortable reading width rather than full-bleed. */
+  --content-max: clamp(1100px, 90vw, 2800px);
   --header-h: 3.25rem;
 
   /* Canvas (Phase 2/3) */
@@ -85,7 +86,10 @@ html, body {
   font-family: var(--font-sans);
   background: var(--bg);
   color: var(--fg);
-  font-size: 14px;
+  /* Fluid root size: the whole UI is rem-based, so scaling this "zooms"
+     everything proportionally. ~14px on a 1280 viewport up to ~21px on
+     4K, capped so it neither shrinks below readable nor balloons. */
+  font-size: clamp(14px, 0.30vw + 10px, 21px);
   line-height: 1.5;
   min-height: 100%;
 }
@@ -390,7 +394,8 @@ canvas {
 
 /* Reference sidebar + dialogs (Phase 3 M4) */
 .reference-sidebar {
-  flex: 0 0 210px; width: 210px;
+  /* rem (not px) so it scales with the fluid root font on 4K. */
+  flex: 0 0 15rem; width: 15rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.7rem;
@@ -436,7 +441,7 @@ canvas {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   padding: 1rem 1.2rem;
-  min-width: 320px; max-width: 90vw;
+  min-width: 22rem; max-width: 90vw;
   box-shadow: var(--shadow-2);
   font-family: var(--monospace);
 }
