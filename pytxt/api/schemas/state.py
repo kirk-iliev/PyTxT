@@ -18,6 +18,18 @@ def _never_last_acquire() -> LastAcquireResult:
     )
 
 
+class AnalysisSummary(BaseModel):
+    """First-turn analysis projection — mirrors RESULT:ANALYSIS:* PVs."""
+    x_rms_mm: float
+    y_rms_mm: float
+    x_max_abs_mm: float
+    y_max_abs_mm: float
+    n_live_bpms: int
+    n_bpms: int
+    reach_index: int
+    reach_name: str
+
+
 class StateSnapshot(BaseModel):
     """Projection of AppState fields for `GET /api/v1/state`. Pure
     one-to-one mapping to the published HEALTH:*, STATE:*, and RESULT:* PVs."""
@@ -50,4 +62,9 @@ class StateSnapshot(BaseModel):
     last_diff: Optional[DiffSummary] = Field(
         default=None,
         description="Summary of the most recent B − R0 diff; null when no diff",
+    )
+    # Phase 5 / U6 — first-turn analysis; null before the first acquire
+    analysis: Optional[AnalysisSummary] = Field(
+        default=None,
+        description="First-turn analysis from the most recent acquire; null before first",
     )

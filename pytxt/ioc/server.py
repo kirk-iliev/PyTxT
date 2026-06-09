@@ -174,6 +174,12 @@ class PyTxTIOC:
 
         self.state.subscribe("last_diff", _listener_diff_arrays)
 
+        # --- Phase 5 / U6: first-turn analysis scalars ---
+        async def _listener_analysis(value) -> None:
+            await self._publish_analysis(value)
+
+        self.state.subscribe("last_analysis", _listener_analysis)
+
         # --- Phase 4: corrector-step state ---
         cm_in_flight_pv = self.pvgroup.cm_step_in_flight
 
@@ -309,6 +315,25 @@ class PyTxTIOC:
             )
         except Exception:
             logger.exception("IOC publish of STATE:THREAD_* failed")
+
+    async def _publish_analysis(self, value: Any) -> None:
+        """Write the RESULT:ANALYSIS:* bundle from an AnalysisResult (per acquire).
+
+        `value` is None only at startup defaults; the handler always sets a real
+        AnalysisResult on acquire, so guard and skip the None case.
+        """
+        if value is None:
+            return
+        try:
+            await self.pvgroup.result_analysis_x_rms.write(float(value.x_rms_mm))
+            await self.pvgroup.result_analysis_y_rms.write(float(value.y_rms_mm))
+            await self.pvgroup.result_analysis_x_max_abs.write(float(value.x_max_abs_mm))
+            await self.pvgroup.result_analysis_y_max_abs.write(float(value.y_max_abs_mm))
+            await self.pvgroup.result_analysis_n_live.write(int(value.n_live_bpms))
+            await self.pvgroup.result_analysis_reach_index.write(int(value.reach_index))
+            await self.pvgroup.result_analysis_reach_name.write(value.reach_name or "")
+        except Exception:
+            logger.exception("IOC publish of RESULT:ANALYSIS:* failed")
 
     async def _publish_last_inject(self, value: Any) -> None:
         """Write the STATE:INJ_LAST_* bundle from a LastInjectResult."""

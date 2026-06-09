@@ -4,7 +4,7 @@ GET /api/v1/config — frontend bootstrap config (PV prefix etc.).
 from fastapi import APIRouter, Request
 
 from pytxt.api.schemas.reference import DiffSummary, ReferenceStatus
-from pytxt.api.schemas.state import StateSnapshot
+from pytxt.api.schemas.state import AnalysisSummary, StateSnapshot
 from pytxt.config.corrector_channels import load_corrector_channels
 
 router = APIRouter(prefix="/api/v1", tags=["state"])
@@ -33,6 +33,12 @@ async def get_state(request: Request) -> StateSnapshot:
             n_unaligned=max(len(state.bpm_prefixes) - n_valid, 0),
         )
 
+    analysis = (
+        AnalysisSummary(**state.last_analysis.__dict__)
+        if state.last_analysis is not None
+        else None
+    )
+
     return StateSnapshot(
         version=state.version,
         heartbeat=state.heartbeat,
@@ -44,6 +50,7 @@ async def get_state(request: Request) -> StateSnapshot:
         last_acquire=state.last_acquire,
         reference=reference,
         last_diff=last_diff,
+        analysis=analysis,
     )
 
 

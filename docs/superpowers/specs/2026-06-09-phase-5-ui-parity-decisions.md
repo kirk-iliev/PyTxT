@@ -174,3 +174,17 @@ Append-only log of implementation-time decisions: choices made during coding tha
 **Spec relationship:** Implements §4 rows 15/16/18 + §6 U5; closes the U3-deferred bar chart.
 
 **Forward impact:** Only U6 (analysis polish — Gaussian fits / dispersion / kick / orbit-RMS metrics, the one new-domain-math milestone) remains. All five UI-display milestones (U0–U5) are done; the full agent surface is unchanged. `plot.js` now has line + bars; U6 metrics can reuse it.
+
+## 2026-06-09 — U6: analysis polish — well-defined metrics implemented; D4 resolved (Gaussian/dispersion/kick deferred)
+
+**Context:** U6 — analysis polish, the only new-domain-math Phase-5 milestone.
+
+**Decision (a) — implement the well-defined, single-shot metrics; defer the rest (resolves D4):** Investigated the legacy sources for the plan's "Gaussian fits / dispersion / kick angle." Finding: **the legacy TxT GUI never computed them** — its Tune-Scan/BBA tabs are empty stubs (and §9 already scoped those tabs out), dispersion needs multi-acquisition (RF-frequency steps), and a Gaussian "fit" has no defined meaning on the one-value-per-BPM first-turn vector. Rather than invent physics, U6 implements the **faithful, computable** metrics: per-plane orbit excursion (RMS, max-abs) and beam transmission (live-BPM count, first-turn reach). Gaussian/dispersion/kick are **explicitly deferred** with rationale in `domain/analysis.py` and await a physicist spec + a multi-shot acquisition mode. This is honest "analysis polish," not a hollow port.
+
+**Decision (b) — full PV-first surface (mirrors last_diff exactly):** New `domain/analysis.py` (pure numpy, 3 unit tests) → `AppState.last_analysis` set in `handle_acquire` → 7 `RESULT:ANALYSIS:*` PVs via an IOC `_publish_analysis` listener → `AnalysisSummary` block in `GET /api/v1/state` → a live readout strip on the Trajectory page (`analysis.js`). North-star honored: metrics are PVs first (Phoebus/agents get them), the browser is one client. Parity test untouched (it compares command state-diffs; analysis is a per-acquire result, and both transports run the same handler).
+
+**Decision (c) — synthetic-data caveat:** the synthetic reader emits flat/constant first-turn values, so the dev numbers are real but physically uninteresting (e.g. all 12 BPMs live, reach = last). On beam these become meaningful. The math + PVs + parity are fully real and tested.
+
+**Spec relationship:** Implements §4 "+ Analysis" row + §7 U6; resolves open decision **D4** (defer Gaussian/dispersion/kick). With this, **all of U0–U6 are complete** — Phase 5's UI parity + analysis polish delivered.
+
+**Forward impact:** Phase 5 implementation is done; remaining is doc closeout (roadmap/overview/CLAUDE) + the unchanged Phase-4 control-room validation gate + deferred response-matrix generation, then Phase 6. If Gaussian/dispersion/kick are wanted later, they need a multi-shot acquire mode + physicist-specified definitions — a new milestone, not a gap in this one.

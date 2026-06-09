@@ -271,6 +271,37 @@ class PyTxTPVGroup(PVGroup):
         doc="Static-after-startup: canonical BPM prefix for each array index",
     )
 
+    # === RESULT:ANALYSIS:* (phase 5 / U6) — first-turn analysis, set per ACQUIRE ===
+    result_analysis_x_rms = pvproperty(
+        value=0.0, dtype=float, read_only=True, name="RESULT:ANALYSIS:X_RMS",
+        doc="First-turn X position RMS (mm), NaN-aware over live BPMs",
+    )
+    result_analysis_y_rms = pvproperty(
+        value=0.0, dtype=float, read_only=True, name="RESULT:ANALYSIS:Y_RMS",
+        doc="First-turn Y position RMS (mm), NaN-aware over live BPMs",
+    )
+    result_analysis_x_max_abs = pvproperty(
+        value=0.0, dtype=float, read_only=True, name="RESULT:ANALYSIS:X_MAX_ABS",
+        doc="First-turn max |X| (mm) over live BPMs",
+    )
+    result_analysis_y_max_abs = pvproperty(
+        value=0.0, dtype=float, read_only=True, name="RESULT:ANALYSIS:Y_MAX_ABS",
+        doc="First-turn max |Y| (mm) over live BPMs",
+    )
+    result_analysis_n_live = pvproperty(
+        value=0, dtype=int, read_only=True, name="RESULT:ANALYSIS:N_LIVE_BPMS",
+        doc="Number of BPMs that saw beam on the last acquire",
+    )
+    result_analysis_reach_index = pvproperty(
+        value=-1, dtype=int, read_only=True, name="RESULT:ANALYSIS:REACH_INDEX",
+        doc="0-based index of the last BPM the first turn reached; -1 if none",
+    )
+    result_analysis_reach_name = pvproperty(
+        value="", dtype=ca.ChannelType.STRING, read_only=True,
+        name="RESULT:ANALYSIS:REACH_NAME",
+        doc="Name of the last BPM the first turn reached; empty if none",
+    )
+
     # === CMD:* ===
     cmd_ping = pvproperty(
         value=0, dtype=int,

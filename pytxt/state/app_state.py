@@ -20,7 +20,7 @@ from pytxt.api.schemas.threading import (
     LastInjectResult,
     ThreadStateResult,
 )
-from pytxt.domain.types import DiffResult, FirstTurnResult, ReferenceSource
+from pytxt.domain.types import AnalysisResult, DiffResult, FirstTurnResult, ReferenceSource
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +67,9 @@ class AppState:
     reference_file_path: Optional[Path] = None  # always None in M2 (file backing is M3)
     reference_bpm_names: Optional[list[str]] = None
     last_diff: Optional[DiffResult] = None  # None → diff PVs NaN-filled
+
+    # === Phase 5 / U6 first-turn analysis ===
+    last_analysis: Optional[AnalysisResult] = None  # None → analysis PVs at defaults
 
     # === Phase 4 threading state ===
     cm_step_in_flight: bool = False
