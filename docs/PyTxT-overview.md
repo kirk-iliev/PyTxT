@@ -1,6 +1,6 @@
 # PyTxT — Overview
 
-**Last refreshed:** 2026-06-01 · **Phase:** 3 (reference trajectory) **complete** (M1–M4); Phase 4 (threading workflow) next · **Live status:** [`PyTxT-roadmap.html`](PyTxT-roadmap.html)
+**Last refreshed:** 2026-06-09 · **Phase:** 5 (operator UI + analysis polish) **implemented & merged** (U0–U6); Phase 4 (threading) implemented but **still pending control-room validation** · **Live status:** [`PyTxT-roadmap.html`](PyTxT-roadmap.html)
 
 This is the canonical "what is this thing?" document for PyTxT. Read it
 top-to-bottom and you should be able to answer: what PyTxT does, where
@@ -456,9 +456,9 @@ is the feature-parity target. Mapped to PyTxT phases:
 | 5–7 | Arm BPMs, fire injection one-shot, read TBT data | **Phase 2 read path + phase 4 (arm/inject)** |
 | 8–9 | Detect injection turn, extract first-turn X/Y | ✓ Phase 2 |
 | 10–11 | Plot ring trajectory, overlay reference | ✓ Phase 2 (X/Y panels + hover) + ✓ Phase 3 (4-panel ΔX/ΔY overlay) |
-| 12–14 | Compute orbit RMS, kick fits, dispersion | Phase 5 (analysis polish) |
-| 15–17 | Run trajectory correction (response-matrix inverse → CM steps) | Phase 4 (threading workflow) |
-| 18 | Save updated reference | Phase 3 |
+| 12–14 | Compute orbit RMS, kick fits, dispersion | ✓ Phase 5 / U6 — orbit RMS/max + beam transmission (`RESULT:ANALYSIS:*` PVs + strip); Gaussian/dispersion/kick deferred (D4) |
+| 15–17 | Run trajectory correction (response-matrix inverse → CM steps) | ✓ Phase 4 (threading) + ✓ Phase 5 / U3·U5 (corrector panel + threading observability UI) |
+| 18 | Save updated reference | ✓ Phase 3 |
 
 This mapping makes the phase boundaries operationally concrete: phase 2
 delivers the read half of step 7 and all of 8–9; the rest queues up
@@ -466,7 +466,25 @@ behind it.
 
 ---
 
-## 9. Current status (2026-05-29)
+## 9. Current status (2026-06-09)
+
+- **Phase 4** (threading workflow) — **implemented 2026-06-04, still pending
+  on-machine validation** (the real gate on overall progress). M1 analysis core
+  + active acquisition · M2 `CMD:STEP_CM` · M3 `CMD:INJECT_ONESHOT` · M4 loop
+  controller; 8 commands with PV+REST parity, no pySC at runtime. Closes after
+  the control-room gate in `docs/phase-4-controlroom-checklist.md`.
+- **Phase 5** (operator UI + analysis polish) — **implemented & merged to main
+  2026-06-09 (U0–U6)**. Operator-grade frontend, full 18-step GUI parity: design
+  system + 6-tab shell, dashboard + diagnostics, raw-TBT viewer (shared
+  `plot.js`), corrector panel (`STEP_CM` + compare-and-set), gun-fire-gated
+  injection control, threading observability (RMS plot + step bars), and
+  first-turn analysis (`RESULT:ANALYSIS:*` PVs + strip). Fluid 4K↔narrow scaling.
+  The agent PV+REST surface is unchanged — only read-only surfaces were added.
+  D4 resolved: Gaussian/dispersion/kick deferred (need multi-shot + physicist
+  spec). **376 pytest + 31 Playwright green.**
+- **Phase 6** (hardening + deploy) — not started.
+
+Historical phase detail (Phases 1–3, complete):
 
 - **Phase 1** (skeleton + hello-world IOC + WS bridge) — **complete**;
   proves the architecture round-trip end-to-end.
@@ -486,8 +504,9 @@ behind it.
   - **M4** — raw-waveform REST endpoint (`/result/bpm/raw`), frontend
     hover tooltip + status-header timestamp, `SyntheticBpmReader` for
     ring-free e2e, and the Playwright trajectory spec.
-- **Phase 3** (reference trajectory) — **next**; spec not yet drafted.
-- **Phases 4–6** — not started. See §10.
+- **Phase 3** (reference trajectory) — **complete (2026-06-01)** (M1–M4:
+  domain, ops+diff, file library, upload/download + 4-panel frontend + e2e).
+- **Phases 4–5** — implemented (see top of this section); **Phase 6** not started.
 
 The single-source-of-truth live tracker is
 [`PyTxT-roadmap.html`](PyTxT-roadmap.html) — open it in a browser

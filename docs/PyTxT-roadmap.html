@@ -547,7 +547,7 @@
 <div class="topbar">
   <h1>PyTxT</h1>
   <div class="tagline">Turn-by-turn beam analysis for the ALS injection chain — roadmap &amp; live status</div>
-  <div class="meta" id="last-updated">Last updated: 2026-05-29</div>
+  <div class="meta" id="last-updated">Last updated: 2026-06-09</div>
 </div>
 
 <!-- ============================================== -->
@@ -556,37 +556,35 @@
 <div class="hero">
   <div class="hero-current">
     <div class="label">Current phase</div>
-    <h2>Phase 4 · Threading workflow — ✓ implemented (M1 ✓ · M2 ✓ · M3 ✓ · M4 ✓) · awaiting control-room validation</h2>
+    <h2>Phase 5 · Operator UI + analysis polish — ✓ implemented (U0–U6) · Phase 4 still awaiting control-room validation</h2>
     <p>
-      <strong>Phase 4 (threading) implementation complete 2026-06-04 — all four milestones built, tested, and
-      pushed.</strong> The full first-turn threading workflow is in place and exercised end-to-end against fakes/a
-      simulated ring; what remains before the phase can be <em>closed</em> is on-machine validation (a read-only
-      visit + one physics shift). <strong>M1 — analysis core + active acquisition:</strong> Tikhonov pseudo-inverse
-      + <code>calc_cm_step</code> (orbit diff → corrector step, with first-turn downstream-zeroing), a cached
-      <code>.npz</code> response-matrix artifact + loader (<strong>no pySC at runtime</strong> — D1), and the active
-      arm/trigger/wait path (<code>wfr:TBT:arm</code> + event-48 trigger). <strong>M2 — <code>CMD:STEP_CM</code>:</strong>
-      corrector apply with a compare-and-set guard (D5 — refuse if a setpoint drifted) + hardware-amp clamp, the
-      committed HCM/VCM channel catalog (96/72), behind a default-off writer. <strong>M3 — <code>CMD:INJECT_ONESHOT</code>:</strong>
-      the de-boxed <code>srinjectoneshot</code> (<code>TimInjReq</code> + <code>seqBusy</code> sync + fine delay), a
-      mandatory top-off precondition, and a two-layer gun-fire gate (D3 — <code>inhibit=1</code> default;
-      <code>inhibit=0</code> needs explicit opt-in). <strong>M4 — loop controller + UI:</strong>
-      <code>CMD:THREAD_START</code>/<code>CMD:THREAD_STOP</code> running arm→(optional fire)→read→diff→
-      <code>calc_cm_step</code>→apply with damping, a divergence guard, and an optional RMS convergence exit (D4),
-      plus a browser threading panel. Every command has identical PV + REST effect (8 commands now in the parity
-      canary). <strong>Closeout gate:</strong> the remaining on-machine steps are listed in
-      <code>docs/phase-4-controlroom-checklist.md</code> (read-only A1/A2 + active B1–B4).
+      <strong>Phase 5 implemented &amp; merged to main 2026-06-09 — all six milestones built, tested, and
+      pushed.</strong> The browser frontend is rebuilt to operator grade with full GUI parity against the 18-step
+      manual: a design-system + tab shell (<strong>U0</strong>), a live dashboard + diagnostics page (<strong>U1</strong>),
+      the raw turn-by-turn Sum/H/V viewer over a shared DPI-aware <code>plot.js</code> (<strong>U2</strong>), a corrector
+      panel driving <code>CMD:STEP_CM</code> with the compare-and-set guard surfaced (<strong>U3</strong>), a
+      safety-gated injection-fire panel (<strong>U4</strong>), a threading-observability view with RMS-history +
+      corrector-step bar charts (<strong>U5</strong>), and first-turn analysis — per-plane RMS/max + beam transmission —
+      published as new <code>RESULT:ANALYSIS:*</code> PVs and surfaced as a readout strip (<strong>U6</strong>). Fluid
+      4K↔narrow scaling throughout. The <strong>agent-callable PV + REST surface is unchanged</strong> — Phase 5 only
+      <em>added</em> read-only surfaces (a corrector catalog endpoint, analysis PVs); the 8-command parity canary still
+      holds. Three dev-only synthetic backends (corrector writer, injection trigger, in-memory response matrix, all
+      under <code>PYTXT_USE_SYNTHETIC_READER=1</code>) make the active-command half fully demoable without a ring.
+      <strong>D4 resolved:</strong> Gaussian fits / dispersion / kick angle are deferred (not in the legacy GUI; need a
+      multi-shot acquire mode + physicist spec). <strong>Phase 4 still gates overall progress</strong> — its on-machine
+      validation (read-only A1/A2 + active B1–B4, <code>docs/phase-4-controlroom-checklist.md</code>) is unchanged.
     </p>
-    <div class="progress" title="Phase 4: 4 of 4 milestones implemented; on-machine validation pending">
+    <div class="progress" title="Phase 5: 7 of 7 milestones implemented">
       <div class="progress-fill" style="width: 100%"></div>
     </div>
-    <div class="progress-text">M1 ✓ · M2 ✓ · M3 ✓ · M4 ✓ — code complete · validation pending (see closeout gate)</div>
+    <div class="progress-text">U0 ✓ · U1 ✓ · U2 ✓ · U3 ✓ · U4 ✓ · U5 ✓ · U6 ✓ — implemented &amp; merged · Phase-4 control-room validation still pending</div>
   </div>
 
   <div class="stats">
-    <div class="stat"><div class="num">3 / 6</div><div class="lbl">Phases complete <span class="hint">Phase 4 code-complete; closes after on-machine validation</span></div></div>
-    <div class="stat"><div class="num">373 / 373</div><div class="lbl">Pytest passing <span class="hint">+ 10 / 10 Playwright e2e</span></div></div>
-    <div class="stat"><div class="num">10</div><div class="lbl">E2E specs</div></div>
-    <div class="stat"><div class="num">0</div><div class="lbl">Unpushed commits <span class="hint">all Phase-4 work pushed to origin/main</span></div></div>
+    <div class="stat"><div class="num">3 / 6</div><div class="lbl">Phases complete <span class="hint">Phases 4 &amp; 5 code-complete; Phase 4 closes after on-machine validation</span></div></div>
+    <div class="stat"><div class="num">376 / 376</div><div class="lbl">Pytest passing <span class="hint">+ 31 / 31 Playwright e2e</span></div></div>
+    <div class="stat"><div class="num">11</div><div class="lbl">E2E specs</div></div>
+    <div class="stat"><div class="num">0</div><div class="lbl">Unpushed commits <span class="hint">Phase 5 merged to main</span></div></div>
   </div>
 </div>
 
@@ -733,21 +731,30 @@
   </details>
 
   <!-- ====== PHASE 5 ====== -->
-  <details class="phase future">
+  <details class="phase now" open>
     <summary>
       <div class="num">Phase 5</div>
-      <div class="title">Analysis polish</div>
-      <div class="blurb">Gaussian fits, dispersion, RMS, full GUI parity.</div>
-      <div class="badges"><span class="badge badge-fut">Future</span></div>
+      <div class="title">Operator UI + analysis polish</div>
+      <div class="blurb">Tab shell, dashboard, corrector/injection/threading panels, analysis.</div>
+      <div class="badges"><span class="badge badge-done">✓ Implemented (U0–U6)</span></div>
     </summary>
     <div class="body">
-      <h4>Anticipated scope</h4>
+      <h4>Built (U0–U6, merged to main 2026-06-09 · 376 pytest + 31 e2e green)</h4>
       <ul>
-        <li>Gaussian fits on first-turn data</li>
-        <li>Dispersion, kick angle, RMS metrics</li>
-        <li>Full GUI feature parity with the 18-step MATLAB manual</li>
-        <li>Tab-structured frontend matching the GUI layout</li>
+        <li><strong>U0 · design system + tab shell.</strong> Token-driven CSS (spacing/type/elevation + semantic-state colors) and shared components (<code>panel</code>, <code>state-pill</code>, <code>readout</code>, <code>btn</code>); a shared <code>shell.js</code> renders the sticky header + 6-tab nav (Dashboard · Trajectory · Correctors · Injection · Threading · Diagnostics).</li>
+        <li><strong>U1 · dashboard + diagnostics.</strong> <code>/</code> is now a live operator dashboard (machine/liveness, last acquisition + failed-BPM detail, reference Δrms + coverage, threading state) — fully PV-driven, no polling. Ping/health + a raw <code>GET /state</code> inspector + API-discovery links moved to a Diagnostics page.</li>
+        <li><strong>U2 · raw turn-by-turn viewer.</strong> The Sum/Horizontal/Vertical multi-turn signal (manual step 5) per selectable BPM over <code>GET /result/bpm/raw</code>, rendered by a new shared DPI-aware <code>plot.js</code> (min/max-decimated, gutter labels — fixes the axis-overlap).</li>
+        <li><strong>U3 · corrector panel.</strong> Manual <code>CMD:STEP_CM</code> with the D5 compare-and-set guard made visible (preview reads the live setpoint; apply uses it as the CAS base → 409 on drift); device picker from a new read-only <code>GET /api/v1/config/correctors</code> catalog; live <code>STATE:CM_LAST_*</code> pill.</li>
+        <li><strong>U4 · injection control.</strong> Safety-gated <code>CMD:INJECT_ONESHOT</code> fire panel — gun-fire mode turns the panel danger, requires an explicit opt-in, then enables a red FIRE GUN button (mirrors the <code>allow_gun_fire</code> 403 guard); live <code>STATE:INJ_LAST_*</code> echo.</li>
+        <li><strong>U5 · threading observability.</strong> Run-result outcome pill + per-status next-action guidance, an RMS-per-iteration plot, and HCM/VCM corrector-step bar charts (manual step 16) via a new <code>plot.bars()</code> mode; the computed step is surfaced in the <code>THREAD_START</code> response.</li>
+        <li><strong>U6 · first-turn analysis.</strong> New I/O-free <code>domain/analysis.py</code> — per-plane RMS/max (orbit excursion) + beam transmission (live-BPM count, first-turn reach) — published as 7 <code>RESULT:ANALYSIS:*</code> PVs (+ <code>/state</code> projection) and surfaced as a Trajectory readout strip.</li>
+        <li><strong>Agent surface unchanged.</strong> Phase 5 only <em>added</em> read-only surfaces (corrector catalog, analysis PVs); the 8-command PV+REST parity canary still holds. Dev-only synthetic backends (corrector writer, injection trigger, in-memory response matrix) make the active half demoable without a ring.</li>
       </ul>
+      <h4>Deferred (D4) — not implemented this phase</h4>
+      <ul>
+        <li><strong>Gaussian profile fits, dispersion, kick angle.</strong> Not in the legacy TxT GUI (its Tune-Scan/BBA tabs are stubs); dispersion needs multi-acquisition (RF-frequency steps) and a Gaussian fit is undefined on the one-value-per-BPM first-turn vector. Await a multi-shot acquire mode + physicist-specified definitions — a future milestone, not a gap.</li>
+      </ul>
+      <p style="margin-top:0.5rem"><strong>Spec + decisions:</strong> <code>docs/superpowers/specs/2026-06-09-phase-5-ui-parity-{design,decisions}.md</code>.</p>
     </div>
   </details>
 

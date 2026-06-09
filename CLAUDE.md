@@ -127,14 +127,32 @@ template at the top of each log when adding entries.
 ## Status
 
 Phases 1–3 **complete** (skeleton/IOC → read path → reference trajectory, the
-last shipped 2026-06-01). Phase 4 (threading workflow) — **implemented
-2026-06-04, pending on-machine validation.** All four milestones built, tested,
-and pushed (M1 analysis core + active acquisition · M2 `CMD:STEP_CM` · M3
-`CMD:INJECT_ONESHOT` · M4 threading loop controller + browser panel); 373 pytest
-+ 10 Playwright green, 8 commands with PV+REST parity, no pySC at runtime.
-**Not closed yet** — closes after the control-room validation gate in
-`docs/phase-4-controlroom-checklist.md` (read-only A1/A2 + active B1–B4). Live
-detail: `docs/PyTxT-roadmap.html`; end-to-end picture: `docs/PyTxT-overview.md`.
+last shipped 2026-06-01).
+
+Phase 4 (threading workflow) — **implemented 2026-06-04, still pending on-machine
+validation.** All four milestones built, tested, pushed (M1 analysis core +
+active acquisition · M2 `CMD:STEP_CM` · M3 `CMD:INJECT_ONESHOT` · M4 threading
+loop controller + browser panel); 8 commands with PV+REST parity, no pySC at
+runtime. **Not closed yet** — closes after the control-room validation gate in
+`docs/phase-4-controlroom-checklist.md` (read-only A1/A2 + active B1–B4). This
+remains the real gate on overall progress.
+
+Phase 5 (operator UI + analysis polish) — **implemented & merged to main
+2026-06-09 (U0–U6).** Operator-grade frontend with full 18-step GUI parity:
+U0 design system + 6-tab shell · U1 dashboard + diagnostics · U2 raw TBT viewer
+(shared `plot.js`) · U3 corrector panel (`STEP_CM` + compare-and-set) · U4
+injection control (gun-fire gated) · U5 threading observability (RMS plot + step
+bars) · U6 first-turn analysis (`RESULT:ANALYSIS:*` PVs + strip). Fluid 4K↔narrow
+scaling. **The agent PV+REST surface is unchanged** — Phase 5 only *added*
+read-only surfaces (corrector-catalog endpoint, analysis PVs). Dev-only synthetic
+backends (corrector writer, injection trigger, in-memory response matrix, all
+under `PYTXT_USE_SYNTHETIC_READER=1`) make the active-command half demoable
+without a ring. **D4 resolved:** Gaussian fits / dispersion / kick angle deferred
+(not in legacy GUI; need a multi-shot acquire mode + physicist spec). Spec:
+`docs/superpowers/specs/2026-06-09-phase-5-ui-parity-{design,decisions}.md`.
+
+**376 pytest + 31 Playwright green.** Live detail: `docs/PyTxT-roadmap.html`;
+end-to-end picture: `docs/PyTxT-overview.md`.
 
 ## Open architectural questions to resolve as we go
 
