@@ -4,24 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PyTxT — Trajectory</title>
-  <link rel="stylesheet" href="/css/theme.css?v=3">
+  <link rel="stylesheet" href="/css/theme.css?v=4">
 </head>
 <body>
-  <header class="app-header">
-    <h1 class="app-title">PyTxT — Trajectory</h1>
-    <nav class="app-nav">
-      <a href="/">Ping</a>
-      <a href="/trajectory.html" class="active">Trajectory</a>
-      <a href="/threading.html">Threading</a>
-    </nav>
-    <div class="connection-status" id="connectionStatus" data-state="connecting">
-      <span class="dot"></span>
-      <span class="label" id="connectionStatusLabel">connecting…</span>
-    </div>
-  </header>
-
   <main class="app-main">
-    <section class="trajectory-panel">
+    <div>
+      <h1 class="page-title">Trajectory</h1>
+      <p class="page-subtitle">First-turn positions, reference comparison, and shot-to-shot deviation.</p>
+    </div>
+
+    <section class="panel trajectory-panel">
       <div class="trajectory-header">
         <span id="trajectoryStatus">No acquisition yet</span>
         <span id="trajectoryDiffRms" class="diff-rms" hidden></span>
@@ -61,7 +53,7 @@
         </aside>
       </div>
       <div class="actions">
-        <button type="button" id="acquireButton" class="primary">▶ Acquire</button>
+        <button type="button" id="acquireButton" class="btn btn--primary">▶ Acquire</button>
         <span id="acquireMeta" class="meta"></span>
       </div>
     </section>
@@ -93,6 +85,7 @@
     </div>
   </main>
 
+  <script src="/js/shell.js"></script>
   <script src="/js/connection.js"></script>
   <script src="/js/trajectory.js"></script>
   <script src="/js/reference.js"></script>
